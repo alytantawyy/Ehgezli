@@ -37,11 +37,28 @@ export function RestaurantGrid({ searchQuery, cityFilter }: RestaurantGridProps)
     );
   }
 
-  if (restaurants?.length === 0) {
+  // Create an array of all branches
+  const branches = restaurants?.flatMap((restaurant) => 
+    restaurant.locations.map((_, index) => ({
+      restaurant,
+      branchIndex: index
+    }))
+  ).filter(branch => {
+    if (!cityFilter || cityFilter === 'all') return true;
+    const branchCity = branch.restaurant.locations[branch.branchIndex].address
+      .split(',')
+      .pop()
+      ?.trim();
+    return branchCity === cityFilter;
+  }) || [];
+
+  if (branches.length === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-lg text-muted-foreground">
-          No restaurants found{searchQuery ? " matching your search" : ""}{cityFilter && cityFilter !== 'all' ? ` in ${cityFilter}` : ""}
+          No restaurant branches found
+          {searchQuery ? " matching your search" : ""}
+          {cityFilter && cityFilter !== 'all' ? ` in ${cityFilter}` : ""}
         </p>
       </div>
     );
@@ -49,8 +66,12 @@ export function RestaurantGrid({ searchQuery, cityFilter }: RestaurantGridProps)
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {restaurants?.map((restaurant) => (
-        <RestaurantCard key={restaurant.id} restaurant={restaurant} />
+      {branches.map(({ restaurant, branchIndex }) => (
+        <RestaurantCard 
+          key={`${restaurant.id}-${branchIndex}`}
+          restaurant={restaurant}
+          branchIndex={branchIndex}
+        />
       ))}
     </div>
   );
