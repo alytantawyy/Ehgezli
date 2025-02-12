@@ -61,7 +61,7 @@ export default function AuthPage() {
       name: "",
       gender: "",
       age: 18,
-      birthday: new Date().toISOString(),
+      birthday: new Date().toISOString().split('T')[0], // Format date for input field
       city: "",
       favoriteCuisines: [],
     },
@@ -70,6 +70,15 @@ export default function AuthPage() {
   if (user) {
     return <Redirect to="/" />;
   }
+
+  const handleRegisterSubmit = (data: any) => {
+    // Convert birthday string to Date object before submitting
+    const formData = {
+      ...data,
+      birthday: new Date(data.birthday),
+    };
+    registerMutation.mutate(formData);
+  };
 
   return (
     <div className="min-h-screen flex">
@@ -147,9 +156,7 @@ export default function AuthPage() {
               <CardContent>
                 <Form {...registerForm}>
                   <form
-                    onSubmit={registerForm.handleSubmit((data) =>
-                      registerMutation.mutate(data)
-                    )}
+                    onSubmit={registerForm.handleSubmit(handleRegisterSubmit)}
                     className="space-y-4"
                   >
                     {/* Basic Info */}
@@ -239,7 +246,11 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Birthday</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} />
+                            <Input
+                              type="date"
+                              {...field}
+                              value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
