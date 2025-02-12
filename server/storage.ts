@@ -1,7 +1,7 @@
 import { 
   InsertUser, User, Restaurant, Booking, RestaurantBranch,
   mockRestaurants, RestaurantAuth, InsertRestaurantAuth,
-  restaurantProfiles, restaurantBranches, type InsertRestaurantProfile
+  restaurantProfiles, restaurantBranches, type InsertRestaurantProfile, RestaurantProfile
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -29,6 +29,7 @@ export class MemStorage implements IStorage {
   private bookings: Map<number, Booking>;
   private branches: Map<number, RestaurantBranch>;
   private restaurantAuth: Map<number, RestaurantAuth>;
+  private restaurantProfiles: Map<number, RestaurantProfile>;
   private currentUserId: number;
   private currentBookingId: number;
   private currentBranchId: number;
@@ -40,6 +41,7 @@ export class MemStorage implements IStorage {
     this.bookings = new Map();
     this.branches = new Map();
     this.restaurantAuth = new Map();
+    this.restaurantProfiles = new Map();
     this.currentUserId = 1;
     this.currentBookingId = 1;
     this.currentBranchId = 1;
@@ -55,11 +57,10 @@ export class MemStorage implements IStorage {
           id: this.currentBranchId++,
           restaurantId: restaurant.id,
           address: location.address,
-          capacity: location.capacity,
           tablesCount: location.tablesCount,
+          seatsCount: location.tablesCount * 4, // Assuming 4 seats per table
           openingTime: location.openingTime,
           closingTime: location.closingTime,
-          reservationDuration: location.reservationDuration
         };
         this.branches.set(branch.id, branch);
       });
@@ -84,7 +85,35 @@ export class MemStorage implements IStorage {
   }
 
   async getRestaurants(): Promise<Restaurant[]> {
-    return mockRestaurants as any;
+    // Get all registered restaurants
+    const registeredRestaurants = Array.from(this.restaurantAuth.values()).map(auth => {
+      const profile = Array.from(this.restaurantProfiles.values())
+        .find(p => p.restaurantId === auth.id);
+
+      if (!profile) return null;
+
+      const restaurantBranches = Array.from(this.branches.values())
+        .filter(b => b.restaurantId === auth.id);
+
+      return {
+        id: auth.id,
+        name: auth.name,
+        description: profile.about,
+        about: profile.about,
+        authId: auth.id,
+        logo: "https://via.placeholder.com/150", // Default logo
+        cuisine: profile.cuisine,
+        locations: restaurantBranches.map(branch => ({
+          address: branch.address,
+          tablesCount: branch.tablesCount,
+          openingTime: branch.openingTime,
+          closingTime: branch.closingTime,
+        }))
+      };
+    }).filter(Boolean) as Restaurant[];
+
+    // Combine with mock restaurants
+    return [...mockRestaurants as any, ...registeredRestaurants];
   }
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
@@ -133,19 +162,30 @@ export class MemStorage implements IStorage {
   }
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
-    // Create the restaurant profile
     const { branches, ...profileData } = profile;
 
-    // In memory implementation - just store it without actual database operations
-    // In a real database implementation, this would create records in both tables
+    // Store the profile
+    this.restaurantProfiles.set(profileData.restaurantId, {
+      ...profileData,
+      id: profileData.restaurantId,
+      isProfileComplete: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
 
     // Create branches
     branches.forEach((branch) => {
-      const branchData = {
-        ...branch,
+      const branchId = this.currentBranchId++;
+      const branchData: RestaurantBranch = {
+        id: branchId,
         restaurantId: profileData.restaurantId,
+        address: branch.address,
+        tablesCount: branch.tablesCount,
+        seatsCount: branch.seatsCount,
+        openingTime: branch.openingTime,
+        closingTime: branch.closingTime,
       };
-      // Store branch data
+      this.branches.set(branchId, branchData);
     });
   }
 }
