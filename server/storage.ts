@@ -196,9 +196,10 @@ export class MemStorage implements IStorage {
       // If city filter is active, check if any branch is in the specified city
       if (city) {
         const hasLocationInCity = restaurant.locations?.some(location => {
-          const locationAddress = (location as { address: string }).address.toLowerCase();
-          // Check if the branch address contains the city name
-          return locationAddress.includes(`, ${city.toLowerCase()}`);
+          const locationAddress = (location as { address: string }).address;
+          // Split by comma and get the last part which should be the city
+          const locationCity = locationAddress.split(',').pop()?.trim().toLowerCase();
+          return locationCity === city.toLowerCase();
         });
 
         if (!hasLocationInCity) return;
