@@ -23,6 +23,16 @@ export function registerRoutes(app: Express): Server {
     res.json(restaurant);
   });
 
+  // Add restaurant profile endpoint
+  app.get("/api/restaurant/profile/:id", async (req, res) => {
+    const profile = await storage.getRestaurantProfile(parseInt(req.params.id));
+    if (!profile) {
+      res.status(404).send("Profile not found");
+      return;
+    }
+    res.json(profile);
+  });
+
   app.post("/api/bookings", async (req, res) => {
     if (!req.isAuthenticated()) {
       res.status(401).send("Unauthorized");

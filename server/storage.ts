@@ -21,6 +21,7 @@ export interface IStorage {
   getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined>;
   createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth>;
   createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void>;
+  getRestaurantProfile(restaurantId: number): Promise<RestaurantProfile | undefined>;
   sessionStore: session.Store;
   searchRestaurants(query: string): Promise<Restaurant[]>;
 }
@@ -160,6 +161,10 @@ export class MemStorage implements IStorage {
     };
     this.restaurantAuth.set(id, restaurantAuth);
     return restaurantAuth;
+  }
+
+  async getRestaurantProfile(restaurantId: number): Promise<RestaurantProfile | undefined> {
+    return this.restaurantProfiles.get(restaurantId);
   }
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
