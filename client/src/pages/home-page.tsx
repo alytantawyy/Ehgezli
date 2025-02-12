@@ -14,7 +14,7 @@ import {
 export default function HomePage() {
   const { user, logoutMutation } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCity, setSelectedCity] = useState<string>("");
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -53,12 +53,15 @@ export default function HomePage() {
           </p>
           <div className="flex gap-4 items-center justify-center mb-4">
             <SearchBar onSearch={handleSearch} placeholder="Search by name, cuisine, or location..." />
-            <Select value={selectedCity} onValueChange={setSelectedCity}>
+            <Select
+              value={selectedCity || undefined}
+              onValueChange={(value) => setSelectedCity(value || null)}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select city" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Cities</SelectItem>
+                <SelectItem value="all">All Cities</SelectItem>
                 <SelectItem value="Alexandria">Alexandria</SelectItem>
                 <SelectItem value="Cairo">Cairo</SelectItem>
               </SelectContent>
@@ -68,7 +71,7 @@ export default function HomePage() {
 
         <div className="mb-8 flex justify-between items-center">
           <h3 className="text-2xl font-semibold">
-            {selectedCity ? `Restaurants in ${selectedCity}` : 'Available Restaurants'}
+            {selectedCity && selectedCity !== 'all' ? `Restaurants in ${selectedCity}` : 'Available Restaurants'}
           </h3>
           <div className="flex gap-2">
             <Button variant="secondary" size="sm">
@@ -80,7 +83,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <RestaurantGrid searchQuery={searchQuery} cityFilter={selectedCity} />
+        <RestaurantGrid searchQuery={searchQuery} cityFilter={selectedCity === 'all' ? undefined : selectedCity} />
       </main>
 
       <footer className="mt-16 border-t py-8">
