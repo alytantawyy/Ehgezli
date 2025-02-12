@@ -17,7 +17,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
 export default function RestaurantAuthForm() {
-  const { restaurant, loginMutation, registerMutation } = useRestaurantAuth();
+  const { restaurant, isProfileComplete, loginMutation, registerMutation } = useRestaurantAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("login");
 
@@ -41,9 +41,10 @@ export default function RestaurantAuthForm() {
   // Use useEffect to handle redirection when restaurant state changes
   useEffect(() => {
     if (restaurant) {
-      setLocation("/restaurant/profile-setup");
+      // If profile is complete, redirect to dashboard, otherwise to profile setup
+      setLocation(isProfileComplete ? "/restaurant/dashboard" : "/restaurant/profile-setup");
     }
-  }, [restaurant, setLocation]);
+  }, [restaurant, isProfileComplete, setLocation]);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>

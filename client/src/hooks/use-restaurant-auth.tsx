@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 
 type RestaurantAuthContextType = {
   restaurant: RestaurantAuth | null;
+  isProfileComplete: boolean;
   isLoading: boolean;
   error: Error | null;
   loginMutation: UseMutationResult<RestaurantAuth, Error, LoginData>;
@@ -30,6 +31,17 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
   } = useQuery<RestaurantAuth | null>({
     queryKey: ["/api/restaurant"],
     queryFn: getQueryFn({ on401: "returnNull" }),
+  });
+
+  // Add a query to check if the restaurant profile is complete
+  const { data: profile } = useQuery({
+    queryKey: ["/api/restaurant/profile", restaurant?.id],
+    queryFn: async () => {
+      if (!restaurant) return null;
+      const res = await apiRequest("GET", `/api/restaurant/profile/${restaurant.id}`);
+      return res.json();
+    },
+    enabled: !!restaurant,
   });
 
   const loginMutation = useMutation({
@@ -94,6 +106,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     <RestaurantAuthContext.Provider
       value={{
         restaurant: restaurant ?? null,
+        isProfileComplete: !!profile?.isProfileComplete,
         isLoading,
         error,
         loginMutation,
