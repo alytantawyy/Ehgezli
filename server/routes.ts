@@ -7,7 +7,10 @@ export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
   app.get("/api/restaurants", async (req, res) => {
-    const restaurants = await storage.getRestaurants();
+    const query = req.query.q as string;
+    const restaurants = query 
+      ? await storage.searchRestaurants(query)
+      : await storage.getRestaurants();
     res.json(restaurants);
   });
 

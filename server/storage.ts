@@ -22,6 +22,7 @@ export interface IStorage {
   createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth>;
   createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void>;
   sessionStore: session.Store;
+  searchRestaurants(query: string): Promise<Restaurant[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -186,6 +187,21 @@ export class MemStorage implements IStorage {
         closingTime: branch.closingTime,
       };
       this.branches.set(branchId, branchData);
+    });
+  }
+
+  async searchRestaurants(query: string): Promise<Restaurant[]> {
+    const normalizedQuery = query.toLowerCase().trim();
+    const restaurants = await this.getRestaurants();
+
+    return restaurants.filter(restaurant => {
+      const matchesName = restaurant.name.toLowerCase().includes(normalizedQuery);
+      const matchesCuisine = restaurant.cuisine.toLowerCase().includes(normalizedQuery);
+      const matchesLocation = restaurant.locations.some(
+        location => location.address.toLowerCase().includes(normalizedQuery)
+      );
+
+      return matchesName || matchesCuisine || matchesLocation;
     });
   }
 }

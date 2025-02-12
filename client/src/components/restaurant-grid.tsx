@@ -3,9 +3,21 @@ import { Restaurant } from "@shared/schema";
 import { RestaurantCard } from "./restaurant-card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function RestaurantGrid() {
+interface RestaurantGridProps {
+  searchQuery?: string;
+}
+
+export function RestaurantGrid({ searchQuery }: RestaurantGridProps) {
   const { data: restaurants, isLoading } = useQuery<Restaurant[]>({
-    queryKey: ["/api/restaurants"],
+    queryKey: ["/api/restaurants", searchQuery],
+    queryFn: async () => {
+      const url = searchQuery
+        ? `/api/restaurants?q=${encodeURIComponent(searchQuery)}`
+        : "/api/restaurants";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch restaurants");
+      return response.json();
+    },
   });
 
   if (isLoading) {
@@ -18,6 +30,16 @@ export function RestaurantGrid() {
             <Skeleton className="h-4 w-[200px]" />
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (restaurants?.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-lg text-muted-foreground">
+          No restaurants found{searchQuery ? " matching your search" : ""}
+        </p>
       </div>
     );
   }

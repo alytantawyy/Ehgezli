@@ -1,9 +1,16 @@
 import { RestaurantGrid } from "@/components/restaurant-grid";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { SearchBar } from "@/components/SearchBar";
+import { useState } from "react";
 
 export default function HomePage() {
   const { user, logoutMutation } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -32,10 +39,11 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-orange-600 to-orange-400 text-transparent bg-clip-text">
             Find Your Perfect Table
           </h2>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-lg text-muted-foreground mb-8">
             Discover and book tables at the finest restaurants in your area.
             Experience exceptional dining with just a few clicks.
           </p>
+          <SearchBar onSearch={handleSearch} placeholder="Search by name, cuisine, or location..." />
         </div>
 
         <div className="mb-8 flex justify-between items-center">
@@ -50,7 +58,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <RestaurantGrid />
+        <RestaurantGrid searchQuery={searchQuery} />
       </main>
 
       <footer className="mt-16 border-t py-8">
