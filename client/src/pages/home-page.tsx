@@ -3,10 +3,18 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { SearchBar } from "@/components/SearchBar";
 import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function HomePage() {
   const { user, logoutMutation } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCity, setSelectedCity] = useState<string>("");
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -43,11 +51,25 @@ export default function HomePage() {
             Discover and book tables at the finest restaurants in your area.
             Experience exceptional dining with just a few clicks.
           </p>
-          <SearchBar onSearch={handleSearch} placeholder="Search by name, cuisine, or location..." />
+          <div className="flex gap-4 items-center justify-center mb-4">
+            <SearchBar onSearch={handleSearch} placeholder="Search by name, cuisine, or location..." />
+            <Select value={selectedCity} onValueChange={setSelectedCity}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select city" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Cities</SelectItem>
+                <SelectItem value="Alexandria">Alexandria</SelectItem>
+                <SelectItem value="Cairo">Cairo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="mb-8 flex justify-between items-center">
-          <h3 className="text-2xl font-semibold">Available Restaurants</h3>
+          <h3 className="text-2xl font-semibold">
+            {selectedCity ? `Restaurants in ${selectedCity}` : 'Available Restaurants'}
+          </h3>
           <div className="flex gap-2">
             <Button variant="secondary" size="sm">
               Filter
@@ -58,7 +80,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <RestaurantGrid searchQuery={searchQuery} />
+        <RestaurantGrid searchQuery={searchQuery} cityFilter={selectedCity} />
       </main>
 
       <footer className="mt-16 border-t py-8">

@@ -23,7 +23,7 @@ export interface IStorage {
   createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void>;
   getRestaurantProfile(restaurantId: number): Promise<RestaurantProfile | undefined>;
   sessionStore: session.Store;
-  searchRestaurants(query: string): Promise<Restaurant[]>;
+  searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -196,14 +196,26 @@ export class MemStorage implements IStorage {
     });
   }
 
-  async searchRestaurants(query: string): Promise<Restaurant[]> {
+  async searchRestaurants(query: string, city?: string): Promise<Restaurant[]> {
     const normalizedQuery = query.toLowerCase().trim();
     const restaurants = await this.getRestaurants();
 
     return restaurants.filter(restaurant => {
+      // If city filter is active, check if any branch is in the specified city
+      if (city) {
+        const hasLocationInCity = restaurant.locations?.some(
+          location => location.address.toLowerCase().includes(city.toLowerCase())
+        );
+        if (!hasLocationInCity) return false;
+      }
+
+      // If there's no search query, return all restaurants in the specified city
+      if (!normalizedQuery) return true;
+
+      // Otherwise, apply text search filters
       const matchesName = restaurant.name.toLowerCase().includes(normalizedQuery);
       const matchesCuisine = restaurant.cuisine.toLowerCase().includes(normalizedQuery);
-      const matchesLocation = restaurant.locations.some(
+      const matchesLocation = restaurant.locations?.some(
         location => location.address.toLowerCase().includes(normalizedQuery)
       );
 

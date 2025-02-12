@@ -5,15 +5,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface RestaurantGridProps {
   searchQuery?: string;
+  cityFilter?: string;
 }
 
-export function RestaurantGrid({ searchQuery }: RestaurantGridProps) {
+export function RestaurantGrid({ searchQuery, cityFilter }: RestaurantGridProps) {
   const { data: restaurants, isLoading } = useQuery<Restaurant[]>({
-    queryKey: ["/api/restaurants", searchQuery],
+    queryKey: ["/api/restaurants", searchQuery, cityFilter],
     queryFn: async () => {
-      const url = searchQuery
-        ? `/api/restaurants?q=${encodeURIComponent(searchQuery)}`
-        : "/api/restaurants";
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("q", searchQuery);
+      if (cityFilter) params.append("city", cityFilter);
+
+      const url = `/api/restaurants${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch restaurants");
       return response.json();
@@ -38,7 +41,7 @@ export function RestaurantGrid({ searchQuery }: RestaurantGridProps) {
     return (
       <div className="text-center py-12">
         <p className="text-lg text-muted-foreground">
-          No restaurants found{searchQuery ? " matching your search" : ""}
+          No restaurants found{searchQuery ? " matching your search" : ""}{cityFilter ? ` in ${cityFilter}` : ""}
         </p>
       </div>
     );
