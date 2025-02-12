@@ -35,7 +35,6 @@ export default function RestaurantAuthForm() {
       name: "",
       email: "",
       password: "",
-      phone: "",
     },
   });
 
@@ -147,19 +146,6 @@ export default function RestaurantAuthForm() {
                       <FormLabel>Password</FormLabel>
                       <FormControl>
                         <Input type="password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={registerForm.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="+1234567890" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

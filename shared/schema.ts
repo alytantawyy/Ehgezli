@@ -31,7 +31,6 @@ export const restaurantAuth = pgTable("restaurant_auth", {
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
-  phone: text("phone").notNull(),
   verified: boolean("verified").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -85,7 +84,6 @@ export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omi
   createdAt: true
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
-  phone: z.string().regex(/^\+?[\d\s-]{10,}$/, "Invalid phone number format"),
   email: z.string().email("Invalid email format")
 });
 
