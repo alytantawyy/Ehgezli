@@ -12,10 +12,17 @@ import { Link } from "wouter";
 export function RestaurantCard({ restaurant }: { restaurant: Restaurant }) {
   return (
     <Card className="overflow-hidden">
-      <div
-        className="h-48 bg-cover bg-center"
-        style={{ backgroundImage: `url(${restaurant.image})` }}
-      />
+      <div className="h-48 bg-muted flex items-center justify-center">
+        {restaurant.logo ? (
+          <img
+            src={restaurant.logo}
+            alt={`${restaurant.name} logo`}
+            className="h-full w-full object-contain p-4"
+          />
+        ) : (
+          <div className="text-muted-foreground">No logo available</div>
+        )}
+      </div>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>{restaurant.name}</span>

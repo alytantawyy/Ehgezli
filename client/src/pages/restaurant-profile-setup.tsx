@@ -24,10 +24,11 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 const CUISINE_TYPES = [
   "Italian",
@@ -46,6 +47,7 @@ export default function RestaurantProfileSetup() {
   const { restaurant } = useRestaurantAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   const form = useForm<InsertRestaurantProfile>({
     resolver: zodResolver(restaurantProfileSchema),
@@ -54,6 +56,7 @@ export default function RestaurantProfileSetup() {
       about: "",
       cuisine: "",
       priceRange: "$",
+      logo: "",
       branches: [
         {
           address: "",
@@ -66,6 +69,20 @@ export default function RestaurantProfileSetup() {
       ],
     },
   });
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setLogoPreview(url);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        form.setValue("logo", base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const profileMutation = useMutation({
     mutationFn: async (data: InsertRestaurantProfile) => {
@@ -129,6 +146,64 @@ export default function RestaurantProfileSetup() {
                 <CardTitle>Basic Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="logo"
+                  render={({ field: { value, onChange, ...field } }) => (
+                    <FormItem>
+                      <FormLabel>Restaurant Logo</FormLabel>
+                      <FormControl>
+                        <div className="space-y-4">
+                          {logoPreview ? (
+                            <div className="relative w-32 h-32">
+                              <img
+                                src={logoPreview}
+                                alt="Logo preview"
+                                className="w-full h-full object-cover rounded-lg"
+                              />
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                className="absolute -top-2 -right-2"
+                                onClick={() => {
+                                  setLogoPreview(null);
+                                  onChange("");
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center w-32 h-32 border-2 border-dashed rounded-lg hover:border-primary/50 transition-colors">
+                              <label
+                                htmlFor="logo-upload"
+                                className="cursor-pointer text-center p-4"
+                              >
+                                <Upload className="h-6 w-6 mx-auto mb-2" />
+                                <span className="text-sm text-muted-foreground">
+                                  Upload Logo
+                                </span>
+                                <input
+                                  id="logo-upload"
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={handleLogoChange}
+                                  {...field}
+                                />
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormDescription>
+                        Upload a square logo image (recommended size: 200x200px)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="about"
