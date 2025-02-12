@@ -17,7 +17,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
 export default function RestaurantAuthForm() {
-  const { restaurant, isProfileComplete, loginMutation, registerMutation } = useRestaurantAuth();
+  const { restaurant, isProfileComplete, isLoading, loginMutation, registerMutation } = useRestaurantAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("login");
 
@@ -38,13 +38,16 @@ export default function RestaurantAuthForm() {
     },
   });
 
-  // Use useEffect to handle redirection when restaurant state changes
+  // Wait for both restaurant and profile data to be loaded before redirecting
   useEffect(() => {
-    if (restaurant) {
-      // If profile is complete, redirect to dashboard, otherwise to profile setup
-      setLocation(isProfileComplete ? "/restaurant/dashboard" : "/restaurant/profile-setup");
+    if (!isLoading && restaurant) {
+      if (isProfileComplete) {
+        setLocation("/restaurant/dashboard");
+      } else {
+        setLocation("/restaurant/profile-setup");
+      }
     }
-  }, [restaurant, isProfileComplete, setLocation]);
+  }, [restaurant, isProfileComplete, isLoading, setLocation]);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -92,7 +95,7 @@ export default function RestaurantAuthForm() {
               className="w-full"
               disabled={loginMutation.isPending}
             >
-              Login
+              {loginMutation.isPending ? "Logging in..." : "Login"}
             </Button>
           </form>
         </Form>
@@ -150,7 +153,7 @@ export default function RestaurantAuthForm() {
               className="w-full"
               disabled={registerMutation.isPending}
             >
-              Register
+              {registerMutation.isPending ? "Creating Account..." : "Register"}
             </Button>
           </form>
         </Form>
