@@ -260,9 +260,17 @@ export default function AuthPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>City</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select your city" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Alexandria">Alexandria</SelectItem>
+                              <SelectItem value="Cairo">Cairo</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}

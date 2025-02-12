@@ -85,7 +85,11 @@ export const insertUserSchema = createInsertSchema(users).omit({
     .refine((date) => !isNaN(new Date(date).getTime()), {
       message: "Invalid date format"
     })
-    .transform((date) => new Date(date))
+    .transform((date) => new Date(date)),
+  city: z.enum(["Alexandria", "Cairo"], {
+    required_error: "Please select a city",
+    invalid_type_error: "Please select a valid city"
+  })
 });
 
 export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omit({ 
