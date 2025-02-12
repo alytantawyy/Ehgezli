@@ -51,22 +51,6 @@ export class MemStorage implements IStorage {
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
     });
-
-    // Initialize branches from mock restaurants
-    mockRestaurants.forEach(restaurant => {
-      restaurant.locations.forEach(location => {
-        const branch: RestaurantBranch = {
-          id: this.currentBranchId++,
-          restaurantId: restaurant.id,
-          address: location.address,
-          tablesCount: location.tablesCount,
-          seatsCount: location.tablesCount * 4, // Assuming 4 seats per table
-          openingTime: location.openingTime,
-          closingTime: location.closingTime,
-        };
-        this.branches.set(branch.id, branch);
-      });
-    });
   }
 
   async getUser(id: number): Promise<User | undefined> {
@@ -95,34 +79,39 @@ export class MemStorage implements IStorage {
 
         if (!profile) return null;
 
+        // Get actual branches for this restaurant
         const restaurantBranches = Array.from(this.branches.values())
           .filter(b => b.restaurantId === auth.id);
 
+        // Only return if restaurant has a complete profile and at least one branch
+        if (!restaurantBranches.length) return null;
+
         return {
           id: auth.id,
-          name: auth.name,
-          description: profile.about,
-          about: profile.about,
           authId: auth.id,
+          name: auth.name,
+          description: profile.about.slice(0, 100) + (profile.about.length > 100 ? '...' : ''),
+          about: profile.about,
           logo: profile.logo || "",
           cuisine: profile.cuisine,
           locations: restaurantBranches.map(branch => ({
             address: branch.address,
-            capacity: 40, // Default values for registered restaurants
+            capacity: branch.seatsCount,
             tablesCount: branch.tablesCount,
             openingTime: branch.openingTime,
             closingTime: branch.closingTime,
-            reservationDuration: 60 // Default value for registered restaurants
+            reservationDuration: 60
           }))
         };
-      }).filter(Boolean) as Restaurant[];
+      })
+      .filter(Boolean) as Restaurant[];
 
-    // Return both mock and registered restaurants
     return [...mockRestaurants, ...registeredRestaurants];
   }
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
-    return mockRestaurants.find(r => r.id === id) as any;
+    const restaurants = await this.getRestaurants();
+    return restaurants.find(r => r.id === id);
   }
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
@@ -171,25 +160,24 @@ export class MemStorage implements IStorage {
   }
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
-    const { branches, logo, ...profileData } = profile;
+    const { branches, ...profileData } = profile;
 
     // Store the profile
     this.restaurantProfiles.set(profileData.restaurantId, {
       ...profileData,
-      logo: logo || "", // Include logo in the profile
       id: profileData.restaurantId,
       isProfileComplete: true,
       createdAt: new Date(),
       updatedAt: new Date()
     });
 
-    // Create branches
+    // Create branches for each city/location
     branches.forEach((branch) => {
       const branchId = this.currentBranchId++;
       const branchData: RestaurantBranch = {
         id: branchId,
         restaurantId: profileData.restaurantId,
-        address: branch.address,
+        address: `${branch.address}, ${branch.city}`, // Include city in address
         tablesCount: branch.tablesCount,
         seatsCount: branch.seatsCount,
         openingTime: branch.openingTime,
@@ -202,27 +190,23 @@ export class MemStorage implements IStorage {
   async searchRestaurants(query: string, city?: string): Promise<Restaurant[]> {
     const normalizedQuery = query.toLowerCase().trim();
     const restaurants = await this.getRestaurants();
-
-    // Create a Map to store unique restaurants by ID
     const uniqueRestaurants = new Map<number, Restaurant>();
 
     restaurants.forEach(restaurant => {
-      // Skip if restaurant is already added
       if (uniqueRestaurants.has(restaurant.id)) return;
 
       // If city filter is active, check if any branch is in the specified city
       if (city) {
-        const locations = restaurant.locations as Array<{ address: string }>;
-        const hasLocationInCity = locations?.some(
-          location => {
-            const locationAddress = location.address.toLowerCase();
-            return locationAddress.includes(city.toLowerCase());
-          }
-        );
+        const locations = restaurant.locations;
+        const hasLocationInCity = locations?.some(location => {
+          const address = (location as { address: string }).address;
+          return address.toLowerCase().includes(city.toLowerCase());
+        });
+
         if (!hasLocationInCity) return;
       }
 
-      // If there's no search query, add the restaurant (it passed the city filter)
+      // If no search query, add restaurant (it passed city filter)
       if (!normalizedQuery) {
         uniqueRestaurants.set(restaurant.id, restaurant);
         return;
@@ -231,10 +215,11 @@ export class MemStorage implements IStorage {
       // Apply text search filters
       const matchesName = restaurant.name.toLowerCase().includes(normalizedQuery);
       const matchesCuisine = restaurant.cuisine.toLowerCase().includes(normalizedQuery);
-      const locations = restaurant.locations as Array<{ address: string }>;
-      const matchesLocation = locations?.some(
-        location => location.address.toLowerCase().includes(normalizedQuery)
-      );
+      const locations = restaurant.locations;
+      const matchesLocation = locations?.some(location => {
+        const address = (location as { address: string }).address;
+        return address.toLowerCase().includes(normalizedQuery);
+      });
 
       if (matchesName || matchesCuisine || matchesLocation) {
         uniqueRestaurants.set(restaurant.id, restaurant);
