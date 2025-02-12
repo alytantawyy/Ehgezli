@@ -8,6 +8,12 @@ export const loginSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+// Add restaurantLoginSchema for restaurant authentication
+export const restaurantLoginSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -20,8 +26,19 @@ export const users = pgTable("users", {
   favoriteCuisines: text("favorite_cuisines").array().notNull(),
 });
 
+export const restaurantAuth = pgTable("restaurant_auth", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  verified: boolean("verified").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const restaurants = pgTable("restaurants", {
   id: serial("id").primaryKey(),
+  authId: integer("auth_id").notNull().unique(),
   name: text("name").notNull(),
   description: text("description").notNull(),
   about: text("about").notNull(),
@@ -38,7 +55,7 @@ export const restaurantBranches = pgTable("restaurant_branches", {
   tablesCount: integer("tables_count").notNull(),
   openingTime: text("opening_time").notNull(),
   closingTime: text("closing_time").notNull(),
-  reservationDuration: integer("reservation_duration").notNull(), // in minutes
+  reservationDuration: integer("reservation_duration").notNull(),
 });
 
 export const bookings = pgTable("bookings", {
@@ -50,7 +67,6 @@ export const bookings = pgTable("bookings", {
   confirmed: boolean("confirmed").notNull().default(false),
 });
 
-// Create insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ 
   id: true 
 }).extend({
@@ -63,10 +79,20 @@ export const insertUserSchema = createInsertSchema(users).omit({
     .transform((date) => new Date(date))
 });
 
+export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omit({ 
+  id: true,
+  verified: true,
+  createdAt: true
+}).extend({
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  phone: z.string().regex(/^\+?[\d\s-]{10,}$/, "Invalid phone number format"),
+  email: z.string().email("Invalid email format")
+});
+
 export const insertRestaurantSchema = createInsertSchema(restaurants).omit({ 
   id: true 
 }).extend({
-  about: z.string().max(100), // max 100 words
+  about: z.string().max(100),
   locations: z.array(z.object({
     address: z.string(),
     capacity: z.number(),
@@ -86,14 +112,15 @@ export const insertBookingSchema = createInsertSchema(bookings).omit({
   confirmed: true
 });
 
-// Export types
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertRestaurantAuth = z.infer<typeof insertRestaurantAuthSchema>;
 export type User = typeof users.$inferSelect;
+export type RestaurantAuth = typeof restaurantAuth.$inferSelect;
 export type Restaurant = typeof restaurants.$inferSelect;
 export type RestaurantBranch = typeof restaurantBranches.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 
-export const mockRestaurants: Restaurant[] = [
+export const mockRestaurants = [
   {
     id: 1,
     name: "La Maison Dorée",

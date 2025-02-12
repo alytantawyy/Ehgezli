@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Redirect } from "wouter";
+import RestaurantAuthForm from "@/components/RestaurantAuthForm";
 
 const CUISINES = [
   "American",
@@ -322,18 +323,13 @@ export default function AuthPage() {
           <TabsContent value="restaurant">
             <Card>
               <CardHeader>
-                <CardTitle>Register Restaurant</CardTitle>
+                <CardTitle>Restaurant Account</CardTitle>
                 <CardDescription>
-                  Create an account to list your restaurant
+                  Manage your restaurant on our platform
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="p-4 text-center">
-                  <p>Restaurant registration will be available soon.</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    We're working on bringing this feature to you.
-                  </p>
-                </div>
+                <RestaurantAuthForm />
               </CardContent>
             </Card>
           </TabsContent>
