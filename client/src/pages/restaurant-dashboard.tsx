@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Booking } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 
 export default function RestaurantDashboard() {
-  const { restaurant } = useRestaurantAuth();
+  const { restaurant, logoutMutation } = useRestaurantAuth();
 
   const { data: bookings, isLoading } = useQuery<Booking[]>({
     queryKey: ["/api/restaurant/bookings", restaurant?.id],
@@ -25,8 +25,18 @@ export default function RestaurantDashboard() {
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Restaurant Dashboard</h1>
-          <div className="text-sm text-muted-foreground">
-            Welcome back, {restaurant?.name}
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              Welcome back, {restaurant?.name}
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
           </div>
         </div>
 
@@ -41,7 +51,7 @@ export default function RestaurantDashboard() {
               </div>
             </CardContent>
           </Card>
-          
+
           {/* Add more summary cards here */}
         </div>
 
