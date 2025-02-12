@@ -45,11 +45,12 @@ export default function RestaurantAuthForm() {
     },
   });
 
-  const handleRegisterSuccess = () => {
+  if (restaurant) {
     setLocation("/restaurant/profile-setup");
-  };
+    return null;
+  }
 
-  const handleLoginSuccess = () => {
+  const handleSuccess = () => {
     setLocation("/restaurant/profile-setup");
   };
 
@@ -61,130 +62,110 @@ export default function RestaurantAuthForm() {
       </TabsList>
 
       <TabsContent value="login">
-        <Card>
-          <CardHeader>
-            <CardTitle>Restaurant Login</CardTitle>
-            <CardDescription>
-              Access your restaurant dashboard
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...loginForm}>
-              <form
-                onSubmit={loginForm.handleSubmit((data) => {
-                  loginMutation.mutate(data, {
-                    onSuccess: handleLoginSuccess,
-                  });
-                })}
-                className="space-y-4"
-              >
-                <FormField
-                  control={loginForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={loginForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={loginMutation.isPending}
-                >
-                  Login
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+        <Form {...loginForm}>
+          <form
+            onSubmit={loginForm.handleSubmit((data) => {
+              loginMutation.mutate(data, {
+                onSuccess: handleSuccess,
+              });
+            })}
+            className="space-y-4"
+          >
+            <FormField
+              control={loginForm.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={loginForm.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loginMutation.isPending}
+            >
+              Login
+            </Button>
+          </form>
+        </Form>
       </TabsContent>
 
       <TabsContent value="register">
-        <Card>
-          <CardHeader>
-            <CardTitle>Restaurant Registration</CardTitle>
-            <CardDescription>
-              Create an account for your restaurant
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...registerForm}>
-              <form
-                onSubmit={registerForm.handleSubmit((data) => {
-                  registerMutation.mutate(data, {
-                    onSuccess: handleRegisterSuccess,
-                  });
-                })}
-                className="space-y-4"
-              >
-                <FormField
-                  control={registerForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Restaurant Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={registerForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={registerForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={registerMutation.isPending}
-                >
-                  Register
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+        <Form {...registerForm}>
+          <form
+            onSubmit={registerForm.handleSubmit((data) => {
+              registerMutation.mutate(data, {
+                onSuccess: handleSuccess,
+              });
+            })}
+            className="space-y-4"
+          >
+            <FormField
+              control={registerForm.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Restaurant Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={registerForm.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={registerForm.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={registerMutation.isPending}
+            >
+              Register
+            </Button>
+          </form>
+        </Form>
       </TabsContent>
     </Tabs>
   );

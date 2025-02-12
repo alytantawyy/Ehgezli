@@ -10,14 +10,19 @@ import HomePage from "@/pages/home-page";
 import RestaurantPage from "@/pages/restaurant-page";
 import RestaurantProfileSetup from "@/pages/restaurant-profile-setup";
 import { ProtectedRoute } from "./lib/protected-route";
+import { ProtectedRestaurantRoute } from "./lib/protected-restaurant-route";
 
 function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
+      <ProtectedRestaurantRoute 
+        path="/restaurant/profile-setup" 
+        component={RestaurantProfileSetup}
+        requiresProfile={false}
+      />
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/restaurant/:id" component={RestaurantPage} />
-      <ProtectedRoute path="/restaurant/profile-setup" component={RestaurantProfileSetup} />
       <Route component={NotFound} />
     </Switch>
   );
