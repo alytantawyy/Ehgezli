@@ -102,7 +102,7 @@ export class MemStorage implements IStorage {
         description: profile.about,
         about: profile.about,
         authId: auth.id,
-        logo: "https://via.placeholder.com/150", // Default logo
+        logo: profile.logo || "", // Use the logo from the profile
         cuisine: profile.cuisine,
         locations: restaurantBranches.map(branch => ({
           address: branch.address,
@@ -163,11 +163,12 @@ export class MemStorage implements IStorage {
   }
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
-    const { branches, ...profileData } = profile;
+    const { branches, logo, ...profileData } = profile;
 
     // Store the profile
     this.restaurantProfiles.set(profileData.restaurantId, {
       ...profileData,
+      logo: logo || "", // Include logo in the profile
       id: profileData.restaurantId,
       isProfileComplete: true,
       createdAt: new Date(),

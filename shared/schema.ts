@@ -52,6 +52,7 @@ export const restaurantProfiles = pgTable("restaurant_profiles", {
   about: text("about").notNull(),
   cuisine: text("cuisine").notNull(),
   priceRange: text("price_range").notNull(),
+  logo: text("logo").notNull().default(""), // Add logo field
   isProfileComplete: boolean("is_profile_complete").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -131,6 +132,7 @@ export const restaurantProfileSchema = createInsertSchema(restaurantProfiles).om
   createdAt: true,
   updatedAt: true
 }).extend({
+  logo: z.string(),
   about: z.string()
     .min(1, "About section is required")
     .refine((val) => val.trim().split(/\s+/).length <= 50, {
