@@ -1,4 +1,7 @@
-import { InsertUser, User, Restaurant, Booking, mockRestaurants } from "@shared/schema";
+import { 
+  InsertUser, User, Restaurant, Booking, RestaurantBranch,
+  mockRestaurants 
+} from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 
@@ -10,6 +13,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   getRestaurants(): Promise<Restaurant[]>;
   getRestaurant(id: number): Promise<Restaurant | undefined>;
+  getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]>;
   createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking>;
   getUserBookings(userId: number): Promise<Booking[]>;
   sessionStore: session.Store;
@@ -18,17 +22,38 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private bookings: Map<number, Booking>;
+  private branches: Map<number, RestaurantBranch>;
   private currentUserId: number;
   private currentBookingId: number;
+  private currentBranchId: number;
   readonly sessionStore: session.Store;
 
   constructor() {
     this.users = new Map();
     this.bookings = new Map();
+    this.branches = new Map();
     this.currentUserId = 1;
     this.currentBookingId = 1;
+    this.currentBranchId = 1;
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
+    });
+
+    // Initialize branches from mock restaurants
+    mockRestaurants.forEach(restaurant => {
+      restaurant.locations.forEach(location => {
+        const branch: RestaurantBranch = {
+          id: this.currentBranchId++,
+          restaurantId: restaurant.id,
+          address: location.address,
+          capacity: location.capacity,
+          tablesCount: location.tablesCount,
+          openingTime: location.openingTime,
+          closingTime: location.closingTime,
+          reservationDuration: location.reservationDuration
+        };
+        this.branches.set(branch.id, branch);
+      });
     });
   }
 
@@ -57,6 +82,12 @@ export class MemStorage implements IStorage {
     return mockRestaurants.find(r => r.id === id);
   }
 
+  async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
+    return Array.from(this.branches.values()).filter(
+      branch => branch.restaurantId === restaurantId
+    );
+  }
+
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {
     const id = this.currentBookingId++;
     const newBooking = { ...booking, id, confirmed: false };
@@ -66,7 +97,7 @@ export class MemStorage implements IStorage {
 
   async getUserBookings(userId: number): Promise<Booking[]> {
     return Array.from(this.bookings.values()).filter(
-      (booking) => booking.userId === userId,
+      (booking) => booking.userId === userId
     );
   }
 }
