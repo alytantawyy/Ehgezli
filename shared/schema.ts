@@ -127,7 +127,11 @@ export const restaurantProfileSchema = createInsertSchema(restaurantProfiles).om
   createdAt: true,
   updatedAt: true
 }).extend({
-  about: z.string().min(100, "About section must be at least 100 words"),
+  about: z.string()
+    .min(1, "About section is required")
+    .refine((val) => val.trim().split(/\s+/).length >= 100, {
+      message: "About section must contain at least 100 words"
+    }),
   cuisine: z.string().min(1, "Cuisine type is required"),
   priceRange: z.enum(["$", "$$", "$$$", "$$$$"], {
     required_error: "Price range is required",
