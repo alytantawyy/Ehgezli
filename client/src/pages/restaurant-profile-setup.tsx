@@ -141,7 +141,7 @@ export default function RestaurantProfileSetup() {
                         />
                       </FormControl>
                       <FormDescription>
-                        Minimum 100 words required
+                        Maximum 100 words allowed
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
