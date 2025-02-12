@@ -57,6 +57,7 @@ export default function RestaurantProfileSetup() {
       branches: [
         {
           address: "",
+          city: "Alexandria",
           tablesCount: 1,
           seatsCount: 1,
           openingTime: "09:00",
@@ -76,7 +77,6 @@ export default function RestaurantProfileSetup() {
         title: "Profile Setup Complete!",
         description: "Your restaurant profile has been created successfully.",
       });
-      // Redirect to the restaurant's dashboard
       setLocation(`/restaurant/dashboard`);
     },
     onError: (error: Error) => {
@@ -94,6 +94,7 @@ export default function RestaurantProfileSetup() {
       ...currentBranches,
       {
         address: "",
+        city: "Alexandria",
         tablesCount: 1,
         seatsCount: 1,
         openingTime: "09:00",
@@ -247,6 +248,28 @@ export default function RestaurantProfileSetup() {
                           <FormControl>
                             <Input {...field} placeholder="Branch address" />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={`branches.${index}.city`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>City</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select city" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Alexandria">Alexandria</SelectItem>
+                              <SelectItem value="Cairo">Cairo</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}

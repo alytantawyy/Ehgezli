@@ -142,6 +142,10 @@ export const restaurantProfileSchema = createInsertSchema(restaurantProfiles).om
   }),
   branches: z.array(z.object({
     address: z.string().min(1, "Address is required"),
+    city: z.enum(["Alexandria", "Cairo"], {
+      required_error: "City is required",
+      invalid_type_error: "Please select a valid city"
+    }),
     tablesCount: z.number().min(1, "Must have at least 1 table"),
     seatsCount: z.number().min(1, "Must have at least 1 seat"),
     openingTime: z.string().min(1, "Opening time is required"),
