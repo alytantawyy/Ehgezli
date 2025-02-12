@@ -197,9 +197,9 @@ export class MemStorage implements IStorage {
       if (city) {
         const hasLocationInCity = restaurant.locations?.some(location => {
           const locationAddress = (location as { address: string }).address;
-          // Split by comma and get the last part which should be the city
-          const locationCity = locationAddress.split(',').pop()?.trim().toLowerCase();
-          return locationCity === city.toLowerCase();
+          // Get city from address (format is "address, CITY")
+          const [, locationCity] = locationAddress.split(',').map(part => part.trim());
+          return locationCity?.toLowerCase() === city.toLowerCase();
         });
 
         if (!hasLocationInCity) return;

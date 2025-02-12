@@ -14,7 +14,7 @@ export function RestaurantGrid({ searchQuery, cityFilter }: RestaurantGridProps)
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchQuery) params.append("q", searchQuery);
-      if (cityFilter) params.append("city", cityFilter);
+      if (cityFilter && cityFilter !== 'all') params.append("city", cityFilter);
 
       const url = `/api/restaurants${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await fetch(url);
@@ -41,7 +41,7 @@ export function RestaurantGrid({ searchQuery, cityFilter }: RestaurantGridProps)
     return (
       <div className="text-center py-12">
         <p className="text-lg text-muted-foreground">
-          No restaurants found{searchQuery ? " matching your search" : ""}{cityFilter ? ` in ${cityFilter}` : ""}
+          No restaurants found{searchQuery ? " matching your search" : ""}{cityFilter && cityFilter !== 'all' ? ` in ${cityFilter}` : ""}
         </p>
       </div>
     );
