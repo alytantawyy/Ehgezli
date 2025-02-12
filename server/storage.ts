@@ -188,47 +188,38 @@ export class MemStorage implements IStorage {
   async searchRestaurants(query: string, city?: string): Promise<Restaurant[]> {
     const normalizedQuery = query.toLowerCase().trim();
     const restaurants = await this.getRestaurants();
-    const uniqueRestaurants = new Map<number, Restaurant>();
 
-    restaurants.forEach(restaurant => {
-      if (uniqueRestaurants.has(restaurant.id)) return;
-
-      // If city filter is active, check if any branch is in the specified city
+    return restaurants.filter(restaurant => {
+      // If city filter is active, check city first
       if (city) {
-        const hasLocationInCity = restaurant.locations?.some(location => {
-          if (!location.address) return false;
-          // Extract city from the location address (format: "address, CITY")
-          const parts = location.address.split(',');
-          if (parts.length !== 2) return false;
-          const locationCity = parts[1].trim();
-          return locationCity === city; // Exact match required
-        });
+        // Get all branch cities for this restaurant
+        const branchCities = restaurant.locations?.map(loc => {
+          const parts = loc.address.split(',');
+          return parts[parts.length - 1].trim();
+        }) || [];
 
-        if (!hasLocationInCity) return;
+        // If restaurant has no branches in this city, filter it out
+        if (!branchCities.includes(city)) {
+          return false;
+        }
       }
 
-      // If no search query, add restaurant (it passed city filter)
+      // If no search query, include restaurant (it passed city filter)
       if (!normalizedQuery) {
-        uniqueRestaurants.set(restaurant.id, restaurant);
-        return;
+        return true;
       }
 
       // Apply text search filters
       const matchesName = restaurant.name.toLowerCase().includes(normalizedQuery);
       const matchesCuisine = restaurant.cuisine.toLowerCase().includes(normalizedQuery);
       const matchesLocation = restaurant.locations?.some(location => {
-        if (!location.address) return false;
         // Only search in the address part, not the city
         const addressPart = location.address.split(',')[0].trim().toLowerCase();
         return addressPart.includes(normalizedQuery);
       });
 
-      if (matchesName || matchesCuisine || matchesLocation) {
-        uniqueRestaurants.set(restaurant.id, restaurant);
-      }
+      return matchesName || matchesCuisine || matchesLocation;
     });
-
-    return Array.from(uniqueRestaurants.values());
   }
 }
 
