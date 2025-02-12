@@ -1,6 +1,6 @@
 import { 
   InsertUser, User, Restaurant, Booking, RestaurantBranch,
-  mockRestaurants 
+  mockRestaurants, RestaurantAuth, InsertRestaurantAuth
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -16,6 +16,9 @@ export interface IStorage {
   getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]>;
   createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking>;
   getUserBookings(userId: number): Promise<Booking[]>;
+  getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined>;
+  getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined>;
+  createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth>;
   sessionStore: session.Store;
 }
 
@@ -23,18 +26,22 @@ export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private bookings: Map<number, Booking>;
   private branches: Map<number, RestaurantBranch>;
+  private restaurantAuth: Map<number, RestaurantAuth>;
   private currentUserId: number;
   private currentBookingId: number;
   private currentBranchId: number;
+  private currentRestaurantAuthId: number;
   readonly sessionStore: session.Store;
 
   constructor() {
     this.users = new Map();
     this.bookings = new Map();
     this.branches = new Map();
+    this.restaurantAuth = new Map();
     this.currentUserId = 1;
     this.currentBookingId = 1;
     this.currentBranchId = 1;
+    this.currentRestaurantAuthId = 1;
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
     });
@@ -75,11 +82,11 @@ export class MemStorage implements IStorage {
   }
 
   async getRestaurants(): Promise<Restaurant[]> {
-    return mockRestaurants;
+    return mockRestaurants as any;
   }
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
-    return mockRestaurants.find(r => r.id === id);
+    return mockRestaurants.find(r => r.id === id) as any;
   }
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
@@ -99,6 +106,28 @@ export class MemStorage implements IStorage {
     return Array.from(this.bookings.values()).filter(
       (booking) => booking.userId === userId
     );
+  }
+
+  async getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined> {
+    return this.restaurantAuth.get(id);
+  }
+
+  async getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined> {
+    return Array.from(this.restaurantAuth.values()).find(
+      (auth) => auth.email === email
+    );
+  }
+
+  async createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth> {
+    const id = this.currentRestaurantAuthId++;
+    const restaurantAuth = {
+      ...auth,
+      id,
+      verified: false,
+      createdAt: new Date()
+    };
+    this.restaurantAuth.set(id, restaurantAuth);
+    return restaurantAuth;
   }
 }
 

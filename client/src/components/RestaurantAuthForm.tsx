@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { restaurantLoginSchema, insertRestaurantAuthSchema } from "@shared/schema";
+import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -19,8 +20,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Redirect } from "wouter";
 
 export default function RestaurantAuthForm() {
+  const { restaurant, loginMutation, registerMutation } = useRestaurantAuth();
+
   const loginForm = useForm({
     resolver: zodResolver(restaurantLoginSchema),
     defaultValues: {
@@ -38,15 +42,9 @@ export default function RestaurantAuthForm() {
     },
   });
 
-  const handleLogin = async (data: any) => {
-    // Will implement after adding restaurant auth context
-    console.log("Login data:", data);
-  };
-
-  const handleRegister = async (data: any) => {
-    // Will implement after adding restaurant auth context
-    console.log("Register data:", data);
-  };
+  if (restaurant) {
+    return <Redirect to="/restaurant/dashboard" />;
+  }
 
   return (
     <Tabs defaultValue="login" className="w-full">
@@ -65,7 +63,10 @@ export default function RestaurantAuthForm() {
           </CardHeader>
           <CardContent>
             <Form {...loginForm}>
-              <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+              <form
+                onSubmit={loginForm.handleSubmit((data) => loginMutation.mutate(data))}
+                className="space-y-4"
+              >
                 <FormField
                   control={loginForm.control}
                   name="email"
@@ -92,7 +93,11 @@ export default function RestaurantAuthForm() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full">
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={loginMutation.isPending}
+                >
                   Login
                 </Button>
               </form>
@@ -111,7 +116,10 @@ export default function RestaurantAuthForm() {
           </CardHeader>
           <CardContent>
             <Form {...registerForm}>
-              <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
+              <form
+                onSubmit={registerForm.handleSubmit((data) => registerMutation.mutate(data))}
+                className="space-y-4"
+              >
                 <FormField
                   control={registerForm.control}
                   name="name"
@@ -151,7 +159,11 @@ export default function RestaurantAuthForm() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full">
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={registerMutation.isPending}
+                >
                   Register
                 </Button>
               </form>
