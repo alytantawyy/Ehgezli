@@ -218,6 +218,7 @@ export class MemStorage implements IStorage {
       const matchesCuisine = restaurant.cuisine.toLowerCase().includes(normalizedQuery);
       const matchesLocation = restaurant.locations?.some(location => {
         if (!location.address) return false;
+        // Only search in the address part, not the city
         const addressPart = location.address.split(',')[0].trim().toLowerCase();
         return addressPart.includes(normalizedQuery);
       });
