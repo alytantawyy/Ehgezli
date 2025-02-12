@@ -45,17 +45,12 @@ export default function RestaurantAuthForm() {
     },
   });
 
-  if (restaurant) {
-    setLocation("/restaurant/profile-setup");
-    return null;
-  }
-
   const handleRegisterSuccess = () => {
     setLocation("/restaurant/profile-setup");
   };
 
   const handleLoginSuccess = () => {
-    loginForm.reset();
+    setLocation("/restaurant/profile-setup");
   };
 
   return (

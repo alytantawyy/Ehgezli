@@ -39,6 +39,10 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (restaurant: RestaurantAuth) => {
       queryClient.setQueryData(["/api/restaurant"], restaurant);
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -56,6 +60,10 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (restaurant: RestaurantAuth) => {
       queryClient.setQueryData(["/api/restaurant"], restaurant);
+      toast({
+        title: "Registration successful",
+        description: "Let's set up your restaurant profile!",
+      });
     },
     onError: (error: Error) => {
       toast({
