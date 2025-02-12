@@ -88,34 +88,37 @@ export class MemStorage implements IStorage {
 
   async getRestaurants(): Promise<Restaurant[]> {
     // Get all registered restaurants
-    const registeredRestaurants = Array.from(this.restaurantAuth.values()).map(auth => {
-      const profile = Array.from(this.restaurantProfiles.values())
-        .find(p => p.restaurantId === auth.id);
+    const registeredRestaurants = Array.from(this.restaurantAuth.values())
+      .map(auth => {
+        const profile = Array.from(this.restaurantProfiles.values())
+          .find(p => p.restaurantId === auth.id);
 
-      if (!profile) return null;
+        if (!profile) return null;
 
-      const restaurantBranches = Array.from(this.branches.values())
-        .filter(b => b.restaurantId === auth.id);
+        const restaurantBranches = Array.from(this.branches.values())
+          .filter(b => b.restaurantId === auth.id);
 
-      return {
-        id: auth.id,
-        name: auth.name,
-        description: profile.about,
-        about: profile.about,
-        authId: auth.id,
-        logo: profile.logo || "", // Use the logo from the profile
-        cuisine: profile.cuisine,
-        locations: restaurantBranches.map(branch => ({
-          address: branch.address,
-          tablesCount: branch.tablesCount,
-          openingTime: branch.openingTime,
-          closingTime: branch.closingTime,
-        }))
-      };
-    }).filter(Boolean) as Restaurant[];
+        return {
+          id: auth.id,
+          name: auth.name,
+          description: profile.about,
+          about: profile.about,
+          authId: auth.id,
+          logo: profile.logo || "",
+          cuisine: profile.cuisine,
+          locations: restaurantBranches.map(branch => ({
+            address: branch.address,
+            capacity: 40, // Default values for registered restaurants
+            tablesCount: branch.tablesCount,
+            openingTime: branch.openingTime,
+            closingTime: branch.closingTime,
+            reservationDuration: 60 // Default value for registered restaurants
+          }))
+        };
+      }).filter(Boolean) as Restaurant[];
 
-    // Combine with mock restaurants
-    return [...mockRestaurants as any, ...registeredRestaurants];
+    // Return both mock and registered restaurants
+    return [...mockRestaurants, ...registeredRestaurants];
   }
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
@@ -200,21 +203,32 @@ export class MemStorage implements IStorage {
     const normalizedQuery = query.toLowerCase().trim();
     const restaurants = await this.getRestaurants();
 
-    return restaurants.filter(restaurant => {
+    // Create a Map to store unique restaurants by ID
+    const uniqueRestaurants = new Map<number, Restaurant>();
+
+    restaurants.forEach(restaurant => {
+      // Skip if restaurant is already added
+      if (uniqueRestaurants.has(restaurant.id)) return;
+
       // If city filter is active, check if any branch is in the specified city
       if (city) {
-        // Ensure locations is treated as an array and has the correct type
         const locations = restaurant.locations as Array<{ address: string }>;
         const hasLocationInCity = locations?.some(
-          location => location.address.toLowerCase() === city.toLowerCase() //Exact match
+          location => {
+            const locationAddress = location.address.toLowerCase();
+            return locationAddress.includes(city.toLowerCase());
+          }
         );
-        if (!hasLocationInCity) return false;
+        if (!hasLocationInCity) return;
       }
 
-      // If there's no search query, return all restaurants in the specified city
-      if (!normalizedQuery) return true;
+      // If there's no search query, add the restaurant (it passed the city filter)
+      if (!normalizedQuery) {
+        uniqueRestaurants.set(restaurant.id, restaurant);
+        return;
+      }
 
-      // Otherwise, apply text search filters
+      // Apply text search filters
       const matchesName = restaurant.name.toLowerCase().includes(normalizedQuery);
       const matchesCuisine = restaurant.cuisine.toLowerCase().includes(normalizedQuery);
       const locations = restaurant.locations as Array<{ address: string }>;
@@ -222,8 +236,12 @@ export class MemStorage implements IStorage {
         location => location.address.toLowerCase().includes(normalizedQuery)
       );
 
-      return matchesName || matchesCuisine || matchesLocation;
+      if (matchesName || matchesCuisine || matchesLocation) {
+        uniqueRestaurants.set(restaurant.id, restaurant);
+      }
     });
+
+    return Array.from(uniqueRestaurants.values());
   }
 }
 
