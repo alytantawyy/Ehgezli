@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { insertUserSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,13 +20,33 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Redirect } from "wouter";
+
+const CUISINES = [
+  "American",
+  "Italian",
+  "Japanese",
+  "Chinese",
+  "Indian",
+  "Mexican",
+  "French",
+  "Thai",
+  "Mediterranean",
+  "Middle Eastern"
+];
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
-  
+
   const loginForm = useForm({
-    resolver: zodResolver(insertUserSchema),
+    resolver: zodResolver(loginSchema),
     defaultValues: {
       username: "",
       password: "",
@@ -38,6 +58,12 @@ export default function AuthPage() {
     defaultValues: {
       username: "",
       password: "",
+      name: "",
+      gender: "",
+      age: 18,
+      birthday: new Date().toISOString(),
+      city: "",
+      favoriteCuisines: [],
     },
   });
 
@@ -49,11 +75,12 @@ export default function AuthPage() {
     <div className="min-h-screen flex">
       <div className="flex-1 flex items-center justify-center p-8">
         <Tabs defaultValue="login" className="w-full max-w-md">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="login">Login</TabsTrigger>
             <TabsTrigger value="register">Register</TabsTrigger>
+            <TabsTrigger value="restaurant">Restaurant</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="login">
             <Card>
               <CardHeader>
@@ -125,6 +152,7 @@ export default function AuthPage() {
                     )}
                     className="space-y-4"
                   >
+                    {/* Basic Info */}
                     <FormField
                       control={registerForm.control}
                       name="username"
@@ -151,6 +179,126 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={registerForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Full Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Personal Details */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={registerForm.control}
+                        name="gender"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Gender</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select gender" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="male">Male</SelectItem>
+                                <SelectItem value="female">Female</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={registerForm.control}
+                        name="age"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Age</FormLabel>
+                            <FormControl>
+                              <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={registerForm.control}
+                      name="birthday"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Birthday</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={registerForm.control}
+                      name="city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>City</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={registerForm.control}
+                      name="favoriteCuisines"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Favorite Cuisines (Max 3)</FormLabel>
+                          <Select onValueChange={(value) => field.onChange([...field.value, value])} value={field.value[0] || ''}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select cuisines" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {CUISINES.filter(cuisine => !field.value.includes(cuisine)).map(cuisine => (
+                                <SelectItem key={cuisine} value={cuisine}>
+                                  {cuisine}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {field.value.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {field.value.map((cuisine) => (
+                                <Button
+                                  key={cuisine}
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => field.onChange(field.value.filter(c => c !== cuisine))}
+                                >
+                                  {cuisine} ×
+                                </Button>
+                              ))}
+                            </div>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     <Button
                       type="submit"
                       className="w-full"
@@ -160,6 +308,25 @@ export default function AuthPage() {
                     </Button>
                   </form>
                 </Form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="restaurant">
+            <Card>
+              <CardHeader>
+                <CardTitle>Register Restaurant</CardTitle>
+                <CardDescription>
+                  Create an account to list your restaurant
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="p-4 text-center">
+                  <p>Restaurant registration will be available soon.</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    We're working on bringing this feature to you.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

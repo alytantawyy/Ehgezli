@@ -2,6 +2,12 @@ import { pgTable, text, serial, integer, timestamp, boolean, jsonb } from "drizz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Add loginSchema for authentication
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -48,7 +54,8 @@ export const bookings = pgTable("bookings", {
 export const insertUserSchema = createInsertSchema(users).omit({ 
   id: true 
 }).extend({
-  favoriteCuisines: z.array(z.string()).min(1).max(3)
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  favoriteCuisines: z.array(z.string()).min(1, "Select at least one cuisine").max(3, "Maximum 3 cuisines allowed")
 });
 
 export const insertRestaurantSchema = createInsertSchema(restaurants).omit({ 
