@@ -12,15 +12,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
 export default function RestaurantAuthForm() {
@@ -45,14 +38,12 @@ export default function RestaurantAuthForm() {
     },
   });
 
-  if (restaurant) {
-    setLocation("/restaurant/profile-setup");
-    return null;
-  }
-
-  const handleSuccess = () => {
-    setLocation("/restaurant/profile-setup");
-  };
+  // Use useEffect to handle redirection when restaurant state changes
+  useEffect(() => {
+    if (restaurant) {
+      setLocation("/restaurant/profile-setup");
+    }
+  }, [restaurant, setLocation]);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -65,9 +56,7 @@ export default function RestaurantAuthForm() {
         <Form {...loginForm}>
           <form
             onSubmit={loginForm.handleSubmit((data) => {
-              loginMutation.mutate(data, {
-                onSuccess: handleSuccess,
-              });
+              loginMutation.mutate(data);
             })}
             className="space-y-4"
           >
@@ -112,9 +101,7 @@ export default function RestaurantAuthForm() {
         <Form {...registerForm}>
           <form
             onSubmit={registerForm.handleSubmit((data) => {
-              registerMutation.mutate(data, {
-                onSuccess: handleSuccess,
-              });
+              registerMutation.mutate(data);
             })}
             className="space-y-4"
           >
