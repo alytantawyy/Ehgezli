@@ -16,13 +16,28 @@ export function SearchBar({ onSearch, placeholder = "Search restaurants..." }: S
     onSearch(query);
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newQuery = e.target.value;
+    setQuery(newQuery);
+    if (newQuery === '') {
+      onSearch(''); // Trigger search with empty string when cleared
+    }
+  };
+
+  const handleBlur = () => {
+    if (query === '') {
+      onSearch(''); // Ensure search is triggered with empty string on blur
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="flex w-full max-w-sm items-center space-x-2">
       <Input
         type="text"
         placeholder={placeholder}
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={handleChange}
+        onBlur={handleBlur}
         className="flex-1"
       />
       <Button type="submit" size="icon">
