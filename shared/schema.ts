@@ -165,41 +165,4 @@ export type Booking = typeof bookings.$inferSelect;
 export type RestaurantProfile = typeof restaurantProfiles.$inferSelect;
 export type InsertRestaurantProfile = z.infer<typeof restaurantProfileSchema>;
 
-export const mockRestaurants = [
-  {
-    id: 1,
-    name: "La Maison Dorée",
-    description: "Experience fine French dining in an elegant setting",
-    about: "A family owned restaurant bringing authentic French cuisine to your neighborhood since 1995.",
-    logo: "https://example.com/logo1.png",
-    cuisine: "French",
-    locations: [
-      {
-        address: "123 Main St",
-        capacity: 60,
-        tablesCount: 15,
-        openingTime: "11:00",
-        closingTime: "23:00",
-        reservationDuration: 90
-      }
-    ]
-  },
-  {
-    id: 2,
-    name: "Sakura Garden",
-    description: "Authentic Japanese cuisine with a modern twist",
-    about: "Modern Japanese restaurant offering both traditional and fusion dishes in a contemporary setting.",
-    logo: "https://example.com/logo2.png",
-    cuisine: "Japanese",
-    locations: [
-      {
-        address: "456 Oak Ave",
-        capacity: 40,
-        tablesCount: 10,
-        openingTime: "12:00",
-        closingTime: "22:00",
-        reservationDuration: 60
-      }
-    ]
-  }
-];
+export const mockRestaurants: Restaurant[] = []; // Remove mock data

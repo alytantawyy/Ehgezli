@@ -71,7 +71,6 @@ export class MemStorage implements IStorage {
   }
 
   async getRestaurants(): Promise<Restaurant[]> {
-    // Get all registered restaurants
     const registeredRestaurants = Array.from(this.restaurantAuth.values())
       .map(auth => {
         const profile = Array.from(this.restaurantProfiles.values())
@@ -79,7 +78,6 @@ export class MemStorage implements IStorage {
 
         if (!profile) return null;
 
-        // Get actual branches for this restaurant
         const restaurantBranches = Array.from(this.branches.values())
           .filter(b => b.restaurantId === auth.id);
 
@@ -106,7 +104,7 @@ export class MemStorage implements IStorage {
       })
       .filter(Boolean) as Restaurant[];
 
-    return [...mockRestaurants, ...registeredRestaurants];
+    return registeredRestaurants;
   }
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
@@ -197,10 +195,10 @@ export class MemStorage implements IStorage {
 
       // If city filter is active, check if any branch is in the specified city
       if (city) {
-        const locations = restaurant.locations;
-        const hasLocationInCity = locations?.some(location => {
-          const address = (location as { address: string }).address;
-          return address.toLowerCase().includes(city.toLowerCase());
+        const hasLocationInCity = restaurant.locations?.some(location => {
+          const locationAddress = (location as { address: string }).address.toLowerCase();
+          // Check if the branch address contains the city name
+          return locationAddress.includes(`, ${city.toLowerCase()}`);
         });
 
         if (!hasLocationInCity) return;
@@ -215,10 +213,9 @@ export class MemStorage implements IStorage {
       // Apply text search filters
       const matchesName = restaurant.name.toLowerCase().includes(normalizedQuery);
       const matchesCuisine = restaurant.cuisine.toLowerCase().includes(normalizedQuery);
-      const locations = restaurant.locations;
-      const matchesLocation = locations?.some(location => {
-        const address = (location as { address: string }).address;
-        return address.toLowerCase().includes(normalizedQuery);
+      const matchesLocation = restaurant.locations?.some(location => {
+        const address = (location as { address: string }).address.toLowerCase();
+        return address.includes(normalizedQuery);
       });
 
       if (matchesName || matchesCuisine || matchesLocation) {
