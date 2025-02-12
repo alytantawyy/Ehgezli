@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Restaurant } from "@shared/schema";
 import { Link } from "wouter";
+import { MapPin } from "lucide-react";
 
 export function RestaurantCard({ restaurant }: { restaurant: Restaurant }) {
   return (
@@ -26,14 +27,20 @@ export function RestaurantCard({ restaurant }: { restaurant: Restaurant }) {
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>{restaurant.name}</span>
-          <span className="text-sm font-normal text-muted-foreground">
-            {restaurant.priceRange}
-          </span>
         </CardTitle>
+        <p className="text-sm font-medium text-muted-foreground">{restaurant.cuisine} Cuisine</p>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground">{restaurant.description}</p>
-        <p className="text-sm mt-2 font-medium">{restaurant.cuisine} Cuisine</p>
+        <p className="text-muted-foreground mb-4">{restaurant.description}</p>
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">Branches:</p>
+          {restaurant.locations?.map((location, index) => (
+            <div key={index} className="flex items-center text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4 mr-1" />
+              <span>{location.address}</span>
+            </div>
+          ))}
+        </div>
       </CardContent>
       <CardFooter>
         <Button asChild className="w-full">
