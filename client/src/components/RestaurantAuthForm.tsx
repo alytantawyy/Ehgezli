@@ -46,13 +46,12 @@ export default function RestaurantAuthForm() {
   });
 
   if (restaurant) {
-    setLocation("/restaurant/dashboard");
+    setLocation("/restaurant/profile-setup");
     return null;
   }
 
   const handleRegisterSuccess = () => {
-    setActiveTab("login");
-    registerForm.reset();
+    setLocation("/restaurant/profile-setup");
   };
 
   const handleLoginSuccess = () => {

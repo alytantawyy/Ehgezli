@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, jsonb, time } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -46,15 +46,25 @@ export const restaurants = pgTable("restaurants", {
   locations: jsonb("locations").notNull().default([]).array(),
 });
 
+export const restaurantProfiles = pgTable("restaurant_profiles", {
+  id: serial("id").primaryKey(),
+  restaurantId: integer("restaurant_id").notNull().unique(),
+  about: text("about").notNull(),
+  cuisine: text("cuisine").notNull(),
+  priceRange: text("price_range").notNull(),
+  isProfileComplete: boolean("is_profile_complete").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const restaurantBranches = pgTable("restaurant_branches", {
   id: serial("id").primaryKey(),
   restaurantId: integer("restaurant_id").notNull(),
   address: text("address").notNull(),
-  capacity: integer("capacity").notNull(),
   tablesCount: integer("tables_count").notNull(),
+  seatsCount: integer("seats_count").notNull(),
   openingTime: text("opening_time").notNull(),
   closingTime: text("closing_time").notNull(),
-  reservationDuration: integer("reservation_duration").notNull(),
 });
 
 export const bookings = pgTable("bookings", {
@@ -110,6 +120,27 @@ export const insertBookingSchema = createInsertSchema(bookings).omit({
   confirmed: true
 });
 
+// Schema for restaurant profile setup
+export const restaurantProfileSchema = createInsertSchema(restaurantProfiles).omit({ 
+  id: true,
+  isProfileComplete: true,
+  createdAt: true,
+  updatedAt: true
+}).extend({
+  about: z.string().min(100, "About section must be at least 100 words"),
+  cuisine: z.string().min(1, "Cuisine type is required"),
+  priceRange: z.enum(["$", "$$", "$$$", "$$$$"], {
+    required_error: "Price range is required",
+  }),
+  branches: z.array(z.object({
+    address: z.string().min(1, "Address is required"),
+    tablesCount: z.number().min(1, "Must have at least 1 table"),
+    seatsCount: z.number().min(1, "Must have at least 1 seat"),
+    openingTime: z.string().min(1, "Opening time is required"),
+    closingTime: z.string().min(1, "Closing time is required"),
+  })).min(1, "At least one branch is required"),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertRestaurantAuth = z.infer<typeof insertRestaurantAuthSchema>;
 export type User = typeof users.$inferSelect;
@@ -117,6 +148,8 @@ export type RestaurantAuth = typeof restaurantAuth.$inferSelect;
 export type Restaurant = typeof restaurants.$inferSelect;
 export type RestaurantBranch = typeof restaurantBranches.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
+export type RestaurantProfile = typeof restaurantProfiles.$inferSelect;
+export type InsertRestaurantProfile = z.infer<typeof restaurantProfileSchema>;
 
 export const mockRestaurants = [
   {

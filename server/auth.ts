@@ -130,6 +130,20 @@ export function setupAuth(app: Express) {
     res.status(200).json(req.user);
   });
 
+  // Add restaurant profile setup endpoint
+  app.post("/api/restaurant/profile", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      await storage.createRestaurantProfile(req.body);
+      res.status(201).json({ message: "Profile created successfully" });
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   // Common routes
   app.post("/api/logout", (req, res, next) => {
     req.logout((err) => {

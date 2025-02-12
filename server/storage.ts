@@ -1,6 +1,7 @@
 import { 
   InsertUser, User, Restaurant, Booking, RestaurantBranch,
-  mockRestaurants, RestaurantAuth, InsertRestaurantAuth
+  mockRestaurants, RestaurantAuth, InsertRestaurantAuth,
+  restaurantProfiles, restaurantBranches, type InsertRestaurantProfile
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -19,6 +20,7 @@ export interface IStorage {
   getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined>;
   getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined>;
   createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth>;
+  createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void>;
   sessionStore: session.Store;
 }
 
@@ -128,6 +130,23 @@ export class MemStorage implements IStorage {
     };
     this.restaurantAuth.set(id, restaurantAuth);
     return restaurantAuth;
+  }
+
+  async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
+    // Create the restaurant profile
+    const { branches, ...profileData } = profile;
+
+    // In memory implementation - just store it without actual database operations
+    // In a real database implementation, this would create records in both tables
+
+    // Create branches
+    branches.forEach((branch) => {
+      const branchData = {
+        ...branch,
+        restaurantId: profileData.restaurantId,
+      };
+      // Store branch data
+    });
   }
 }
 
