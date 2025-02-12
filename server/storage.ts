@@ -196,10 +196,12 @@ export class MemStorage implements IStorage {
       // If city filter is active, check if any branch is in the specified city
       if (city) {
         const hasLocationInCity = restaurant.locations?.some(location => {
-          const locationAddress = (location as { address: string }).address;
-          // Get city from address (format is "address, CITY")
-          const [, locationCity] = locationAddress.split(',').map(part => part.trim());
-          return locationCity?.toLowerCase() === city.toLowerCase();
+          if (!location.address) return false;
+          // Extract city from the location address (format: "address, CITY")
+          const parts = location.address.split(',');
+          if (parts.length !== 2) return false;
+          const locationCity = parts[1].trim();
+          return locationCity === city; // Exact match required
         });
 
         if (!hasLocationInCity) return;
@@ -215,8 +217,9 @@ export class MemStorage implements IStorage {
       const matchesName = restaurant.name.toLowerCase().includes(normalizedQuery);
       const matchesCuisine = restaurant.cuisine.toLowerCase().includes(normalizedQuery);
       const matchesLocation = restaurant.locations?.some(location => {
-        const address = (location as { address: string }).address.toLowerCase();
-        return address.includes(normalizedQuery);
+        if (!location.address) return false;
+        const addressPart = location.address.split(',')[0].trim().toLowerCase();
+        return addressPart.includes(normalizedQuery);
       });
 
       if (matchesName || matchesCuisine || matchesLocation) {

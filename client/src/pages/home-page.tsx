@@ -14,7 +14,7 @@ import {
 export default function HomePage() {
   const { user, logoutMutation } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -54,8 +54,8 @@ export default function HomePage() {
           <div className="flex gap-4 items-center justify-center mb-4">
             <SearchBar onSearch={handleSearch} placeholder="Search by name, cuisine, or location..." />
             <Select
-              value={selectedCity || undefined}
-              onValueChange={(value) => setSelectedCity(value || null)}
+              value={selectedCity}
+              onValueChange={setSelectedCity}
             >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select city" />
@@ -83,7 +83,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        <RestaurantGrid searchQuery={searchQuery} cityFilter={selectedCity === 'all' ? undefined : selectedCity} />
+        <RestaurantGrid 
+          searchQuery={searchQuery} 
+          cityFilter={selectedCity === 'all' ? undefined : selectedCity} 
+        />
       </main>
 
       <footer className="mt-16 border-t py-8">

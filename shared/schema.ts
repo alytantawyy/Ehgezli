@@ -112,7 +112,8 @@ export const insertRestaurantSchema = createInsertSchema(restaurants).omit({
     tablesCount: z.number(),
     openingTime: z.string(),
     closingTime: z.string(),
-    reservationDuration: z.number()
+    reservationDuration: z.number(),
+    city: z.enum(["Alexandria", "Cairo"])
   }))
 });
 
@@ -165,4 +166,4 @@ export type Booking = typeof bookings.$inferSelect;
 export type RestaurantProfile = typeof restaurantProfiles.$inferSelect;
 export type InsertRestaurantProfile = z.infer<typeof restaurantProfileSchema>;
 
-export const mockRestaurants: Restaurant[] = []; // Remove mock data
+export const mockRestaurants: Restaurant[] = [];
