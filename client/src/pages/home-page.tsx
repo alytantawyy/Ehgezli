@@ -69,18 +69,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="mb-8 flex justify-between items-center">
+        <div className="mb-8">
           <h3 className="text-2xl font-semibold">
             {selectedCity && selectedCity !== 'all' ? `Restaurants in ${selectedCity}` : 'Available Restaurants'}
           </h3>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm">
-              Filter
-            </Button>
-            <Button variant="secondary" size="sm">
-              Sort
-            </Button>
-          </div>
         </div>
 
         <RestaurantGrid 
