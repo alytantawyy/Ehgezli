@@ -72,12 +72,8 @@ export default function AuthPage() {
   }
 
   const handleRegisterSubmit = (data: any) => {
-    // Convert birthday string to Date object before submitting
-    const formData = {
-      ...data,
-      birthday: new Date(data.birthday),
-    };
-    registerMutation.mutate(formData);
+    // Schema will handle date conversion automatically
+    registerMutation.mutate(data);
   };
 
   return (

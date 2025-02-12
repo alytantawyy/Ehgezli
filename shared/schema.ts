@@ -55,7 +55,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true 
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
-  favoriteCuisines: z.array(z.string()).min(1, "Select at least one cuisine").max(3, "Maximum 3 cuisines allowed")
+  favoriteCuisines: z.array(z.string()).min(1, "Select at least one cuisine").max(3, "Maximum 3 cuisines allowed"),
+  birthday: z.string()
+    .refine((date) => !isNaN(new Date(date).getTime()), {
+      message: "Invalid date format"
+    })
+    .transform((date) => new Date(date))
 });
 
 export const insertRestaurantSchema = createInsertSchema(restaurants).omit({ 
@@ -88,7 +93,6 @@ export type Restaurant = typeof restaurants.$inferSelect;
 export type RestaurantBranch = typeof restaurantBranches.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 
-// Mock data for development
 export const mockRestaurants: Restaurant[] = [
   {
     id: 1,
