@@ -76,8 +76,8 @@ export default function RestaurantProfileSetup() {
         title: "Profile Setup Complete!",
         description: "Your restaurant profile has been created successfully.",
       });
-      // Redirect to the restaurant's dashboard using their ID
-      setLocation(`/restaurant/${restaurant?.id}/dashboard`);
+      // Redirect to the restaurant's dashboard
+      setLocation(`/restaurant/dashboard`);
     },
     onError: (error: Error) => {
       toast({
