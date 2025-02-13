@@ -59,11 +59,9 @@ export default function AuthPage() {
     defaultValues: {
       firstName: "",
       lastName: "",
-      nickname: "",
       email: "",
       password: "",
       gender: "",
-      age: 18,
       birthday: new Date().toISOString().split('T')[0],
       city: "",
       favoriteCuisines: [],
@@ -189,20 +187,6 @@ export default function AuthPage() {
 
                     <FormField
                       control={registerForm.control}
-                      name="nickname"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nickname</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={registerForm.control}
                       name="email"
                       render={({ field }) => (
                         <FormItem>
@@ -248,24 +232,6 @@ export default function AuthPage() {
                               <SelectItem value="other">Other</SelectItem>
                             </SelectContent>
                           </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={registerForm.control}
-                      name="age"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Age</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              {...field} 
-                              onChange={e => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
