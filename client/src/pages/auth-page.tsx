@@ -72,6 +72,11 @@ export default function AuthPage() {
     return <Redirect to="/" />;
   }
 
+  const handleLogin = async (data: any) => {
+    console.log('Login form data:', data);
+    await loginMutation.mutate(data);
+  };
+
   const handleRegisterSubmit = (data: any) => {
     console.log('Form data:', data); 
     registerMutation.mutate(data);
@@ -98,9 +103,7 @@ export default function AuthPage() {
               <CardContent>
                 <Form {...loginForm}>
                   <form
-                    onSubmit={loginForm.handleSubmit((data) =>
-                      loginMutation.mutate(data)
-                    )}
+                    onSubmit={loginForm.handleSubmit(handleLogin)}
                     className="space-y-4"
                   >
                     <FormField
@@ -134,7 +137,7 @@ export default function AuthPage() {
                       className="w-full"
                       disabled={loginMutation.isPending}
                     >
-                      Login
+                      {loginMutation.isPending ? "Logging in..." : "Login"}
                     </Button>
                   </form>
                 </Form>
