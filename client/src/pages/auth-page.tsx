@@ -73,6 +73,7 @@ export default function AuthPage() {
   }
 
   const handleRegisterSubmit = (data: any) => {
+    console.log('Form data:', data); 
     registerMutation.mutate(data);
   };
 
@@ -284,7 +285,11 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Favorite Cuisines (Max 3)</FormLabel>
                           <Select 
-                            onValueChange={(value) => field.onChange([...field.value, value])} 
+                            onValueChange={(value) => {
+                              if (field.value.length < 3 && !field.value.includes(value)) {
+                                field.onChange([...field.value, value]);
+                              }
+                            }}
                             value={field.value[0] || ''}
                           >
                             <FormControl>
@@ -324,7 +329,7 @@ export default function AuthPage() {
                       className="w-full"
                       disabled={registerMutation.isPending}
                     >
-                      Register
+                      {registerMutation.isPending ? "Creating Account..." : "Register"}
                     </Button>
                   </form>
                 </Form>

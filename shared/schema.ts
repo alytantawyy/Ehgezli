@@ -16,11 +16,11 @@ export const restaurantLoginSchema = z.object({
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull().unique(),
   password: text("password").notNull(),
-  name: text("name").notNull(),
   gender: text("gender").notNull(),
-  age: integer("age").notNull(),
   birthday: timestamp("birthday").notNull(),
   city: text("city").notNull(),
   favoriteCuisines: text("favorite_cuisines").array().notNull(),
