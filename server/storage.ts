@@ -10,7 +10,7 @@ const MemoryStore = createMemoryStore(session);
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getRestaurants(): Promise<Restaurant[]>;
   getRestaurant(id: number): Promise<Restaurant | undefined>;
@@ -57,9 +57,9 @@ export class MemStorage implements IStorage {
     return this.users.get(id);
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
+  async getUserByEmail(email: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(
-      (user) => user.username === username,
+      (user) => user.email === email,
     );
   }
 
@@ -97,7 +97,7 @@ export class MemStorage implements IStorage {
             tablesCount: branch.tablesCount,
             openingTime: branch.openingTime,
             closingTime: branch.closingTime,
-            city: branch.address.split(',').pop()?.trim() as "Alexandria" | "Cairo" //Updated city extraction
+            city: branch.address.split(',').pop()?.trim() as "Alexandria" | "Cairo" 
           }))
         };
       })
@@ -131,7 +131,7 @@ export class MemStorage implements IStorage {
         tablesCount: branch.tablesCount,
         openingTime: branch.openingTime,
         closingTime: branch.closingTime,
-        city: branch.address.split(',').pop()?.trim() as "Alexandria" | "Cairo" //Updated city extraction
+        city: branch.address.split(',').pop()?.trim() as "Alexandria" | "Cairo" 
       }))
     };
   }
@@ -199,7 +199,7 @@ export class MemStorage implements IStorage {
       const branchData: RestaurantBranch = {
         id: branchId,
         restaurantId: profileData.restaurantId,
-        address: `${branch.address}, ${branch.city}`, // Include city in address
+        address: `${branch.address}, ${branch.city}`, 
         tablesCount: branch.tablesCount,
         seatsCount: branch.seatsCount,
         openingTime: branch.openingTime,
