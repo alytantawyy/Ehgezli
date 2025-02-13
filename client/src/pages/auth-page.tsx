@@ -57,12 +57,14 @@ export default function AuthPage() {
   const registerForm = useForm({
     resolver: zodResolver(insertUserSchema),
     defaultValues: {
-      username: "",
+      firstName: "",
+      lastName: "",
+      nickname: "",
+      email: "",
       password: "",
-      name: "",
       gender: "",
       age: 18,
-      birthday: new Date().toISOString().split('T')[0], // Format date for input field
+      birthday: new Date().toISOString().split('T')[0],
       city: "",
       favoriteCuisines: [],
     },
@@ -73,7 +75,6 @@ export default function AuthPage() {
   }
 
   const handleRegisterSubmit = (data: any) => {
-    // Schema will handle date conversion automatically
     registerMutation.mutate(data);
   };
 
@@ -156,13 +157,42 @@ export default function AuthPage() {
                     onSubmit={registerForm.handleSubmit(handleRegisterSubmit)}
                     className="space-y-4"
                   >
-                    {/* Basic Info */}
+                    {/* Personal Information */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={registerForm.control}
+                        name="firstName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>First Name</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={registerForm.control}
+                        name="lastName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Last Name</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
                     <FormField
                       control={registerForm.control}
-                      name="username"
+                      name="nickname"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Username</FormLabel>
+                          <FormLabel>Nickname</FormLabel>
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
@@ -170,6 +200,21 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
+
+                    <FormField
+                      control={registerForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input type="email" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     <FormField
                       control={registerForm.control}
                       name="password"
@@ -183,58 +228,48 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
+
+                    {/* Additional Details */}
                     <FormField
                       control={registerForm.control}
-                      name="name"
+                      name="gender"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Full Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
+                          <FormLabel>Gender</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select gender" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="male">Male</SelectItem>
+                              <SelectItem value="female">Female</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    {/* Personal Details */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={registerForm.control}
-                        name="gender"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Gender</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select gender" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="male">Male</SelectItem>
-                                <SelectItem value="female">Female</SelectItem>
-                                <SelectItem value="other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={registerForm.control}
-                        name="age"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Age</FormLabel>
-                            <FormControl>
-                              <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    <FormField
+                      control={registerForm.control}
+                      name="age"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Age</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              {...field} 
+                              onChange={e => field.onChange(parseInt(e.target.value))}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
                     <FormField
                       control={registerForm.control}
@@ -282,7 +317,10 @@ export default function AuthPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Favorite Cuisines (Max 3)</FormLabel>
-                          <Select onValueChange={(value) => field.onChange([...field.value, value])} value={field.value[0] || ''}>
+                          <Select 
+                            onValueChange={(value) => field.onChange([...field.value, value])} 
+                            value={field.value[0] || ''}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select cuisines" />
