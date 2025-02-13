@@ -120,6 +120,11 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Add back the login route handler
+  app.post("/api/login", passport.authenticate("local"), (req, res) => {
+    res.status(200).json(req.user);
+  });
+
   // Restaurant routes
   app.post("/api/restaurant/register", async (req, res, next) => {
     const existingRestaurant = await storage.getRestaurantAuthByEmail(req.body.email);
