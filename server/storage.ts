@@ -94,11 +94,10 @@ export class MemStorage implements IStorage {
           cuisine: profile.cuisine,
           locations: restaurantBranches.map(branch => ({
             address: branch.address,
-            capacity: branch.seatsCount,
             tablesCount: branch.tablesCount,
             openingTime: branch.openingTime,
             closingTime: branch.closingTime,
-            reservationDuration: 60
+            city: branch.address.split(',').pop()?.trim() as "Alexandria" | "Cairo" //Updated city extraction
           }))
         };
       })
@@ -108,8 +107,33 @@ export class MemStorage implements IStorage {
   }
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
-    const restaurants = await this.getRestaurants();
-    return restaurants.find(r => r.id === id);
+    const auth = await this.getRestaurantAuth(id);
+    if (!auth) return undefined;
+
+    const profile = Array.from(this.restaurantProfiles.values())
+      .find(p => p.restaurantId === id);
+    if (!profile) return undefined;
+
+    const restaurantBranches = Array.from(this.branches.values())
+      .filter(b => b.restaurantId === id);
+    if (!restaurantBranches.length) return undefined;
+
+    return {
+      id: auth.id,
+      authId: auth.id,
+      name: auth.name,
+      description: profile.about.slice(0, 100) + (profile.about.length > 100 ? '...' : ''),
+      about: profile.about,
+      logo: profile.logo || "",
+      cuisine: profile.cuisine,
+      locations: restaurantBranches.map(branch => ({
+        address: branch.address,
+        tablesCount: branch.tablesCount,
+        openingTime: branch.openingTime,
+        closingTime: branch.closingTime,
+        city: branch.address.split(',').pop()?.trim() as "Alexandria" | "Cairo" //Updated city extraction
+      }))
+    };
   }
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
@@ -193,10 +217,7 @@ export class MemStorage implements IStorage {
       // If city filter is active, check city first
       if (city) {
         // Get all branch cities for this restaurant
-        const branchCities = restaurant.locations?.map(loc => {
-          const parts = loc.address.split(',');
-          return parts[parts.length - 1].trim();
-        }) || [];
+        const branchCities = restaurant.locations?.map(loc => loc.city) || [];
 
         // If restaurant has no branches in this city, filter it out
         if (!branchCities.includes(city)) {
