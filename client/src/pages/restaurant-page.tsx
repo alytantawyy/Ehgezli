@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function RestaurantPage() {
   const [, params] = useRoute("/restaurant/:id");
   const restaurantId = parseInt(params?.id || "0");
+  const branchIndex = parseInt(new URLSearchParams(window.location.search).get("branch") || "0");
 
   const { data: restaurant, isLoading } = useQuery<Restaurant>({
     queryKey: ["/api/restaurants", restaurantId],
@@ -41,9 +42,11 @@ export default function RestaurantPage() {
     );
   }
 
-  if (!restaurant) {
+  if (!restaurant || !restaurant.locations?.[branchIndex]) {
     return <div>Restaurant not found</div>;
   }
+
+  const branch = restaurant.locations[branchIndex];
 
   return (
     <div className="min-h-screen bg-background">
@@ -59,7 +62,7 @@ export default function RestaurantPage() {
           <div>
             <div
               className="h-64 rounded-lg bg-cover bg-center mb-6"
-              style={{ backgroundImage: `url(${restaurant.image})` }}
+              style={{ backgroundImage: `url(${restaurant.logo})` }}
             />
 
             <h1 className="text-3xl font-bold mb-4">{restaurant.name}</h1>
@@ -71,11 +74,11 @@ export default function RestaurantPage() {
               </div>
               <div className="flex items-center text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1" />
-                <span className="text-sm">Open Daily</span>
+                <span className="text-sm">{branch.openingTime} - {branch.closingTime}</span>
               </div>
               <div className="flex items-center text-muted-foreground">
                 <DollarSign className="h-4 w-4 mr-1" />
-                <span className="text-sm">{restaurant.priceRange}</span>
+                <span className="text-sm">$$</span>
               </div>
             </div>
 
@@ -96,7 +99,11 @@ export default function RestaurantPage() {
 
           <div className="bg-card p-6 rounded-lg border">
             <h2 className="text-xl font-semibold mb-6">Make a Reservation</h2>
-            <BookingForm restaurantId={restaurant.id} />
+            <BookingForm 
+              restaurantId={restaurant.id} 
+              openingTime={branch.openingTime} 
+              closingTime={branch.closingTime}
+            />
           </div>
         </div>
       </div>

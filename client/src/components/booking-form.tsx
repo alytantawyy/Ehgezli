@@ -39,11 +39,31 @@ const bookingSchema = z.object({
 
 type BookingFormData = z.infer<typeof bookingSchema>;
 
-// Generate time slots from 10 AM to 10 PM in 30-minute intervals
-const generateTimeSlots = () => {
+// Generate time slots from opening time to 1 hour before closing time in 30-minute intervals
+const generateTimeSlots = (openingTime: string, closingTime: string) => {
   const slots = [];
-  for (let hour = 10; hour <= 22; hour++) {
+
+  // Parse opening and closing times
+  const [openHour, openMinute] = openingTime.split(':').map(Number);
+  const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+
+  // Convert closing time to one hour earlier
+  let lastSlotHour = closeHour;
+  let lastSlotMinute = closeMinute;
+  if (lastSlotMinute >= 60) {
+    lastSlotHour += Math.floor(lastSlotMinute / 60);
+    lastSlotMinute = lastSlotMinute % 60;
+  }
+  lastSlotHour = lastSlotHour - 1; // One hour before closing
+
+  // Generate slots
+  for (let hour = openHour; hour <= lastSlotHour; hour++) {
     for (let minute of [0, 30]) {
+      // Skip if this would be the first slot and it's before opening minutes
+      if (hour === openHour && minute < openMinute) continue;
+      // Skip if this would be after the last allowed slot
+      if (hour === lastSlotHour && minute > lastSlotMinute) continue;
+
       const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       slots.push(time);
     }
@@ -51,15 +71,21 @@ const generateTimeSlots = () => {
   return slots;
 };
 
-const TIME_SLOTS = generateTimeSlots();
+interface BookingFormProps {
+  restaurantId: number;
+  openingTime: string;
+  closingTime: string;
+}
 
-export function BookingForm({ restaurantId }: { restaurantId: number }) {
+export function BookingForm({ restaurantId, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
+  const timeSlots = generateTimeSlots(openingTime, closingTime);
+
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
       partySize: "2",
-      time: "19:00", // Default to 7 PM
+      time: timeSlots[Math.floor(timeSlots.length / 2)], // Default to middle of available time slots
     },
   });
 
@@ -149,7 +175,7 @@ export function BookingForm({ restaurantId }: { restaurantId: number }) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {TIME_SLOTS.map((time) => (
+                  {timeSlots.map((time) => (
                     <SelectItem key={time} value={time}>
                       {time}
                     </SelectItem>
