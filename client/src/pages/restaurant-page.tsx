@@ -12,8 +12,13 @@ export default function RestaurantPage() {
   const restaurantId = parseInt(params?.id || "0");
   const branchIndex = parseInt(new URLSearchParams(window.location.search).get("branch") || "0");
 
-  const { data: restaurant, isLoading } = useQuery<Restaurant>({
+  const { data: restaurant, isLoading, error } = useQuery<Restaurant>({
     queryKey: ["/api/restaurants", restaurantId],
+    queryFn: async () => {
+      const response = await fetch(`/api/restaurants/${restaurantId}`);
+      if (!response.ok) throw new Error('Failed to fetch restaurant');
+      return response.json();
+    },
   });
 
   if (isLoading) {
@@ -42,8 +47,38 @@ export default function RestaurantPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Error Loading Restaurant</h2>
+          <p className="text-muted-foreground mb-4">{error.message}</p>
+          <Button variant="outline" asChild>
+            <Link to="/">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Restaurants
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!restaurant || !restaurant.locations?.[branchIndex]) {
-    return <div>Restaurant not found</div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Restaurant Not Found</h2>
+          <p className="text-muted-foreground mb-4">The requested restaurant or branch could not be found.</p>
+          <Button variant="outline" asChild>
+            <Link to="/">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Restaurants
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   const branch = restaurant.locations[branchIndex];
@@ -87,12 +122,12 @@ export default function RestaurantPage() {
             </p>
 
             <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-medium mb-2">Additional Information</h3>
+              <h3 className="font-medium mb-2">Branch Information</h3>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Parking available</li>
-                <li>• Wheelchair accessible</li>
-                <li>• Outdoor seating</li>
-                <li>• Takes reservations</li>
+                <li>• Location: {branch.address}</li>
+                <li>• City: {branch.city}</li>
+                <li>• Available Tables: {branch.tablesCount}</li>
+                <li>• Operating Hours: {branch.openingTime} - {branch.closingTime}</li>
               </ul>
             </div>
           </div>
