@@ -35,6 +35,15 @@ export const restaurantAuth = pgTable("restaurant_auth", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Define Location type first, before the restaurant schema
+export type Location = {
+  address: string;
+  tablesCount: number;
+  openingTime: string;
+  closingTime: string;
+  city: "Alexandria" | "Cairo";
+};
+
 export const restaurants = pgTable("restaurants", {
   id: serial("id").primaryKey(),
   authId: integer("auth_id").notNull().unique(),
@@ -43,7 +52,7 @@ export const restaurants = pgTable("restaurants", {
   about: text("about").notNull(),
   logo: text("logo").notNull(),
   cuisine: text("cuisine").notNull(),
-  locations: jsonb("locations").notNull().default([]).array(),
+  locations: jsonb("locations").notNull().$type<Location[]>(),
 });
 
 export const restaurantProfiles = pgTable("restaurant_profiles", {
@@ -108,11 +117,9 @@ export const insertRestaurantSchema = createInsertSchema(restaurants).omit({
   about: z.string().max(100),
   locations: z.array(z.object({
     address: z.string(),
-    capacity: z.number(),
     tablesCount: z.number(),
     openingTime: z.string(),
     closingTime: z.string(),
-    reservationDuration: z.number(),
     city: z.enum(["Alexandria", "Cairo"])
   }))
 });

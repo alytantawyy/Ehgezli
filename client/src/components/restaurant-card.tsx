@@ -16,7 +16,9 @@ interface RestaurantBranchCardProps {
 }
 
 export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCardProps) {
-  const branch = restaurant.locations[branchIndex];
+  // Ensure locations exist and get the specific branch
+  const locations = restaurant.locations as any[];
+  const branch = locations?.[branchIndex];
   if (!branch) return null;
 
   // Extract city from address (format: "address, CITY")
