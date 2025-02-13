@@ -20,16 +20,38 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const bookingSchema = z.object({
   date: z.date(),
+  time: z.string(),
   partySize: z.string().transform(Number),
 });
 
 type BookingFormData = z.infer<typeof bookingSchema>;
+
+// Generate time slots from 10 AM to 10 PM in 30-minute intervals
+const generateTimeSlots = () => {
+  const slots = [];
+  for (let hour = 10; hour <= 22; hour++) {
+    for (let minute of [0, 30]) {
+      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      slots.push(time);
+    }
+  }
+  return slots;
+};
+
+const TIME_SLOTS = generateTimeSlots();
 
 export function BookingForm({ restaurantId }: { restaurantId: number }) {
   const { toast } = useToast();
@@ -37,6 +59,7 @@ export function BookingForm({ restaurantId }: { restaurantId: number }) {
     resolver: zodResolver(bookingSchema),
     defaultValues: {
       partySize: "2",
+      time: "19:00", // Default to 7 PM
     },
   });
 
@@ -112,6 +135,32 @@ export function BookingForm({ restaurantId }: { restaurantId: number }) {
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="time"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Time</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select time" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {TIME_SLOTS.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="partySize"
