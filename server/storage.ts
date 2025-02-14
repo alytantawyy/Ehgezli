@@ -137,15 +137,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {
-    // Convert the date string to a Date object before inserting
-    const bookingWithDateObject = {
-      ...booking,
-      date: new Date(booking.date)
-    };
+    // Convert the date to a Date object if it's not already
+    const date = booking.date instanceof Date ? booking.date : new Date(booking.date);
 
+    // Create the booking with validated data
     const [newBooking] = await db.insert(bookings)
-      .values({ ...bookingWithDateObject, confirmed: false })
+      .values({
+        userId: booking.userId,
+        branchId: booking.branchId,
+        date: date,
+        partySize: booking.partySize,
+        confirmed: false
+      })
       .returning();
+
     return newBooking;
   }
 

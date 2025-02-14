@@ -42,12 +42,9 @@ type BookingFormData = z.infer<typeof bookingSchema>;
 // Generate time slots from opening time to 1 hour before closing time in 30-minute intervals
 const generateTimeSlots = (openingTime: string, closingTime: string) => {
   const slots = [];
-
-  // Parse opening and closing times
   const [openHour, openMinute] = openingTime.split(':').map(Number);
   const [closeHour, closeMinute] = closingTime.split(':').map(Number);
 
-  // Convert closing time to one hour earlier
   let lastSlotHour = closeHour;
   let lastSlotMinute = closeMinute;
   if (lastSlotMinute >= 60) {
@@ -56,12 +53,9 @@ const generateTimeSlots = (openingTime: string, closingTime: string) => {
   }
   lastSlotHour = lastSlotHour - 1; // One hour before closing
 
-  // Generate slots
   for (let hour = openHour; hour <= lastSlotHour; hour++) {
     for (let minute of [0, 30]) {
-      // Skip if this would be the first slot and it's before opening minutes
       if (hour === openHour && minute < openMinute) continue;
-      // Skip if this would be after the last allowed slot
       if (hour === lastSlotHour && minute > lastSlotMinute) continue;
 
       const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
@@ -92,10 +86,24 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
+      // Get the branch ID for the selected restaurant and branch index
+      const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
+      if (!branchResponse.ok) throw new Error('Failed to fetch branch information');
+      const branches = await branchResponse.json();
+      const branchId = branches[branchIndex]?.id;
+      if (!branchId) throw new Error('Invalid branch selection');
+
+      // Create the booking with the correct branch ID
       const res = await apiRequest("POST", "/api/bookings", {
         ...data,
-        restaurantId,
-        branchIndex,
+        branchId,
+        date: new Date(
+          data.date.getFullYear(),
+          data.date.getMonth(),
+          data.date.getDate(),
+          parseInt(data.time.split(':')[0]),
+          parseInt(data.time.split(':')[1])
+        ),
       });
       return res.json();
     },
