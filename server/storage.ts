@@ -135,34 +135,22 @@ export class DatabaseStorage implements IStorage {
     try {
       // First verify if the restaurant exists
       const restaurantExists = await db
-        .select({ id: restaurantAuth.id })
-        .from(restaurantAuth)
-        .where(eq(restaurantAuth.id, restaurantId))
+        .select()
+        .from(restaurants)
+        .where(eq(restaurants.id, restaurantId))
         .limit(1);
 
       if (!restaurantExists.length) {
         throw new Error('Restaurant not found');
       }
 
+      // Get all branches for this restaurant
       const branches = await db
-        .select({
-          id: restaurantBranches.id,
-          restaurantId: restaurantBranches.restaurantId,
-          address: restaurantBranches.address,
-          city: restaurantBranches.city,
-          tablesCount: restaurantBranches.tablesCount,
-          seatsCount: restaurantBranches.seatsCount,
-          openingTime: restaurantBranches.openingTime,
-          closingTime: restaurantBranches.closingTime,
-          reservationDuration: restaurantBranches.reservationDuration,
-        })
+        .select()
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, restaurantId));
 
-      if (!branches.length) {
-        throw new Error('No branches found for this restaurant');
-      }
-
+      // Map and return branches
       return branches.map(branch => ({
         id: branch.id,
         restaurantId: branch.restaurantId,
@@ -176,9 +164,6 @@ export class DatabaseStorage implements IStorage {
       }));
     } catch (error) {
       console.error('Error fetching restaurant branches:', error);
-      if (error instanceof Error) {
-        throw error;
-      }
       throw new Error('Failed to fetch restaurant branches');
     }
   }
