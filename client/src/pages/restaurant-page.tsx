@@ -4,7 +4,7 @@ import { useRoute } from "wouter";
 import { BookingForm } from "@/components/booking-form";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { ArrowLeft, MapPin, Clock, DollarSign } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, DollarSign } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function RestaurantPage() {
@@ -105,7 +105,7 @@ export default function RestaurantPage() {
             <div className="flex gap-4 mb-6">
               <div className="flex items-center text-muted-foreground">
                 <MapPin className="h-4 w-4 mr-1" />
-                <span className="text-sm">{restaurant.cuisine} Cuisine</span>
+                <span className="text-sm">{branch.address}</span>
               </div>
               <div className="flex items-center text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1" />
@@ -120,16 +120,6 @@ export default function RestaurantPage() {
             <p className="text-muted-foreground mb-6">
               {restaurant.description}
             </p>
-
-            <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-medium mb-2">Branch Information</h3>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Location: {branch.address}</li>
-                <li>• City: {branch.city}</li>
-                <li>• Available Tables: {branch.tablesCount}</li>
-                <li>• Operating Hours: {branch.openingTime} - {branch.closingTime}</li>
-              </ul>
-            </div>
           </div>
 
           <div className="bg-card p-6 rounded-lg border">
