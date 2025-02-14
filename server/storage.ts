@@ -17,6 +17,7 @@ export interface IStorage {
   getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]>;
   createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking>;
   getUserBookings(userId: number): Promise<Booking[]>;
+  getRestaurantBookings(restaurantId: number): Promise<Booking[]>;
   getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined>;
   getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined>;
   createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth>;
@@ -153,6 +154,17 @@ export class MemStorage implements IStorage {
     return Array.from(this.bookings.values()).filter(
       (booking) => booking.userId === userId
     );
+  }
+
+  async getRestaurantBookings(restaurantId: number): Promise<Booking[]> {
+    // Get all branches for this restaurant
+    const restaurantBranches = Array.from(this.branches.values())
+      .filter(branch => branch.restaurantId === restaurantId)
+      .map(branch => branch.id);
+
+    // Get all bookings for these branches
+    return Array.from(this.bookings.values())
+      .filter(booking => restaurantBranches.includes(booking.branchId));
   }
 
   async getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined> {

@@ -125,8 +125,9 @@ export default function RestaurantPage() {
           <div className="bg-card p-6 rounded-lg border">
             <h2 className="text-xl font-semibold mb-6">Make a Reservation</h2>
             <BookingForm 
-              restaurantId={restaurant.id} 
-              openingTime={branch.openingTime} 
+              restaurantId={restaurant.id}
+              branchIndex={branchIndex}
+              openingTime={branch.openingTime}
               closingTime={branch.closingTime}
             />
           </div>

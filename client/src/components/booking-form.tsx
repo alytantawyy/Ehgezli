@@ -73,19 +73,20 @@ const generateTimeSlots = (openingTime: string, closingTime: string) => {
 
 interface BookingFormProps {
   restaurantId: number;
+  branchIndex: number;
   openingTime: string;
   closingTime: string;
 }
 
-export function BookingForm({ restaurantId, openingTime, closingTime }: BookingFormProps) {
+export function BookingForm({ restaurantId, branchIndex, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
   const timeSlots = generateTimeSlots(openingTime, closingTime);
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
-      partySize: "2",
-      time: timeSlots[Math.floor(timeSlots.length / 2)], // Default to middle of available time slots
+      partySize: 2,
+      time: timeSlots[Math.floor(timeSlots.length / 2)],
     },
   });
 
@@ -94,6 +95,7 @@ export function BookingForm({ restaurantId, openingTime, closingTime }: BookingF
       const res = await apiRequest("POST", "/api/bookings", {
         ...data,
         restaurantId,
+        branchIndex,
       });
       return res.json();
     },
