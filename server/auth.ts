@@ -9,7 +9,10 @@ import { User as SelectUser, RestaurantAuth as SelectRestaurantAuth } from "@sha
 
 declare global {
   namespace Express {
-    interface User extends SelectUser {}
+    // Extend Express.User to allow both User and RestaurantAuth types
+    interface User extends Partial<SelectUser>, Partial<SelectRestaurantAuth> {
+      type?: 'user' | 'restaurant';
+    }
   }
 }
 
@@ -34,6 +37,10 @@ export function setupAuth(app: Express) {
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
+    cookie: {
+      secure: app.get("env") === "production",
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
   };
 
   if (app.get("env") === "production") {
@@ -44,7 +51,7 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Update User authentication strategy to use email
+  // User authentication strategy
   passport.use('local', new LocalStrategy({
     usernameField: 'email',
     passwordField: 'password'
@@ -54,13 +61,13 @@ export function setupAuth(app: Express) {
       if (!user || !(await comparePasswords(password, user.password))) {
         return done(null, false);
       }
-      return done(null, user);
+      return done(null, { ...user, type: 'user' });
     } catch (err) {
       return done(err);
     }
   }));
 
-  // Restaurant authentication strategy remains unchanged
+  // Restaurant authentication strategy
   passport.use('restaurant-local', new LocalStrategy({
     usernameField: 'email',
     passwordField: 'password'
@@ -70,98 +77,108 @@ export function setupAuth(app: Express) {
       if (!restaurant || !(await comparePasswords(password, restaurant.password))) {
         return done(null, false);
       }
-      return done(null, restaurant);
+      return done(null, { ...restaurant, type: 'restaurant' });
     } catch (err) {
       return done(err);
     }
   }));
 
-  passport.serializeUser((user: any, done) => {
-    if (!user) return done(new Error('No user to serialize'));
-    const isRestaurant = 'verified' in user; 
-    done(null, { id: user.id, type: isRestaurant ? 'restaurant' : 'user' });
+  passport.serializeUser((user: Express.User, done) => {
+    if (!user || !user.id || !user.type) {
+      return done(new Error('Invalid user data for serialization'));
+    }
+    done(null, { id: user.id, type: user.type });
   });
 
-  passport.deserializeUser(async (data: { id: number, type: string }, done) => {
+  passport.deserializeUser(async (data: { id: number, type: 'user' | 'restaurant' }, done) => {
     try {
       if (data.type === 'restaurant') {
         const restaurant = await storage.getRestaurantAuth(data.id);
-        if (!restaurant) return done(new Error('Restaurant not found'));
-        done(null, restaurant);
+        if (!restaurant) {
+          return done(new Error('Restaurant not found'));
+        }
+        done(null, { ...restaurant, type: 'restaurant' });
       } else {
         const user = await storage.getUser(data.id);
-        if (!user) return done(new Error('User not found'));
-        done(null, user);
+        if (!user) {
+          return done(new Error('User not found'));
+        }
+        done(null, { ...user, type: 'user' });
       }
     } catch (err) {
       done(err);
     }
   });
 
-  // Update register endpoint to use email
+  // User registration endpoint
   app.post("/api/register", async (req, res, next) => {
-    const existingUser = await storage.getUserByEmail(req.body.email);
-    if (existingUser) {
-      return res.status(400).send("Email already exists");
-    }
-
     try {
+      const existingUser = await storage.getUserByEmail(req.body.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+
       const user = await storage.createUser({
         ...req.body,
         password: await hashPassword(req.body.password),
       });
 
-      req.login(user, (err) => {
+      req.login({ ...user, type: 'user' }, (err) => {
         if (err) return next(err);
         res.status(201).json(user);
       });
-    } catch (error) {
-      next(error);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
     }
   });
 
-  // Add back the login route handler
+  // Restaurant registration endpoint
+  app.post("/api/restaurant/register", async (req, res, next) => {
+    try {
+      const existingRestaurant = await storage.getRestaurantAuthByEmail(req.body.email);
+      if (existingRestaurant) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      const restaurant = await storage.createRestaurantAuth({
+        ...req.body,
+        password: await hashPassword(req.body.password),
+      });
+
+      req.login({ ...restaurant, type: 'restaurant' }, (err) => {
+        if (err) return next(err);
+        res.status(201).json(restaurant);
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // User login endpoint
   app.post("/api/login", passport.authenticate("local"), (req, res) => {
     res.status(200).json(req.user);
   });
 
-  // Restaurant routes
-  app.post("/api/restaurant/register", async (req, res, next) => {
-    const existingRestaurant = await storage.getRestaurantAuthByEmail(req.body.email);
-    if (existingRestaurant) {
-      return res.status(400).send("Email already registered");
-    }
-
-    const restaurant = await storage.createRestaurantAuth({
-      ...req.body,
-      password: await hashPassword(req.body.password),
-    });
-
-    req.login(restaurant, (err) => {
-      if (err) return next(err);
-      res.status(201).json(restaurant);
-    });
-  });
-
+  // Restaurant login endpoint
   app.post("/api/restaurant/login", passport.authenticate("restaurant-local"), (req, res) => {
     res.status(200).json(req.user);
   });
 
-  // Add restaurant profile setup endpoint
+  // Restaurant profile setup endpoint
   app.post("/api/restaurant/profile", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
+    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
+      return res.status(401).json({ message: "Not authenticated as restaurant" });
     }
 
     try {
       await storage.createRestaurantProfile(req.body);
       res.status(201).json({ message: "Profile created successfully" });
-    } catch (error) {
+    } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
   });
 
-  // Common routes
+  // Common logout route
   app.post("/api/logout", (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
@@ -169,8 +186,17 @@ export function setupAuth(app: Express) {
     });
   });
 
+  // Current user route
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
+    res.json(req.user);
+  });
+
+  // Current restaurant route
+  app.get("/api/restaurant", (req, res) => {
+    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
+      return res.sendStatus(401);
+    }
     res.json(req.user);
   });
 }

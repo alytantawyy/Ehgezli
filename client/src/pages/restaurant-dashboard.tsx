@@ -1,16 +1,32 @@
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useQuery } from "@tanstack/react-query";
-import { Booking } from "@shared/schema";
+import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, LogOut } from "lucide-react";
+import { format } from "date-fns";
 
 export default function RestaurantDashboard() {
-  const { restaurant, logoutMutation } = useRestaurantAuth();
+  const { restaurant: auth, logoutMutation } = useRestaurantAuth();
 
-  const { data: bookings, isLoading } = useQuery<Booking[]>({
-    queryKey: ["/api/restaurant/bookings", restaurant?.id],
+  // Fetch complete restaurant data including locations
+  const { data: restaurant, isLoading: isRestaurantLoading } = useQuery<Restaurant>({
+    queryKey: ["/api/restaurants", auth?.id],
+    queryFn: async () => {
+      if (!auth?.id) throw new Error("No restaurant ID");
+      const response = await fetch(`/api/restaurants/${auth.id}`);
+      if (!response.ok) throw new Error('Failed to fetch restaurant');
+      return response.json();
+    },
+    enabled: !!auth?.id,
   });
+
+  const { data: bookings, isLoading: isBookingsLoading } = useQuery<Booking[]>({
+    queryKey: ["/api/restaurant/bookings", auth?.id],
+    enabled: !!auth?.id
+  });
+
+  const isLoading = isRestaurantLoading || isBookingsLoading;
 
   if (isLoading) {
     return (
@@ -20,6 +36,15 @@ export default function RestaurantDashboard() {
     );
   }
 
+  // Filter for upcoming bookings and sort by date
+  const upcomingBookings = bookings
+    ?.filter(booking => new Date(booking.date) >= new Date())
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const todayBookings = upcomingBookings?.filter(
+    booking => format(new Date(booking.date), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+  );
+
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -27,7 +52,7 @@ export default function RestaurantDashboard() {
           <h1 className="text-3xl font-bold">Restaurant Dashboard</h1>
           <div className="flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              Welcome back, {restaurant?.name}
+              Welcome back, {auth?.name}
             </div>
             <Button 
               variant="outline" 
@@ -43,26 +68,46 @@ export default function RestaurantDashboard() {
         <div className="grid gap-6 md:grid-cols-3">
           <Card>
             <CardHeader>
-              <CardTitle>Total Bookings</CardTitle>
+              <CardTitle>Today's Bookings</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {bookings?.length || 0}
+                {todayBookings?.length || 0}
               </div>
             </CardContent>
           </Card>
 
-          {/* Add more summary cards here */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Upcoming Bookings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {upcomingBookings?.length || 0}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Total Tables</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {restaurant?.locations?.reduce((sum, loc) => sum + loc.tablesCount, 0) || 0}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Bookings</CardTitle>
+            <CardTitle>Upcoming Bookings</CardTitle>
           </CardHeader>
           <CardContent>
-            {bookings && bookings.length > 0 ? (
+            {upcomingBookings && upcomingBookings.length > 0 ? (
               <div className="space-y-4">
-                {bookings.map((booking) => (
+                {upcomingBookings.map((booking) => (
                   <div
                     key={booking.id}
                     className="flex items-center justify-between p-4 border rounded-lg"
@@ -72,13 +117,16 @@ export default function RestaurantDashboard() {
                         Booking #{booking.id}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {new Date(booking.date).toLocaleString()}
+                        {format(new Date(booking.date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
                       </div>
                       <div className="text-sm">
                         Party size: {booking.partySize}
                       </div>
                     </div>
-                    <Button variant="outline">
+                    <Button 
+                      variant={booking.confirmed ? "secondary" : "default"}
+                      disabled={booking.confirmed}
+                    >
                       {booking.confirmed ? "Confirmed" : "Confirm"}
                     </Button>
                   </div>
@@ -86,7 +134,7 @@ export default function RestaurantDashboard() {
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                No bookings yet
+                No upcoming bookings
               </div>
             )}
           </CardContent>
