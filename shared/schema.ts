@@ -147,6 +147,8 @@ export const insertRestaurantSchema = createInsertSchema(restaurants).omit({
 
 export const insertBranchSchema = createInsertSchema(restaurantBranches).omit({
   id: true
+}).extend({
+  seatsCount: z.number().min(1, "Must have at least 1 seat per table")
 });
 
 export const insertBookingSchema = createInsertSchema(bookings).omit({

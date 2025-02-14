@@ -137,10 +137,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRestaurantBookings(restaurantId: number): Promise<Booking[]> {
-    return db.select()
+    const bookingsWithBranches = await db
+      .select({
+        id: bookings.id,
+        userId: bookings.userId,
+        branchId: bookings.branchId,
+        date: bookings.date,
+        partySize: bookings.partySize,
+        confirmed: bookings.confirmed
+      })
       .from(bookings)
-      .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
+      .innerJoin(
+        restaurantBranches,
+        eq(bookings.branchId, restaurantBranches.id)
+      )
       .where(eq(restaurantBranches.restaurantId, restaurantId));
+
+    return bookingsWithBranches;
   }
 
   async getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined> {
