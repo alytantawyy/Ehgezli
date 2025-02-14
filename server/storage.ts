@@ -154,12 +154,12 @@ export class DatabaseStorage implements IStorage {
         id: branch.id,
         restaurantId: branch.restaurantId,
         address: branch.address,
-        city: branch.city,
+        city: branch.city as "Alexandria" | "Cairo",
         tablesCount: branch.tablesCount,
         seatsCount: branch.seatsCount,
         openingTime: branch.openingTime,
         closingTime: branch.closingTime,
-        reservationDuration: branch.reservationDuration
+        reservationDuration: branch.reservationDuration || 120
       }));
     } catch (error) {
       console.error('Error fetching restaurant branches:', error);
