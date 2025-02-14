@@ -169,7 +169,6 @@ export class DatabaseStorage implements IStorage {
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
     await db.insert(restaurantProfiles).values({
-      id: profile.restaurantId,
       restaurantId: profile.restaurantId,
       about: profile.about,
       cuisine: profile.cuisine,
