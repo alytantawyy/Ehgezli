@@ -168,20 +168,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {
-    const date = booking.date instanceof Date ? booking.date : new Date(booking.date);
+    try {
+      const date = booking.date instanceof Date ? booking.date : new Date(booking.date);
 
-    // Create the booking with validated data
-    const [newBooking] = await db.insert(bookings)
-      .values({
-        userId: booking.userId,
-        branchId: booking.branchId,
-        date: date,
-        partySize: booking.partySize,
-        confirmed: false
-      })
-      .returning();
+      // Validate if the branch exists
+      const [branch] = await db
+        .select()
+        .from(restaurantBranches)
+        .where(eq(restaurantBranches.id, booking.branchId));
 
-    return newBooking;
+      if (!branch) {
+        throw new Error('Restaurant branch not found');
+      }
+
+      // Create the booking with validated data
+      const [newBooking] = await db.insert(bookings)
+        .values({
+          userId: booking.userId,
+          branchId: booking.branchId,
+          date: date,
+          partySize: booking.partySize,
+          confirmed: false
+        })
+        .returning();
+
+      return newBooking;
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      throw error;
+    }
   }
 
   async getUserBookings(userId: number): Promise<Booking[]> {
