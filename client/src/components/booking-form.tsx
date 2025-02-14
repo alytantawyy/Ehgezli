@@ -86,25 +86,53 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
+      // First check if user is logged in by making a request to /api/user
+      const userResponse = await fetch('/api/user');
+      if (!userResponse.ok) {
+        throw new Error('Please log in to make a booking');
+      }
+      const user = await userResponse.json();
+
       // Get the branch ID for the selected restaurant and branch index
       const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
-      if (!branchResponse.ok) throw new Error('Failed to fetch branch information');
-      const branches = await branchResponse.json();
-      const branchId = branches[branchIndex]?.id;
-      if (!branchId) throw new Error('Invalid branch selection');
+      if (!branchResponse.ok) {
+        const errorText = await branchResponse.text();
+        throw new Error(`Failed to fetch branch information: ${errorText}`);
+      }
 
-      // Create the booking with the correct branch ID
+      let branches;
+      try {
+        branches = await branchResponse.json();
+      } catch (e) {
+        throw new Error('Invalid branch data received from server');
+      }
+
+      const branchId = branches[branchIndex]?.id;
+      if (!branchId) {
+        throw new Error('Invalid branch selection');
+      }
+
+      // Create the booking with the correct branch ID and user ID
+      const bookingDate = new Date(
+        data.date.getFullYear(),
+        data.date.getMonth(),
+        data.date.getDate(),
+        parseInt(data.time.split(':')[0]),
+        parseInt(data.time.split(':')[1])
+      );
+
       const res = await apiRequest("POST", "/api/bookings", {
-        ...data,
         branchId,
-        date: new Date(
-          data.date.getFullYear(),
-          data.date.getMonth(),
-          data.date.getDate(),
-          parseInt(data.time.split(':')[0]),
-          parseInt(data.time.split(':')[1])
-        ),
+        userId: user.id,
+        date: bookingDate.toISOString(),
+        partySize: data.partySize,
       });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Booking failed: ${errorText}`);
+      }
+
       return res.json();
     },
     onSuccess: () => {
@@ -115,7 +143,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       });
       form.reset();
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Booking Failed",
         description: error.message,
@@ -222,7 +250,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           className="w-full"
           disabled={bookingMutation.isPending}
         >
-          Book Now
+          {bookingMutation.isPending ? "Booking..." : "Book Now"}
         </Button>
       </form>
     </Form>
