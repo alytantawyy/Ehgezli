@@ -92,40 +92,24 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           throw new Error('Please log in to make a booking');
         }
 
-        let user;
-        try {
-          const userText = await userResponse.text();
-          user = JSON.parse(userText);
-        } catch (e) {
-          console.error('User data parsing error:', e);
-          throw new Error('Please try logging in again');
-        }
+        const user = await userResponse.json();
 
         // Get branch information
         const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
         if (!branchResponse.ok) {
-          throw new Error('Unable to fetch restaurant information. Please try again.');
+          const errorData = await branchResponse.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Unable to fetch restaurant information');
         }
 
-        let branches;
-        try {
-          const branchText = await branchResponse.text();
-          if (!branchText.trim()) {
-            throw new Error('No branch data available');
-          }
-          branches = JSON.parse(branchText);
-        } catch (e) {
-          console.error('Branch parsing error:', e);
-          throw new Error('Unable to load restaurant branches. Please try again later.');
-        }
+        const branches = await branchResponse.json();
 
-        if (!Array.isArray(branches)) {
-          throw new Error('Restaurant branch information is not available');
+        if (!Array.isArray(branches) || branches.length === 0) {
+          throw new Error('No branches available for this restaurant');
         }
 
         const branch = branches[branchIndex];
         if (!branch?.id) {
-          throw new Error('Selected branch is no longer available');
+          throw new Error('Selected branch is not available');
         }
 
         // Create the booking
@@ -147,23 +131,16 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         const bookingResponse = await apiRequest("POST", "/api/bookings", bookingData);
 
         if (!bookingResponse.ok) {
-          const errorText = await bookingResponse.text();
-          try {
-            const error = JSON.parse(errorText);
-            throw new Error(error.message || 'Unable to complete booking');
-          } catch {
-            throw new Error('Unable to complete booking. Please try again.');
-          }
+          const errorData = await bookingResponse.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Unable to complete booking');
         }
 
-        const booking = await bookingResponse.json();
-        return booking;
-
+        return bookingResponse.json();
       } catch (error) {
         if (error instanceof Error) {
           throw error;
         }
-        throw new Error('An unexpected error occurred. Please try again.');
+        throw new Error('An unexpected error occurred');
       }
     },
     onSuccess: () => {
