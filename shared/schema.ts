@@ -17,7 +17,8 @@ export const restaurantLoginSchema = z.object({
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   gender: text("gender").notNull(),
@@ -116,11 +117,6 @@ export const insertUserSchema = createInsertSchema(users).omit({
     .refine((date) => !isNaN(new Date(date).getTime()), {
       message: "Invalid date format"
     })
-    .transform((date) => new Date(date)),
-  city: z.enum(["Alexandria", "Cairo"], {
-    required_error: "Please select a city",
-    invalid_type_error: "Please select a valid city"
-  })
 });
 
 export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omit({

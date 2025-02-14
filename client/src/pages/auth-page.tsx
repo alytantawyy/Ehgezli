@@ -57,11 +57,12 @@ export default function AuthPage() {
   const registerForm = useForm({
     resolver: zodResolver(insertUserSchema),
     defaultValues: {
-      name: "",
+      firstName: "",
+      lastName: "",
       email: "",
       password: "",
       gender: "",
-      birthday: new Date().toISOString().split('T')[0],
+      birthday: "",
       city: "",
       favoriteCuisines: [],
     },
@@ -76,11 +77,7 @@ export default function AuthPage() {
   };
 
   const handleRegisterSubmit = async (data: any) => {
-    const formattedData = {
-      ...data,
-      birthday: new Date(data.birthday),
-    };
-    await registerMutation.mutate(formattedData);
+    await registerMutation.mutate(data);
   };
 
   return (
@@ -160,20 +157,34 @@ export default function AuthPage() {
                     onSubmit={registerForm.handleSubmit(handleRegisterSubmit)}
                     className="space-y-4"
                   >
-                    <FormField
-                      control={registerForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Full Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={registerForm.control}
+                        name="firstName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>First Name</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={registerForm.control}
+                        name="lastName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Last Name</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                     <FormField
                       control={registerForm.control}
                       name="email"
@@ -187,7 +198,6 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={registerForm.control}
                       name="password"
@@ -201,7 +211,6 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={registerForm.control}
                       name="gender"
@@ -224,7 +233,6 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={registerForm.control}
                       name="birthday"
@@ -241,7 +249,6 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={registerForm.control}
                       name="city"
@@ -263,14 +270,13 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={registerForm.control}
                       name="favoriteCuisines"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Favorite Cuisines (Max 3)</FormLabel>
-                          <Select 
+                          <Select
                             onValueChange={(value) => {
                               const currentValues = field.value || [];
                               if (currentValues.length < 3 && !currentValues.includes(value)) {
@@ -309,7 +315,6 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
-
                     <Button
                       type="submit"
                       className="w-full"
