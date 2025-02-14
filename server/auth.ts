@@ -51,22 +51,6 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // User authentication strategy
-  passport.use('local', new LocalStrategy({
-    usernameField: 'email',
-    passwordField: 'password'
-  }, async (email, password, done) => {
-    try {
-      const user = await storage.getUserByEmail(email);
-      if (!user || !(await comparePasswords(password, user.password))) {
-        return done(null, false);
-      }
-      return done(null, { ...user, type: 'user' });
-    } catch (err) {
-      return done(err);
-    }
-  }));
-
   // Restaurant authentication strategy
   passport.use('restaurant-local', new LocalStrategy({
     usernameField: 'email',
@@ -78,6 +62,22 @@ export function setupAuth(app: Express) {
         return done(null, false);
       }
       return done(null, { ...restaurant, type: 'restaurant' });
+    } catch (err) {
+      return done(err);
+    }
+  }));
+
+  // User authentication strategy
+  passport.use('local', new LocalStrategy({
+    usernameField: 'email',
+    passwordField: 'password'
+  }, async (email, password, done) => {
+    try {
+      const user = await storage.getUserByEmail(email);
+      if (!user || !(await comparePasswords(password, user.password))) {
+        return done(null, false);
+      }
+      return done(null, { ...user, type: 'user' });
     } catch (err) {
       return done(err);
     }
@@ -110,28 +110,6 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // User registration endpoint
-  app.post("/api/register", async (req, res, next) => {
-    try {
-      const existingUser = await storage.getUserByEmail(req.body.email);
-      if (existingUser) {
-        return res.status(400).json({ message: "Email already exists" });
-      }
-
-      const user = await storage.createUser({
-        ...req.body,
-        password: await hashPassword(req.body.password),
-      });
-
-      req.login({ ...user, type: 'user' }, (err) => {
-        if (err) return next(err);
-        res.status(201).json(user);
-      });
-    } catch (error: any) {
-      res.status(400).json({ message: error.message });
-    }
-  });
-
   // Restaurant registration endpoint
   app.post("/api/restaurant/register", async (req, res, next) => {
     try {
@@ -154,28 +132,14 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // User login endpoint
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.status(200).json(req.user);
-  });
-
   // Restaurant login endpoint
   app.post("/api/restaurant/login", passport.authenticate("restaurant-local"), (req, res) => {
     res.status(200).json(req.user);
   });
 
-  // Restaurant profile setup endpoint
-  app.post("/api/restaurant/profile", async (req, res) => {
-    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      return res.status(401).json({ message: "Not authenticated as restaurant" });
-    }
-
-    try {
-      await storage.createRestaurantProfile(req.body);
-      res.status(201).json({ message: "Profile created successfully" });
-    } catch (error: any) {
-      res.status(400).json({ message: error.message });
-    }
+  // User login endpoint
+  app.post("/api/login", passport.authenticate("local"), (req, res) => {
+    res.status(200).json(req.user);
   });
 
   // Common logout route
@@ -186,15 +150,17 @@ export function setupAuth(app: Express) {
     });
   });
 
-  // Current user route
-  app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(req.user);
-  });
-
   // Current restaurant route
   app.get("/api/restaurant", (req, res) => {
     if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
+      return res.sendStatus(401);
+    }
+    res.json(req.user);
+  });
+
+  // Current user route
+  app.get("/api/user", (req, res) => {
+    if (!req.isAuthenticated() || req.user?.type !== 'user') {
       return res.sendStatus(401);
     }
     res.json(req.user);

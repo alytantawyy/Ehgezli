@@ -21,9 +21,16 @@ export default function RestaurantDashboard() {
     enabled: !!auth?.id,
   });
 
+  // Fetch bookings for all branches of this restaurant
   const { data: bookings, isLoading: isBookingsLoading } = useQuery<Booking[]>({
     queryKey: ["/api/restaurant/bookings", auth?.id],
-    enabled: !!auth?.id
+    queryFn: async () => {
+      if (!auth?.id) throw new Error("No restaurant ID");
+      const response = await fetch(`/api/restaurant/bookings/${auth.id}`);
+      if (!response.ok) throw new Error('Failed to fetch bookings');
+      return response.json();
+    },
+    enabled: !!auth?.id,
   });
 
   const isLoading = isRestaurantLoading || isBookingsLoading;
@@ -37,12 +44,13 @@ export default function RestaurantDashboard() {
   }
 
   // Filter for upcoming bookings and sort by date
+  const now = new Date();
   const upcomingBookings = bookings
-    ?.filter(booking => new Date(booking.date) >= new Date())
+    ?.filter(booking => new Date(booking.date) >= now)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const todayBookings = upcomingBookings?.filter(
-    booking => format(new Date(booking.date), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+    booking => format(new Date(booking.date), 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')
   );
 
   return (
@@ -79,7 +87,7 @@ export default function RestaurantDashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Upcoming Bookings</CardTitle>
+              <CardTitle>All Upcoming Bookings</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
@@ -102,7 +110,7 @@ export default function RestaurantDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Upcoming Bookings</CardTitle>
+            <CardTitle>Latest Bookings</CardTitle>
           </CardHeader>
           <CardContent>
             {upcomingBookings && upcomingBookings.length > 0 ? (
