@@ -205,23 +205,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRestaurantBookings(restaurantId: number): Promise<Booking[]> {
-    const bookingsWithBranches = await db
-      .select({
-        id: bookings.id,
-        userId: bookings.userId,
-        branchId: bookings.branchId,
-        date: bookings.date,
-        partySize: bookings.partySize,
-        confirmed: bookings.confirmed
-      })
-      .from(bookings)
-      .innerJoin(
-        restaurantBranches,
-        eq(bookings.branchId, restaurantBranches.id)
-      )
-      .where(eq(restaurantBranches.restaurantId, restaurantId));
+    try {
+      console.log(`Fetching bookings for restaurant ${restaurantId}`);
 
-    return bookingsWithBranches;
+      // First verify if the restaurant exists in restaurant_auth table
+      const [restaurant] = await db
+        .select()
+        .from(restaurantAuth)
+        .where(eq(restaurantAuth.id, restaurantId));
+
+      if (!restaurant) {
+        console.log('Restaurant not found:', restaurantId);
+        throw new Error('Restaurant not found');
+      }
+
+      // Get all branches for this restaurant
+      const branches = await db
+        .select()
+        .from(restaurantBranches)
+        .where(eq(restaurantBranches.restaurantId, restaurantId));
+
+      console.log(`Found ${branches.length} branches for restaurant ${restaurantId}:`, branches);
+
+      if (!branches.length) {
+        console.log(`No branches found for restaurant ${restaurantId}`);
+        return [];
+      }
+
+      // Get all bookings for all branches of this restaurant
+      const bookingsWithBranches = await db
+        .select({
+          id: bookings.id,
+          userId: bookings.userId,
+          branchId: bookings.branchId,
+          date: bookings.date,
+          partySize: bookings.partySize,
+          confirmed: bookings.confirmed
+        })
+        .from(bookings)
+        .innerJoin(
+          restaurantBranches,
+          and(
+            eq(bookings.branchId, restaurantBranches.id),
+            eq(restaurantBranches.restaurantId, restaurantId)
+          )
+        );
+
+      console.log(`Found ${bookingsWithBranches.length} bookings for restaurant ${restaurantId}:`, bookingsWithBranches);
+      return bookingsWithBranches;
+    } catch (error) {
+      console.error('Error fetching restaurant bookings:', error);
+      throw error;
+    }
   }
 
   async getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined> {

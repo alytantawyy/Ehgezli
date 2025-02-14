@@ -26,9 +26,15 @@ export default function RestaurantDashboard() {
     queryKey: ["/api/restaurant/bookings", auth?.id],
     queryFn: async () => {
       if (!auth?.id) throw new Error("No restaurant ID");
+      console.log('Fetching bookings for restaurant:', auth.id);
       const response = await fetch(`/api/restaurant/bookings/${auth.id}`);
-      if (!response.ok) throw new Error('Failed to fetch bookings');
-      return response.json();
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch bookings');
+      }
+      const data = await response.json();
+      console.log('Received bookings:', data);
+      return data;
     },
     enabled: !!auth?.id,
   });
@@ -47,11 +53,10 @@ export default function RestaurantDashboard() {
   const now = new Date();
   const upcomingBookings = bookings
     ?.filter(booking => new Date(booking.date) >= now)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
-  const todayBookings = upcomingBookings?.filter(
-    booking => format(new Date(booking.date), 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')
-  );
+  const todayBookings = upcomingBookings
+    .filter(booking => format(new Date(booking.date), 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd'));
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -80,18 +85,18 @@ export default function RestaurantDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {todayBookings?.length || 0}
+                {todayBookings.length}
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>All Upcoming Bookings</CardTitle>
+              <CardTitle>Upcoming Bookings</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {upcomingBookings?.length || 0}
+                {upcomingBookings.length}
               </div>
             </CardContent>
           </Card>
