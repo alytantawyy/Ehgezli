@@ -67,8 +67,10 @@ export class DatabaseStorage implements IStorage {
 
     const restaurantMap = new Map<number, Restaurant>();
 
-    registeredRestaurants.forEach(({ restaurant_auth, restaurant_profiles, restaurant_branches }) => {
-      if (!restaurant_profiles || !restaurant_branches) return;
+    for (const record of registeredRestaurants) {
+      const { restaurant_auth, restaurant_profiles, restaurant_branches } = record;
+
+      if (!restaurant_auth || !restaurant_profiles) continue;
 
       if (!restaurantMap.has(restaurant_auth.id)) {
         restaurantMap.set(restaurant_auth.id, {
@@ -84,14 +86,17 @@ export class DatabaseStorage implements IStorage {
       }
 
       const restaurant = restaurantMap.get(restaurant_auth.id)!;
-      restaurant.locations.push({
-        address: restaurant_branches.address,
-        tablesCount: restaurant_branches.tablesCount,
-        openingTime: restaurant_branches.openingTime,
-        closingTime: restaurant_branches.closingTime,
-        city: restaurant_branches.city as "Alexandria" | "Cairo"
-      });
-    });
+
+      if (restaurant_branches) {
+        restaurant.locations.push({
+          address: restaurant_branches.address,
+          tablesCount: restaurant_branches.tablesCount,
+          openingTime: restaurant_branches.openingTime,
+          closingTime: restaurant_branches.closingTime,
+          city: restaurant_branches.city as "Alexandria" | "Cairo"
+        });
+      }
+    }
 
     return Array.from(restaurantMap.values());
   }
