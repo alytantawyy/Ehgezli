@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 const bookingSchema = z.object({
   date: z.date(),
   time: z.string(),
-  partySize: z.string().transform(Number),
+  partySize: z.number().min(1, "Party size must be at least 1").max(20, "Party size cannot exceed 20")
 });
 
 type BookingFormData = z.infer<typeof bookingSchema>;
@@ -196,7 +196,14 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
             <FormItem>
               <FormLabel>Party Size</FormLabel>
               <FormControl>
-                <Input type="number" min="1" max="20" {...field} />
+                <Input 
+                  type="number" 
+                  min="1" 
+                  max="20" 
+                  {...field}
+                  onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                  value={field.value || ""}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
