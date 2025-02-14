@@ -168,16 +168,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
-    await db.insert(restaurantProfiles).values({
-      restaurantId: profile.restaurantId,
-      about: profile.about,
-      cuisine: profile.cuisine,
-      priceRange: profile.priceRange,
-      logo: profile.logo,
-      isProfileComplete: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
+    // First check if profile exists
+    const existingProfile = await this.getRestaurantProfile(profile.restaurantId);
+
+    if (existingProfile) {
+      // If profile exists, update it
+      await db.update(restaurantProfiles)
+        .set({
+          about: profile.about,
+          cuisine: profile.cuisine,
+          priceRange: profile.priceRange,
+          logo: profile.logo,
+          isProfileComplete: true,
+          updatedAt: new Date()
+        })
+        .where(eq(restaurantProfiles.restaurantId, profile.restaurantId));
+    } else {
+      // If profile doesn't exist, insert new one
+      await db.insert(restaurantProfiles).values({
+        restaurantId: profile.restaurantId,
+        about: profile.about,
+        cuisine: profile.cuisine,
+        priceRange: profile.priceRange,
+        logo: profile.logo,
+        isProfileComplete: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }
+
+    // Delete existing branches and insert new ones
+    await db.delete(restaurantBranches)
+      .where(eq(restaurantBranches.restaurantId, profile.restaurantId));
 
     await db.insert(restaurantBranches).values(
       profile.branches.map(branch => ({
