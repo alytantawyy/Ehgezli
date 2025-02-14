@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -30,6 +30,7 @@ import {
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 
 const bookingSchema = z.object({
   date: z.date(),
@@ -74,6 +75,43 @@ interface BookingFormProps {
 export function BookingForm({ restaurantId, branchIndex, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
   const timeSlots = generateTimeSlots(openingTime, closingTime);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      console.log('WebSocket Connected');
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'new_booking') {
+          // Invalidate queries to refresh the UI
+          queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+
+          // Show a toast notification
+          toast({
+            title: "New Booking Received",
+            description: "A new booking has been made.",
+          });
+        }
+      } catch (error) {
+        console.error('WebSocket message error:', error);
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    return () => {
+      socket.close();
+    };
+  }, [toast]);
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
@@ -139,12 +177,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         });
 
         if (!bookingResponse.ok) {
-          const errorData = await bookingResponse.json().catch(() => ({ message: 'Unable to complete booking' }));
+          const errorData = await bookingResponse.json();
           throw new Error(errorData.message || 'Unable to complete booking');
         }
 
-        const booking = await bookingResponse.json();
-        return booking;
+        return bookingResponse.json();
       } catch (error) {
         if (error instanceof Error) {
           throw error;
