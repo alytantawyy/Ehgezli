@@ -16,13 +16,8 @@ interface RestaurantBranchCardProps {
 }
 
 export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCardProps) {
-  // Ensure locations exist and get the specific branch
-  const locations = restaurant.locations as any[];
-  const branch = locations?.[branchIndex];
+  const branch = restaurant.locations?.[branchIndex];
   if (!branch) return null;
-
-  // Extract city from address (format: "address, CITY")
-  const [address, city] = branch.address.split(',').map(part => part.trim());
 
   return (
     <Card className="overflow-hidden">
@@ -48,9 +43,9 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
         <div className="space-y-2">
           <div className="flex items-center text-sm text-muted-foreground">
             <MapPin className="h-4 w-4 mr-1" />
-            <span>{address}</span>
+            <span>{branch.address}</span>
           </div>
-          <p className="text-sm font-medium">City: {city}</p>
+          <p className="text-sm font-medium">City: {branch.city}</p>
           <p className="text-sm">Tables: {branch.tablesCount}</p>
           <p className="text-sm">Opening Hours: {branch.openingTime} - {branch.closingTime}</p>
         </div>
