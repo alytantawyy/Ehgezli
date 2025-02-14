@@ -133,11 +133,11 @@ export class DatabaseStorage implements IStorage {
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
     try {
-      // First verify if the restaurant exists in restaurants table
+      // First verify if the restaurant exists in restaurant_auth table
       const [restaurant] = await db
         .select()
-        .from(restaurants)
-        .where(eq(restaurants.id, restaurantId));
+        .from(restaurantAuth)
+        .where(eq(restaurantAuth.id, restaurantId));
 
       if (!restaurant) {
         throw new Error('Restaurant not found');
