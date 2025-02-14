@@ -25,7 +25,6 @@ export interface IStorage {
   getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined>;
   createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth>;
   createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void>;
-  getRestaurantProfile(restaurantId: number): Promise<RestaurantProfile | undefined>;
   sessionStore: session.Store;
   searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
 }
@@ -137,11 +136,26 @@ export class DatabaseStorage implements IStorage {
       .from(restaurantBranches)
       .where(eq(restaurantBranches.restaurantId, restaurantId));
 
-    return branches || []; // Return empty array instead of throwing error
+    // Return empty array if no branches found
+    if (!branches) {
+      return [];
+    }
+
+    // Map the branches to ensure consistent format
+    return branches.map(branch => ({
+      id: branch.id,
+      restaurantId: branch.restaurantId,
+      address: branch.address,
+      city: branch.city,
+      tablesCount: branch.tablesCount,
+      seatsCount: branch.seatsCount,
+      openingTime: branch.openingTime,
+      closingTime: branch.closingTime,
+      reservationDuration: branch.reservationDuration
+    }));
   }
 
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {
-    // Convert the date to a Date object if it's not already
     const date = booking.date instanceof Date ? booking.date : new Date(booking.date);
 
     // Create the booking with validated data

@@ -86,7 +86,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
       try {
-        // First check if user is logged in
+        // Check if user is logged in
         const userResponse = await fetch('/api/user');
         if (!userResponse.ok) {
           throw new Error('Please log in to make a booking');
@@ -108,13 +108,20 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         let branches;
         try {
           const responseText = await branchResponse.text();
+          if (!responseText) {
+            throw new Error('Empty response received from server');
+          }
           branches = JSON.parse(responseText);
         } catch (e) {
           console.error('Branch data parsing error:', e);
           throw new Error('Invalid branch data format received from server');
         }
 
-        if (!Array.isArray(branches) || branches.length === 0) {
+        if (!Array.isArray(branches)) {
+          throw new Error('Invalid branch data format: expected an array');
+        }
+
+        if (branches.length === 0) {
           throw new Error('No branches available for this restaurant');
         }
 
@@ -140,7 +147,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         };
 
         const bookingResponse = await apiRequest("POST", "/api/bookings", bookingData);
-
         if (!bookingResponse.ok) {
           const errorText = await bookingResponse.text();
           try {
@@ -153,7 +159,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
         let bookingResult;
         try {
-          bookingResult = await bookingResponse.json();
+          const bookingText = await bookingResponse.text();
+          if (!bookingText) {
+            throw new Error('Empty booking response received');
+          }
+          bookingResult = JSON.parse(bookingText);
         } catch (e) {
           throw new Error('Invalid booking response received from server');
         }
