@@ -37,19 +37,31 @@ export function RestaurantGrid({ searchQuery, cityFilter }: RestaurantGridProps)
     );
   }
 
-  // Create an array of all branches
+  // Create an array of all branches and filter by city if needed
   const branches = restaurants?.flatMap((restaurant) => 
-    restaurant.locations.map((_, index) => ({
+    restaurant.locations.map((location, index) => ({
       restaurant,
-      branchIndex: index
+      branchIndex: index,
+      city: location.city
     }))
   ).filter(branch => {
-    if (!cityFilter || cityFilter === 'all') return true;
-    const branchCity = branch.restaurant.locations[branch.branchIndex].address
-      .split(',')
-      .pop()
-      ?.trim();
-    return branchCity === cityFilter;
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesName = branch.restaurant.name.toLowerCase().includes(query);
+      const matchesCuisine = branch.restaurant.cuisine.toLowerCase().includes(query);
+      const matchesLocation = branch.restaurant.locations[branch.branchIndex].address.toLowerCase().includes(query);
+      if (!matchesName && !matchesCuisine && !matchesLocation) {
+        return false;
+      }
+    }
+
+    // Apply city filter
+    if (cityFilter && cityFilter !== 'all') {
+      return branch.city === cityFilter;
+    }
+
+    return true;
   }) || [];
 
   if (branches.length === 0) {
