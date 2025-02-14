@@ -94,40 +94,38 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
         let user;
         try {
-          user = await userResponse.json();
+          const userText = await userResponse.text();
+          user = JSON.parse(userText);
         } catch (e) {
-          throw new Error('Invalid user data received');
+          console.error('User data parsing error:', e);
+          throw new Error('Please try logging in again');
         }
 
         // Get branch information
         const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
         if (!branchResponse.ok) {
-          throw new Error('Unable to fetch restaurant branch information');
+          throw new Error('Unable to fetch restaurant information. Please try again.');
         }
 
         let branches;
         try {
-          const responseText = await branchResponse.text();
-          if (!responseText) {
-            throw new Error('Empty response received from server');
+          const branchText = await branchResponse.text();
+          if (!branchText.trim()) {
+            throw new Error('No branch data available');
           }
-          branches = JSON.parse(responseText);
+          branches = JSON.parse(branchText);
         } catch (e) {
-          console.error('Branch data parsing error:', e);
-          throw new Error('Invalid branch data format received from server');
+          console.error('Branch parsing error:', e);
+          throw new Error('Unable to load restaurant branches. Please try again later.');
         }
 
         if (!Array.isArray(branches)) {
-          throw new Error('Invalid branch data format: expected an array');
-        }
-
-        if (branches.length === 0) {
-          throw new Error('No branches available for this restaurant');
+          throw new Error('Restaurant branch information is not available');
         }
 
         const branch = branches[branchIndex];
         if (!branch?.id) {
-          throw new Error('Selected branch is not available');
+          throw new Error('Selected branch is no longer available');
         }
 
         // Create the booking
@@ -147,33 +145,25 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         };
 
         const bookingResponse = await apiRequest("POST", "/api/bookings", bookingData);
+
         if (!bookingResponse.ok) {
           const errorText = await bookingResponse.text();
           try {
-            const errorJson = JSON.parse(errorText);
-            throw new Error(errorJson.message || 'Failed to create booking');
+            const error = JSON.parse(errorText);
+            throw new Error(error.message || 'Unable to complete booking');
           } catch {
-            throw new Error(errorText || 'Failed to create booking');
+            throw new Error('Unable to complete booking. Please try again.');
           }
         }
 
-        let bookingResult;
-        try {
-          const bookingText = await bookingResponse.text();
-          if (!bookingText) {
-            throw new Error('Empty booking response received');
-          }
-          bookingResult = JSON.parse(bookingText);
-        } catch (e) {
-          throw new Error('Invalid booking response received from server');
-        }
+        const booking = await bookingResponse.json();
+        return booking;
 
-        return bookingResult;
       } catch (error) {
         if (error instanceof Error) {
           throw error;
         }
-        throw new Error('An unexpected error occurred');
+        throw new Error('An unexpected error occurred. Please try again.');
       }
     },
     onSuccess: () => {

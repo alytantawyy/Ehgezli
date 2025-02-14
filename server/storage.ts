@@ -137,22 +137,30 @@ export class DatabaseStorage implements IStorage {
       .where(eq(restaurantBranches.restaurantId, restaurantId));
 
     // Return empty array if no branches found
-    if (!branches) {
+    if (!branches || !Array.isArray(branches)) {
+      console.log(`No branches found for restaurant ${restaurantId}`);
       return [];
     }
 
-    // Map the branches to ensure consistent format
-    return branches.map(branch => ({
-      id: branch.id,
-      restaurantId: branch.restaurantId,
-      address: branch.address,
-      city: branch.city,
-      tablesCount: branch.tablesCount,
-      seatsCount: branch.seatsCount,
-      openingTime: branch.openingTime,
-      closingTime: branch.closingTime,
-      reservationDuration: branch.reservationDuration
-    }));
+    // Map and validate each branch
+    return branches.map(branch => {
+      if (!branch || typeof branch !== 'object') {
+        console.error('Invalid branch data:', branch);
+        return null;
+      }
+
+      return {
+        id: branch.id,
+        restaurantId: branch.restaurantId,
+        address: branch.address,
+        city: branch.city as "Alexandria" | "Cairo",
+        tablesCount: branch.tablesCount,
+        seatsCount: branch.seatsCount,
+        openingTime: branch.openingTime,
+        closingTime: branch.closingTime,
+        reservationDuration: branch.reservationDuration
+      };
+    }).filter((branch): branch is RestaurantBranch => branch !== null);
   }
 
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {
