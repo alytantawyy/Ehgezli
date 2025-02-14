@@ -132,24 +132,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
-    const branches = await db.select()
-      .from(restaurantBranches)
-      .where(eq(restaurantBranches.restaurantId, restaurantId));
+    try {
+      const branches = await db
+        .select({
+          id: restaurantBranches.id,
+          restaurantId: restaurantBranches.restaurantId,
+          address: restaurantBranches.address,
+          city: restaurantBranches.city,
+          tablesCount: restaurantBranches.tablesCount,
+          seatsCount: restaurantBranches.seatsCount,
+          openingTime: restaurantBranches.openingTime,
+          closingTime: restaurantBranches.closingTime,
+          reservationDuration: restaurantBranches.reservationDuration,
+        })
+        .from(restaurantBranches)
+        .where(eq(restaurantBranches.restaurantId, restaurantId));
 
-    // Return empty array if no branches found
-    if (!branches || !Array.isArray(branches)) {
-      console.log(`No branches found for restaurant ${restaurantId}`);
-      return [];
-    }
-
-    // Map and validate each branch
-    return branches.map(branch => {
-      if (!branch || typeof branch !== 'object') {
-        console.error('Invalid branch data:', branch);
-        return null;
+      // Return empty array if no branches found
+      if (!branches || branches.length === 0) {
+        console.log(`No branches found for restaurant ${restaurantId}`);
+        return [];
       }
 
-      return {
+      // Map and validate each branch
+      return branches.map(branch => ({
         id: branch.id,
         restaurantId: branch.restaurantId,
         address: branch.address,
@@ -159,8 +165,11 @@ export class DatabaseStorage implements IStorage {
         openingTime: branch.openingTime,
         closingTime: branch.closingTime,
         reservationDuration: branch.reservationDuration
-      };
-    }).filter((branch): branch is RestaurantBranch => branch !== null);
+      }));
+    } catch (error) {
+      console.error('Error fetching restaurant branches:', error);
+      throw new Error('Failed to fetch restaurant branches');
+    }
   }
 
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {
