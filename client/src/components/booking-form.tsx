@@ -95,13 +95,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           throw new Error('Unable to verify user session');
         }
 
-        let user;
-        try {
-          const userText = await userResponse.text();
-          user = JSON.parse(userText);
-        } catch (e) {
-          throw new Error('Unable to verify user session. Please try logging in again.');
-        }
+        const user = await userResponse.json();
 
         // Get branch information
         const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
@@ -109,14 +103,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           throw new Error('Unable to fetch restaurant information');
         }
 
-        let branches;
-        try {
-          const branchText = await branchResponse.text();
-          branches = JSON.parse(branchText);
-        } catch (e) {
-          console.error('Branch data parsing error:', e);
-          throw new Error('Unable to load restaurant information. Please try again.');
-        }
+        const branches = await branchResponse.json();
 
         if (!Array.isArray(branches) || branches.length === 0) {
           throw new Error('No branches available for this restaurant');
@@ -152,25 +139,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         });
 
         if (!bookingResponse.ok) {
-          let errorMessage = 'Unable to complete booking';
-          try {
-            const errorData = await bookingResponse.json();
-            if (errorData.message) {
-              errorMessage = errorData.message;
-            }
-          } catch {
-            // If we can't parse the error response, use the default message
-          }
-          throw new Error(errorMessage);
+          const errorData = await bookingResponse.json().catch(() => ({ message: 'Unable to complete booking' }));
+          throw new Error(errorData.message || 'Unable to complete booking');
         }
 
-        let booking;
-        try {
-          booking = await bookingResponse.json();
-        } catch (e) {
-          throw new Error('Booking was created but response was invalid');
-        }
-
+        const booking = await bookingResponse.json();
         return booking;
       } catch (error) {
         if (error instanceof Error) {
