@@ -142,49 +142,31 @@ export function setupAuth(app: Express) {
     res.status(200).json(req.user);
   });
 
-  // Add confirm booking endpoint
-  app.post("/api/restaurant/bookings/:bookingId/confirm", async (req, res) => {
-    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      return res.status(401).json({ message: "Not authenticated as restaurant" });
-    }
-
-    try {
-      const bookingId = parseInt(req.params.bookingId);
-      if (isNaN(bookingId)) {
-        return res.status(400).json({ message: "Invalid booking ID" });
-      }
-      if (!req.user.id) {
-        return res.status(400).json({ message: "Restaurant ID not found" });
-      }
-      const booking = await storage.confirmBooking(bookingId, req.user.id);
-      res.json(booking);
-    } catch (error: any) {
-      console.error('Error confirming booking:', error);
-      res.status(500).json({ message: error.message });
-    }
+  // Common logout route
+  app.post("/api/logout", (req, res, next) => {
+    req.logout((err) => {
+      if (err) return next(err);
+      res.sendStatus(200);
+    });
   });
 
-  // Add restaurant profile status endpoint
-  app.get("/api/restaurant/profile-status/:restaurantId", async (req, res) => {
+  // Current restaurant route
+  app.get("/api/restaurant", (req, res) => {
     if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      return res.status(401).json({ message: "Not authenticated as restaurant" });
+      return res.sendStatus(401);
     }
-
-    try {
-      const restaurantId = parseInt(req.params.restaurantId);
-      if (restaurantId !== req.user.id) {
-        return res.status(403).json({ message: "Unauthorized to access this profile" });
-      }
-
-      const isComplete = await storage.isRestaurantProfileComplete(restaurantId);
-      res.json({ isComplete });
-    } catch (error: any) {
-      console.error('Error checking profile status:', error);
-      res.status(500).json({ message: error.message });
-    }
+    res.json(req.user);
   });
 
-  // Add the restaurant bookings endpoint with improved logging
+  // Current user route
+  app.get("/api/user", (req, res) => {
+    if (!req.isAuthenticated() || req.user?.type !== 'user') {
+      return res.sendStatus(401);
+    }
+    res.json(req.user);
+  });
+
+  // Add the restaurant bookings endpoint
   app.get("/api/restaurant/bookings/:restaurantId", async (req, res) => {
     console.log('Restaurant bookings request:', {
       restaurantId: req.params.restaurantId,
@@ -201,9 +183,6 @@ export function setupAuth(app: Express) {
 
     try {
       const restaurantId = parseInt(req.params.restaurantId);
-      if (isNaN(restaurantId)) {
-        return res.status(400).json({ message: "Invalid restaurant ID" });
-      }
       if (restaurantId !== req.user.id) {
         console.log('Restaurant ID mismatch:', {
           requestedId: restaurantId,
@@ -219,34 +198,5 @@ export function setupAuth(app: Express) {
       console.error('Error fetching restaurant bookings:', error);
       res.status(500).json({ message: error.message });
     }
-  });
-
-  // Current restaurant route with logging
-  app.get("/api/restaurant", (req, res) => {
-    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      console.log('Restaurant auth check failed:', {
-        isAuthenticated: req.isAuthenticated(),
-        userType: req.user?.type
-      });
-      return res.sendStatus(401);
-    }
-    res.json(req.user);
-  });
-
-
-  // Common logout route
-  app.post("/api/logout", (req, res, next) => {
-    req.logout((err) => {
-      if (err) return next(err);
-      res.sendStatus(200);
-    });
-  });
-
-  // Current user route
-  app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated() || req.user?.type !== 'user') {
-      return res.sendStatus(401);
-    }
-    res.json(req.user);
   });
 }
