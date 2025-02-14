@@ -89,19 +89,34 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         // Check if user is logged in
         const userResponse = await fetch('/api/user');
         if (!userResponse.ok) {
-          throw new Error('Please log in to make a booking');
+          if (userResponse.status === 401) {
+            throw new Error('Please log in to make a booking');
+          }
+          throw new Error('Unable to verify user session');
         }
 
-        const user = await userResponse.json();
+        let user;
+        try {
+          const userText = await userResponse.text();
+          user = JSON.parse(userText);
+        } catch (e) {
+          throw new Error('Unable to verify user session. Please try logging in again.');
+        }
 
         // Get branch information
         const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
         if (!branchResponse.ok) {
-          const errorData = await branchResponse.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Unable to fetch restaurant information');
+          throw new Error('Unable to fetch restaurant information');
         }
 
-        const branches = await branchResponse.json();
+        let branches;
+        try {
+          const branchText = await branchResponse.text();
+          branches = JSON.parse(branchText);
+        } catch (e) {
+          console.error('Branch data parsing error:', e);
+          throw new Error('Unable to load restaurant information. Please try again.');
+        }
 
         if (!Array.isArray(branches) || branches.length === 0) {
           throw new Error('No branches available for this restaurant');
@@ -128,14 +143,35 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           partySize: data.partySize,
         };
 
-        const bookingResponse = await apiRequest("POST", "/api/bookings", bookingData);
+        const bookingResponse = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(bookingData),
+        });
 
         if (!bookingResponse.ok) {
-          const errorData = await bookingResponse.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Unable to complete booking');
+          let errorMessage = 'Unable to complete booking';
+          try {
+            const errorData = await bookingResponse.json();
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            }
+          } catch {
+            // If we can't parse the error response, use the default message
+          }
+          throw new Error(errorMessage);
         }
 
-        return bookingResponse.json();
+        let booking;
+        try {
+          booking = await bookingResponse.json();
+        } catch (e) {
+          throw new Error('Booking was created but response was invalid');
+        }
+
+        return booking;
       } catch (error) {
         if (error instanceof Error) {
           throw error;
