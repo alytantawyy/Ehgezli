@@ -133,7 +133,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
-    return db.select().from(restaurantBranches).where(eq(restaurantBranches.restaurantId, restaurantId));
+    const branches = await db.select()
+      .from(restaurantBranches)
+      .where(eq(restaurantBranches.restaurantId, restaurantId));
+
+    if (!branches || branches.length === 0) {
+      throw new Error(`No branches found for restaurant ${restaurantId}`);
+    }
+
+    return branches;
   }
 
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {

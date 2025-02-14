@@ -103,7 +103,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       let branches;
       try {
         branches = await branchResponse.json();
+        if (!Array.isArray(branches)) {
+          throw new Error('Invalid branch data format');
+        }
       } catch (e) {
+        console.error('Branch data parsing error:', e);
         throw new Error('Invalid branch data received from server');
       }
 
@@ -121,12 +125,16 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         parseInt(data.time.split(':')[1])
       );
 
-      const res = await apiRequest("POST", "/api/bookings", {
+      const bookingData = {
         branchId,
         userId: user.id,
         date: bookingDate.toISOString(),
         partySize: data.partySize,
-      });
+      };
+
+      console.log('Sending booking data:', bookingData);
+
+      const res = await apiRequest("POST", "/api/bookings", bookingData);
 
       if (!res.ok) {
         const errorText = await res.text();
@@ -232,10 +240,10 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
             <FormItem>
               <FormLabel>Party Size</FormLabel>
               <FormControl>
-                <Input 
-                  type="number" 
-                  min="1" 
-                  max="20" 
+                <Input
+                  type="number"
+                  min="1"
+                  max="20"
                   {...field}
                   onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
                   value={field.value || ""}
