@@ -39,7 +39,6 @@ const bookingSchema = z.object({
 
 type BookingFormData = z.infer<typeof bookingSchema>;
 
-// Generate time slots from opening time to 1 hour before closing time in 30-minute intervals
 const generateTimeSlots = (openingTime: string, closingTime: string) => {
   const slots = [];
   const [openHour, openMinute] = openingTime.split(':').map(Number);
@@ -87,20 +86,33 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
       try {
-        // First check if user is logged in by making a request to /api/user
+        // First check if user is logged in
         const userResponse = await fetch('/api/user');
         if (!userResponse.ok) {
           throw new Error('Please log in to make a booking');
         }
-        const user = await userResponse.json();
 
-        // Get the branch ID for the selected restaurant and branch index
+        let user;
+        try {
+          user = await userResponse.json();
+        } catch (e) {
+          throw new Error('Invalid user data received');
+        }
+
+        // Get branch information
         const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
         if (!branchResponse.ok) {
           throw new Error('Unable to fetch restaurant branch information');
         }
 
-        const branches = await branchResponse.json();
+        let branches;
+        try {
+          const responseText = await branchResponse.text();
+          branches = JSON.parse(responseText);
+        } catch (e) {
+          console.error('Branch data parsing error:', e);
+          throw new Error('Invalid branch data format received from server');
+        }
 
         if (!Array.isArray(branches) || branches.length === 0) {
           throw new Error('No branches available for this restaurant');
@@ -111,7 +123,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           throw new Error('Selected branch is not available');
         }
 
-        // Create the booking with the correct branch ID and user ID
+        // Create the booking
         const bookingDate = new Date(
           data.date.getFullYear(),
           data.date.getMonth(),
@@ -127,13 +139,26 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           partySize: data.partySize,
         };
 
-        const res = await apiRequest("POST", "/api/bookings", bookingData);
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(errorText || 'Failed to create booking');
+        const bookingResponse = await apiRequest("POST", "/api/bookings", bookingData);
+
+        if (!bookingResponse.ok) {
+          const errorText = await bookingResponse.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(errorJson.message || 'Failed to create booking');
+          } catch {
+            throw new Error(errorText || 'Failed to create booking');
+          }
         }
 
-        return res.json();
+        let bookingResult;
+        try {
+          bookingResult = await bookingResponse.json();
+        } catch (e) {
+          throw new Error('Invalid booking response received from server');
+        }
+
+        return bookingResult;
       } catch (error) {
         if (error instanceof Error) {
           throw error;
