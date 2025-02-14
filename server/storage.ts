@@ -1,8 +1,11 @@
 import { 
   InsertUser, User, Restaurant, Booking, RestaurantBranch,
   mockRestaurants, RestaurantAuth, InsertRestaurantAuth,
-  restaurantProfiles, restaurantBranches, type InsertRestaurantProfile, RestaurantProfile
+  restaurantProfiles, restaurantBranches, bookings, users,
+  type InsertRestaurantProfile, RestaurantProfile, restaurants, restaurantAuth
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 
@@ -27,226 +30,188 @@ export interface IStorage {
   searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private bookings: Map<number, Booking>;
-  private branches: Map<number, RestaurantBranch>;
-  private restaurantAuth: Map<number, RestaurantAuth>;
-  private restaurantProfiles: Map<number, RestaurantProfile>;
-  private currentUserId: number;
-  private currentBookingId: number;
-  private currentBranchId: number;
-  private currentRestaurantAuthId: number;
+export class DatabaseStorage implements IStorage {
   readonly sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.bookings = new Map();
-    this.branches = new Map();
-    this.restaurantAuth = new Map();
-    this.restaurantProfiles = new Map();
-    this.currentUserId = 1;
-    this.currentBookingId = 1;
-    this.currentBranchId = 1;
-    this.currentRestaurantAuthId = 1;
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
     });
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.email === email,
-    );
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentUserId++;
-    const user = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async getRestaurants(): Promise<Restaurant[]> {
-    const registeredRestaurants = Array.from(this.restaurantAuth.values())
-      .map(auth => {
-        const profile = Array.from(this.restaurantProfiles.values())
-          .find(p => p.restaurantId === auth.id);
+    const registeredRestaurants = await db.select().from(restaurantAuth)
+      .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId))
+      .leftJoin(restaurantBranches, eq(restaurantAuth.id, restaurantBranches.restaurantId));
 
-        if (!profile) return null;
+    const restaurantMap = new Map<number, Restaurant>();
 
-        const restaurantBranches = Array.from(this.branches.values())
-          .filter(b => b.restaurantId === auth.id);
+    registeredRestaurants.forEach(({ restaurant_auth, restaurant_profiles, restaurant_branches }) => {
+      if (!restaurant_profiles || !restaurant_branches) return;
 
-        // Only return if restaurant has a complete profile and at least one branch
-        if (!restaurantBranches.length) return null;
+      if (!restaurantMap.has(restaurant_auth.id)) {
+        restaurantMap.set(restaurant_auth.id, {
+          id: restaurant_auth.id,
+          authId: restaurant_auth.id,
+          name: restaurant_auth.name,
+          description: restaurant_profiles.about.slice(0, 100) + (restaurant_profiles.about.length > 100 ? '...' : ''),
+          about: restaurant_profiles.about,
+          logo: restaurant_profiles.logo || "",
+          cuisine: restaurant_profiles.cuisine,
+          locations: []
+        });
+      }
 
-        return {
-          id: auth.id,
-          authId: auth.id,
-          name: auth.name,
-          description: profile.about.slice(0, 100) + (profile.about.length > 100 ? '...' : ''),
-          about: profile.about,
-          logo: profile.logo || "",
-          cuisine: profile.cuisine,
-          locations: restaurantBranches.map(branch => ({
-            address: branch.address,
-            tablesCount: branch.tablesCount,
-            openingTime: branch.openingTime,
-            closingTime: branch.closingTime,
-            city: branch.address.split(',').pop()?.trim() as "Alexandria" | "Cairo" 
-          }))
-        };
-      })
-      .filter(Boolean) as Restaurant[];
+      const restaurant = restaurantMap.get(restaurant_auth.id)!;
+      restaurant.locations.push({
+        address: restaurant_branches.address,
+        tablesCount: restaurant_branches.tablesCount,
+        openingTime: restaurant_branches.openingTime,
+        closingTime: restaurant_branches.closingTime,
+        city: restaurant_branches.city as "Alexandria" | "Cairo"
+      });
+    });
 
-    return registeredRestaurants;
+    return Array.from(restaurantMap.values());
   }
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
-    const auth = await this.getRestaurantAuth(id);
-    if (!auth) return undefined;
+    const [restaurantData] = await db.select()
+      .from(restaurantAuth)
+      .where(eq(restaurantAuth.id, id))
+      .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId))
+      .leftJoin(restaurantBranches, eq(restaurantAuth.id, restaurantBranches.restaurantId));
 
-    const profile = Array.from(this.restaurantProfiles.values())
-      .find(p => p.restaurantId === id);
-    if (!profile) return undefined;
+    if (!restaurantData?.restaurant_auth || !restaurantData.restaurant_profiles || !restaurantData.restaurant_branches) {
+      return undefined;
+    }
 
-    const restaurantBranches = Array.from(this.branches.values())
-      .filter(b => b.restaurantId === id);
-    if (!restaurantBranches.length) return undefined;
+    const { restaurant_auth, restaurant_profiles, restaurant_branches } = restaurantData;
 
     return {
-      id: auth.id,
-      authId: auth.id,
-      name: auth.name,
-      description: profile.about.slice(0, 100) + (profile.about.length > 100 ? '...' : ''),
-      about: profile.about,
-      logo: profile.logo || "",
-      cuisine: profile.cuisine,
-      locations: restaurantBranches.map(branch => ({
-        address: branch.address,
-        tablesCount: branch.tablesCount,
-        openingTime: branch.openingTime,
-        closingTime: branch.closingTime,
-        city: branch.address.split(',').pop()?.trim() as "Alexandria" | "Cairo" 
-      }))
+      id: restaurant_auth.id,
+      authId: restaurant_auth.id,
+      name: restaurant_auth.name,
+      description: restaurant_profiles.about.slice(0, 100) + (restaurant_profiles.about.length > 100 ? '...' : ''),
+      about: restaurant_profiles.about,
+      logo: restaurant_profiles.logo || "",
+      cuisine: restaurant_profiles.cuisine,
+      locations: [{
+        address: restaurant_branches.address,
+        tablesCount: restaurant_branches.tablesCount,
+        openingTime: restaurant_branches.openingTime,
+        closingTime: restaurant_branches.closingTime,
+        city: restaurant_branches.city as "Alexandria" | "Cairo"
+      }]
     };
   }
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
-    return Array.from(this.branches.values()).filter(
-      branch => branch.restaurantId === restaurantId
-    );
+    return db.select().from(restaurantBranches).where(eq(restaurantBranches.restaurantId, restaurantId));
   }
 
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {
-    const id = this.currentBookingId++;
-    const newBooking = { ...booking, id, confirmed: false };
-    this.bookings.set(id, newBooking);
+    const [newBooking] = await db.insert(bookings)
+      .values({ ...booking, confirmed: false })
+      .returning();
     return newBooking;
   }
 
   async getUserBookings(userId: number): Promise<Booking[]> {
-    return Array.from(this.bookings.values()).filter(
-      (booking) => booking.userId === userId
-    );
+    return db.select().from(bookings).where(eq(bookings.userId, userId));
   }
 
   async getRestaurantBookings(restaurantId: number): Promise<Booking[]> {
-    // Get all branches for this restaurant
-    const restaurantBranches = Array.from(this.branches.values())
-      .filter(branch => branch.restaurantId === restaurantId)
-      .map(branch => branch.id);
-
-    // Get all bookings for these branches
-    return Array.from(this.bookings.values())
-      .filter(booking => restaurantBranches.includes(booking.branchId));
+    return db.select()
+      .from(bookings)
+      .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
+      .where(eq(restaurantBranches.restaurantId, restaurantId));
   }
 
   async getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined> {
-    return this.restaurantAuth.get(id);
+    const [auth] = await db.select().from(restaurantAuth).where(eq(restaurantAuth.id, id));
+    return auth;
   }
 
   async getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined> {
-    return Array.from(this.restaurantAuth.values()).find(
-      (auth) => auth.email === email
-    );
+    const [auth] = await db.select().from(restaurantAuth).where(eq(restaurantAuth.email, email));
+    return auth;
   }
 
   async createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth> {
-    const id = this.currentRestaurantAuthId++;
-    const restaurantAuth = {
-      ...auth,
-      id,
-      verified: false,
-      createdAt: new Date()
-    };
-    this.restaurantAuth.set(id, restaurantAuth);
-    return restaurantAuth;
+    const [newAuth] = await db.insert(restaurantAuth)
+      .values({ ...auth, verified: false, createdAt: new Date() })
+      .returning();
+    return newAuth;
   }
 
   async getRestaurantProfile(restaurantId: number): Promise<RestaurantProfile | undefined> {
-    return this.restaurantProfiles.get(restaurantId);
+    const [profile] = await db.select()
+      .from(restaurantProfiles)
+      .where(eq(restaurantProfiles.restaurantId, restaurantId));
+    return profile;
   }
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
-    const { branches, ...profileData } = profile;
-
-    // Store the profile
-    this.restaurantProfiles.set(profileData.restaurantId, {
-      ...profileData,
-      id: profileData.restaurantId,
+    await db.insert(restaurantProfiles).values({
+      id: profile.restaurantId,
+      restaurantId: profile.restaurantId,
+      about: profile.about,
+      cuisine: profile.cuisine,
+      priceRange: profile.priceRange,
+      logo: profile.logo,
       isProfileComplete: true,
       createdAt: new Date(),
       updatedAt: new Date()
     });
 
-    // Create branches for each city/location
-    branches.forEach((branch) => {
-      const branchId = this.currentBranchId++;
-      const branchData: RestaurantBranch = {
-        id: branchId,
-        restaurantId: profileData.restaurantId,
-        address: `${branch.address}, ${branch.city}`, 
+    await db.insert(restaurantBranches).values(
+      profile.branches.map(branch => ({
+        restaurantId: profile.restaurantId,
+        address: branch.address,
+        city: branch.city,
         tablesCount: branch.tablesCount,
         seatsCount: branch.seatsCount,
         openingTime: branch.openingTime,
-        closingTime: branch.closingTime,
-      };
-      this.branches.set(branchId, branchData);
-    });
+        closingTime: branch.closingTime
+      }))
+    );
   }
 
   async searchRestaurants(query: string, city?: string): Promise<Restaurant[]> {
-    const normalizedQuery = query.toLowerCase().trim();
     const restaurants = await this.getRestaurants();
+    const normalizedQuery = query.toLowerCase().trim();
 
     return restaurants.filter(restaurant => {
-      // If city filter is active, check city first
       if (city) {
-        // Get all branch cities for this restaurant
         const branchCities = restaurant.locations?.map(loc => loc.city) || [];
-
-        // If restaurant has no branches in this city, filter it out
-        if (!branchCities.includes(city)) {
+        if (!branchCities.includes(city as "Alexandria" | "Cairo")) {
           return false;
         }
       }
 
-      // If no search query, include restaurant (it passed city filter)
       if (!normalizedQuery) {
         return true;
       }
 
-      // Apply text search filters
       const matchesName = restaurant.name.toLowerCase().includes(normalizedQuery);
       const matchesCuisine = restaurant.cuisine.toLowerCase().includes(normalizedQuery);
       const matchesLocation = restaurant.locations?.some(location => {
-        // Only search in the address part, not the city
         const addressPart = location.address.split(',')[0].trim().toLowerCase();
         return addressPart.includes(normalizedQuery);
       });
@@ -256,4 +221,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

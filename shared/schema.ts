@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, boolean, jsonb, time } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 // Add loginSchema for authentication
 export const loginSchema = z.object({
@@ -71,11 +72,20 @@ export const restaurantBranches = pgTable("restaurant_branches", {
   id: serial("id").primaryKey(),
   restaurantId: integer("restaurant_id").notNull(),
   address: text("address").notNull(),
+  city: text("city").notNull(),
   tablesCount: integer("tables_count").notNull(),
   seatsCount: integer("seats_count").notNull(),
   openingTime: text("opening_time").notNull(),
   closingTime: text("closing_time").notNull(),
 });
+
+export const branchRelations = relations(restaurantBranches, ({ one, many }) => ({
+  restaurant: one(restaurants, {
+    fields: [restaurantBranches.restaurantId],
+    references: [restaurants.id],
+  }),
+  bookings: many(bookings),
+}));
 
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
@@ -86,8 +96,19 @@ export const bookings = pgTable("bookings", {
   confirmed: boolean("confirmed").notNull().default(false),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ 
-  id: true 
+export const bookingRelations = relations(bookings, ({ one }) => ({
+  branch: one(restaurantBranches, {
+    fields: [bookings.branchId],
+    references: [restaurantBranches.id],
+  }),
+  user: one(users, {
+    fields: [bookings.userId],
+    references: [users.id],
+  }),
+}));
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
   favoriteCuisines: z.array(z.string()).min(1, "Select at least one cuisine").max(3, "Maximum 3 cuisines allowed"),
@@ -102,7 +123,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   })
 });
 
-export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omit({ 
+export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omit({
   id: true,
   verified: true,
   createdAt: true
@@ -111,8 +132,8 @@ export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omi
   email: z.string().email("Invalid email format")
 });
 
-export const insertRestaurantSchema = createInsertSchema(restaurants).omit({ 
-  id: true 
+export const insertRestaurantSchema = createInsertSchema(restaurants).omit({
+  id: true
 }).extend({
   about: z.string().max(100),
   locations: z.array(z.object({
@@ -124,17 +145,17 @@ export const insertRestaurantSchema = createInsertSchema(restaurants).omit({
   }))
 });
 
-export const insertBranchSchema = createInsertSchema(restaurantBranches).omit({ 
-  id: true 
+export const insertBranchSchema = createInsertSchema(restaurantBranches).omit({
+  id: true
 });
 
-export const insertBookingSchema = createInsertSchema(bookings).omit({ 
+export const insertBookingSchema = createInsertSchema(bookings).omit({
   id: true,
   confirmed: true
 });
 
 // Schema for restaurant profile setup
-export const restaurantProfileSchema = createInsertSchema(restaurantProfiles).omit({ 
+export const restaurantProfileSchema = createInsertSchema(restaurantProfiles).omit({
   id: true,
   isProfileComplete: true,
   createdAt: true,
