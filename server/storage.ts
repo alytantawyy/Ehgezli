@@ -222,7 +222,8 @@ export class DatabaseStorage implements IStorage {
         tablesCount: branch.tablesCount,
         seatsCount: branch.seatsCount,
         openingTime: branch.openingTime,
-        closingTime: branch.closingTime
+        closingTime: branch.closingTime,
+        reservationDuration: 120 // Default 2 hours in minutes
       }))
     );
   }

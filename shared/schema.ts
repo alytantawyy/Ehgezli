@@ -77,6 +77,7 @@ export const restaurantBranches = pgTable("restaurant_branches", {
   seatsCount: integer("seats_count").notNull(),
   openingTime: text("opening_time").notNull(),
   closingTime: text("closing_time").notNull(),
+  reservationDuration: integer("reservation_duration").notNull().default(120), // 2 hours in minutes
 });
 
 export const branchRelations = relations(restaurantBranches, ({ one, many }) => ({
