@@ -133,14 +133,13 @@ export class DatabaseStorage implements IStorage {
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
     try {
-      // First verify if the restaurant exists in restaurantAuth
-      const restaurantAuthExists = await db
+      // First verify if the restaurant exists in restaurants table
+      const [restaurant] = await db
         .select()
-        .from(restaurantAuth)
-        .where(eq(restaurantAuth.id, restaurantId))
-        .limit(1);
+        .from(restaurants)
+        .where(eq(restaurants.id, restaurantId));
 
-      if (!restaurantAuthExists.length) {
+      if (!restaurant) {
         throw new Error('Restaurant not found');
       }
 
@@ -150,12 +149,12 @@ export class DatabaseStorage implements IStorage {
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, restaurantId));
 
-      // Map and return branches
+      // Convert branches to the expected format
       return branches.map(branch => ({
         id: branch.id,
         restaurantId: branch.restaurantId,
         address: branch.address,
-        city: branch.city as "Alexandria" | "Cairo",
+        city: branch.city,
         tablesCount: branch.tablesCount,
         seatsCount: branch.seatsCount,
         openingTime: branch.openingTime,
