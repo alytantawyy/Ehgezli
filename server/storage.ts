@@ -50,7 +50,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
+    // Convert the birthday string to a Date object before inserting
+    const userWithDateBirthday = {
+      ...insertUser,
+      birthday: new Date(insertUser.birthday),
+    };
+
+    const [user] = await db.insert(users).values(userWithDateBirthday).returning();
     return user;
   }
 
