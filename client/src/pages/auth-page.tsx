@@ -57,8 +57,7 @@ export default function AuthPage() {
   const registerForm = useForm({
     resolver: zodResolver(insertUserSchema),
     defaultValues: {
-      firstName: "",
-      lastName: "",
+      name: "",
       email: "",
       password: "",
       gender: "",
@@ -73,13 +72,15 @@ export default function AuthPage() {
   }
 
   const handleLogin = async (data: any) => {
-    console.log('Login form data:', data);
     await loginMutation.mutate(data);
   };
 
-  const handleRegisterSubmit = (data: any) => {
-    console.log('Form data:', data); 
-    registerMutation.mutate(data);
+  const handleRegisterSubmit = async (data: any) => {
+    const formattedData = {
+      ...data,
+      birthday: new Date(data.birthday),
+    };
+    await registerMutation.mutate(formattedData);
   };
 
   return (
@@ -159,35 +160,19 @@ export default function AuthPage() {
                     onSubmit={registerForm.handleSubmit(handleRegisterSubmit)}
                     className="space-y-4"
                   >
-                    {/* Personal Information */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={registerForm.control}
-                        name="firstName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>First Name</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={registerForm.control}
-                        name="lastName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Last Name</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    <FormField
+                      control={registerForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Full Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
                     <FormField
                       control={registerForm.control}
@@ -217,7 +202,6 @@ export default function AuthPage() {
                       )}
                     />
 
-                    {/* Additional Details */}
                     <FormField
                       control={registerForm.control}
                       name="gender"
@@ -251,7 +235,6 @@ export default function AuthPage() {
                             <Input
                               type="date"
                               {...field}
-                              value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
                             />
                           </FormControl>
                           <FormMessage />
@@ -289,11 +272,11 @@ export default function AuthPage() {
                           <FormLabel>Favorite Cuisines (Max 3)</FormLabel>
                           <Select 
                             onValueChange={(value) => {
-                              if (field.value.length < 3 && !field.value.includes(value)) {
-                                field.onChange([...field.value, value]);
+                              const currentValues = field.value || [];
+                              if (currentValues.length < 3 && !currentValues.includes(value)) {
+                                field.onChange([...currentValues, value]);
                               }
                             }}
-                            value={field.value[0] || ''}
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -301,14 +284,14 @@ export default function AuthPage() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {CUISINES.filter(cuisine => !field.value.includes(cuisine)).map(cuisine => (
+                              {CUISINES.filter(cuisine => !field.value?.includes(cuisine)).map(cuisine => (
                                 <SelectItem key={cuisine} value={cuisine}>
                                   {cuisine}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
-                          {field.value.length > 0 && (
+                          {field.value?.length > 0 && (
                             <div className="flex flex-wrap gap-2 mt-2">
                               {field.value.map((cuisine) => (
                                 <Button
