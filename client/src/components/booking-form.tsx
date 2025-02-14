@@ -86,62 +86,60 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
-      // First check if user is logged in by making a request to /api/user
-      const userResponse = await fetch('/api/user');
-      if (!userResponse.ok) {
-        throw new Error('Please log in to make a booking');
-      }
-      const user = await userResponse.json();
-
-      // Get the branch ID for the selected restaurant and branch index
-      const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
-      if (!branchResponse.ok) {
-        const errorText = await branchResponse.text();
-        throw new Error(`Failed to fetch branch information: ${errorText}`);
-      }
-
-      let branches;
       try {
-        branches = await branchResponse.json();
-        if (!Array.isArray(branches)) {
-          throw new Error('Invalid branch data format');
+        // First check if user is logged in by making a request to /api/user
+        const userResponse = await fetch('/api/user');
+        if (!userResponse.ok) {
+          throw new Error('Please log in to make a booking');
         }
-      } catch (e) {
-        console.error('Branch data parsing error:', e);
-        throw new Error('Invalid branch data received from server');
+        const user = await userResponse.json();
+
+        // Get the branch ID for the selected restaurant and branch index
+        const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
+        if (!branchResponse.ok) {
+          throw new Error('Unable to fetch restaurant branch information');
+        }
+
+        const branches = await branchResponse.json();
+
+        if (!Array.isArray(branches) || branches.length === 0) {
+          throw new Error('No branches available for this restaurant');
+        }
+
+        const branch = branches[branchIndex];
+        if (!branch?.id) {
+          throw new Error('Selected branch is not available');
+        }
+
+        // Create the booking with the correct branch ID and user ID
+        const bookingDate = new Date(
+          data.date.getFullYear(),
+          data.date.getMonth(),
+          data.date.getDate(),
+          parseInt(data.time.split(':')[0]),
+          parseInt(data.time.split(':')[1])
+        );
+
+        const bookingData = {
+          branchId: branch.id,
+          userId: user.id,
+          date: bookingDate.toISOString(),
+          partySize: data.partySize,
+        };
+
+        const res = await apiRequest("POST", "/api/bookings", bookingData);
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(errorText || 'Failed to create booking');
+        }
+
+        return res.json();
+      } catch (error) {
+        if (error instanceof Error) {
+          throw error;
+        }
+        throw new Error('An unexpected error occurred');
       }
-
-      const branchId = branches[branchIndex]?.id;
-      if (!branchId) {
-        throw new Error('Invalid branch selection');
-      }
-
-      // Create the booking with the correct branch ID and user ID
-      const bookingDate = new Date(
-        data.date.getFullYear(),
-        data.date.getMonth(),
-        data.date.getDate(),
-        parseInt(data.time.split(':')[0]),
-        parseInt(data.time.split(':')[1])
-      );
-
-      const bookingData = {
-        branchId,
-        userId: user.id,
-        date: bookingDate.toISOString(),
-        partySize: data.partySize,
-      };
-
-      console.log('Sending booking data:', bookingData);
-
-      const res = await apiRequest("POST", "/api/bookings", bookingData);
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Booking failed: ${errorText}`);
-      }
-
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });

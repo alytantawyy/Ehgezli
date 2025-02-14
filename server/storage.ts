@@ -137,11 +137,7 @@ export class DatabaseStorage implements IStorage {
       .from(restaurantBranches)
       .where(eq(restaurantBranches.restaurantId, restaurantId));
 
-    if (!branches || branches.length === 0) {
-      throw new Error(`No branches found for restaurant ${restaurantId}`);
-    }
-
-    return branches;
+    return branches || []; // Return empty array instead of throwing error
   }
 
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {
