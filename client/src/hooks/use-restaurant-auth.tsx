@@ -35,10 +35,10 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
 
   // Add a query to check if the restaurant profile is complete
   const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ["/api/restaurant/profile", restaurant?.id],
+    queryKey: ["/api/restaurant/profile-status", restaurant?.id],
     queryFn: async () => {
-      if (!restaurant) return null;
-      const res = await apiRequest("GET", `/api/restaurant/profile/${restaurant.id}`);
+      if (!restaurant) return { isComplete: false };
+      const res = await apiRequest("GET", `/api/restaurant/profile-status/${restaurant.id}`);
       return res.json();
     },
     enabled: !!restaurant,
@@ -51,8 +51,8 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (restaurant: RestaurantAuth) => {
       queryClient.setQueryData(["/api/restaurant"], restaurant);
-      // Invalidate the profile query to ensure we get fresh data
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/profile", restaurant.id] });
+      // Invalidate the profile status query to ensure we get fresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/profile-status", restaurant.id] });
       toast({
         title: "Login successful",
         description: "Welcome back!",
@@ -108,7 +108,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     <RestaurantAuthContext.Provider
       value={{
         restaurant: restaurant ?? null,
-        isProfileComplete: !!profile?.isProfileComplete,
+        isProfileComplete: profile?.isComplete ?? false,
         isLoading: restaurantLoading || (!!restaurant && profileLoading),
         error,
         loginMutation,

@@ -91,6 +91,37 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add restaurant profile endpoint
+  app.get("/api/restaurant/profile/:id", async (req, res, next) => {
+    try {
+      const profile = await storage.getRestaurantProfile(parseInt(req.params.id));
+      if (!profile) {
+        res.status(404).json({ message: "Profile not found" });
+        return;
+      }
+      res.json({
+        ...profile,
+        isProfileComplete: await storage.isRestaurantProfileComplete(parseInt(req.params.id))
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Add profile completion status endpoint
+  app.get("/api/restaurant/profile-status/:id", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated()) {
+        res.status(401).json({ message: "Please log in to access profile status" });
+        return;
+      }
+      const isComplete = await storage.isRestaurantProfileComplete(parseInt(req.params.id));
+      res.json({ isComplete });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 

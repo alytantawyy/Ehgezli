@@ -38,9 +38,9 @@ export default function RestaurantAuthForm() {
     },
   });
 
-  // Wait for both restaurant and profile data to be loaded before redirecting
   useEffect(() => {
     if (!isLoading && restaurant) {
+      // Check if profile is complete to determine where to redirect
       if (isProfileComplete) {
         setLocation("/restaurant/dashboard");
       } else {

@@ -27,6 +27,7 @@ export interface IStorage {
   createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void>;
   sessionStore: session.Store;
   searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
+  isRestaurantProfileComplete(restaurantId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -241,58 +242,89 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRestaurantProfile(restaurantId: number): Promise<RestaurantProfile | undefined> {
-    const [profile] = await db.select()
-      .from(restaurantProfiles)
-      .where(eq(restaurantProfiles.restaurantId, restaurantId));
-    return profile;
+    try {
+      const [profile] = await db.select()
+        .from(restaurantProfiles)
+        .where(eq(restaurantProfiles.restaurantId, restaurantId));
+      return profile;
+    } catch (error) {
+      console.error('Error fetching restaurant profile:', error);
+      throw error;
+    }
+  }
+
+  async isRestaurantProfileComplete(restaurantId: number): Promise<boolean> {
+    try {
+      const profile = await this.getRestaurantProfile(restaurantId);
+      if (!profile) return false;
+
+      // Check if all required fields are present and not empty
+      const isComplete = Boolean(
+        profile.isProfileComplete &&
+        profile.about &&
+        profile.cuisine &&
+        profile.priceRange &&
+        profile.logo
+      );
+
+      return isComplete;
+    } catch (error) {
+      console.error('Error checking profile completion:', error);
+      return false;
+    }
   }
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
-    // First check if profile exists
-    const existingProfile = await this.getRestaurantProfile(profile.restaurantId);
+    try {
+      // First check if profile exists
+      const existingProfile = await this.getRestaurantProfile(profile.restaurantId);
 
-    if (existingProfile) {
-      // If profile exists, update it
-      await db.update(restaurantProfiles)
-        .set({
+      if (existingProfile) {
+        // If profile exists, update it
+        await db.update(restaurantProfiles)
+          .set({
+            about: profile.about,
+            cuisine: profile.cuisine,
+            priceRange: profile.priceRange,
+            logo: profile.logo,
+            isProfileComplete: true,
+            updatedAt: new Date()
+          })
+          .where(eq(restaurantProfiles.restaurantId, profile.restaurantId));
+      } else {
+        // If profile doesn't exist, insert new one
+        await db.insert(restaurantProfiles).values({
+          restaurantId: profile.restaurantId,
           about: profile.about,
           cuisine: profile.cuisine,
           priceRange: profile.priceRange,
           logo: profile.logo,
           isProfileComplete: true,
+          createdAt: new Date(),
           updatedAt: new Date()
-        })
-        .where(eq(restaurantProfiles.restaurantId, profile.restaurantId));
-    } else {
-      // If profile doesn't exist, insert new one
-      await db.insert(restaurantProfiles).values({
-        restaurantId: profile.restaurantId,
-        about: profile.about,
-        cuisine: profile.cuisine,
-        priceRange: profile.priceRange,
-        logo: profile.logo,
-        isProfileComplete: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
+        });
+      }
+
+      // Delete existing branches and insert new ones
+      await db.delete(restaurantBranches)
+        .where(eq(restaurantBranches.restaurantId, profile.restaurantId));
+
+      await db.insert(restaurantBranches).values(
+        profile.branches.map(branch => ({
+          restaurantId: profile.restaurantId,
+          address: branch.address,
+          city: branch.city,
+          tablesCount: branch.tablesCount,
+          seatsCount: branch.seatsCount,
+          openingTime: branch.openingTime,
+          closingTime: branch.closingTime,
+          reservationDuration: 120 // Default 2 hours in minutes
+        }))
+      );
+    } catch (error) {
+      console.error('Error creating/updating restaurant profile:', error);
+      throw error;
     }
-
-    // Delete existing branches and insert new ones
-    await db.delete(restaurantBranches)
-      .where(eq(restaurantBranches.restaurantId, profile.restaurantId));
-
-    await db.insert(restaurantBranches).values(
-      profile.branches.map(branch => ({
-        restaurantId: profile.restaurantId,
-        address: branch.address,
-        city: branch.city,
-        tablesCount: branch.tablesCount,
-        seatsCount: branch.seatsCount,
-        openingTime: branch.openingTime,
-        closingTime: branch.closingTime,
-        reservationDuration: 120 // Default 2 hours in minutes
-      }))
-    );
   }
 
   async searchRestaurants(query: string, city?: string): Promise<Restaurant[]> {
