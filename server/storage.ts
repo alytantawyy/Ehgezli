@@ -28,6 +28,7 @@ export interface IStorage {
   sessionStore: session.Store;
   searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
   isRestaurantProfileComplete(restaurantId: number): Promise<boolean>;
+  confirmBooking(bookingId: number, restaurantId: number): Promise<Booking>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -387,6 +388,39 @@ export class DatabaseStorage implements IStorage {
 
       return matchesName || matchesCuisine || matchesLocation;
     });
+  }
+
+  async confirmBooking(bookingId: number, restaurantId: number): Promise<Booking> {
+    try {
+      // First verify the booking exists and belongs to a branch of this restaurant
+      const [existingBooking] = await db
+        .select()
+        .from(bookings)
+        .innerJoin(
+          restaurantBranches,
+          and(
+            eq(bookings.branchId, restaurantBranches.id),
+            eq(restaurantBranches.restaurantId, restaurantId)
+          )
+        )
+        .where(eq(bookings.id, bookingId));
+
+      if (!existingBooking) {
+        throw new Error('Booking not found or unauthorized');
+      }
+
+      // Update the booking to confirmed status
+      const [updatedBooking] = await db
+        .update(bookings)
+        .set({ confirmed: true })
+        .where(eq(bookings.id, bookingId))
+        .returning();
+
+      return updatedBooking;
+    } catch (error) {
+      console.error('Error confirming booking:', error);
+      throw error;
+    }
   }
 }
 
