@@ -182,14 +182,14 @@ export class DatabaseStorage implements IStorage {
         throw new Error('Restaurant branch not found');
       }
 
-      // Create the booking with validated data
+      // Create the booking with validated data - auto-confirmed
       const [newBooking] = await db.insert(bookings)
         .values({
           userId: booking.userId,
           branchId: booking.branchId,
           date: date,
           partySize: booking.partySize,
-          confirmed: false
+          confirmed: true // Set to true by default
         })
         .returning();
 

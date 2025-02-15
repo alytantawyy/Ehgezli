@@ -1,12 +1,15 @@
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, LogOut } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 export default function RestaurantDashboard() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { restaurant: auth, logoutMutation } = useRestaurantAuth();
 
   // Fetch complete restaurant data including locations
@@ -26,17 +29,42 @@ export default function RestaurantDashboard() {
     queryKey: ["/api/restaurant/bookings", auth?.id],
     queryFn: async () => {
       if (!auth?.id) throw new Error("No restaurant ID");
-      console.log('Fetching bookings for restaurant:', auth.id);
       const response = await fetch(`/api/restaurant/bookings/${auth.id}`);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Failed to fetch bookings');
       }
-      const data = await response.json();
-      console.log('Received bookings:', data);
-      return data;
+      return response.json();
     },
     enabled: !!auth?.id,
+  });
+
+  // Cancel booking mutation
+  const cancelBookingMutation = useMutation({
+    mutationFn: async (bookingId: number) => {
+      const response = await fetch(`/api/restaurant/bookings/${bookingId}/cancel`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to cancel booking');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth?.id] });
+      toast({
+        title: "Booking Cancelled",
+        description: "The booking has been cancelled successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const isLoading = isRestaurantLoading || isBookingsLoading;
@@ -137,10 +165,15 @@ export default function RestaurantDashboard() {
                       </div>
                     </div>
                     <Button 
-                      variant={booking.confirmed ? "secondary" : "default"}
-                      disabled={booking.confirmed}
+                      variant="destructive"
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to cancel this booking?')) {
+                          cancelBookingMutation.mutate(booking.id);
+                        }
+                      }}
+                      disabled={!booking.confirmed || cancelBookingMutation.isPending}
                     >
-                      {booking.confirmed ? "Confirmed" : "Confirm"}
+                      {booking.confirmed ? "Cancel Booking" : "Cancelled"}
                     </Button>
                   </div>
                 ))}

@@ -3,11 +3,34 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
+import { db } from "./db";
+import { and, eq } from "drizzle-orm";
+import { bookings, restaurantBranches } from "@shared/schema";
 
 export function registerRoutes(app: Express): Server {
+  const httpServer = createServer(app);
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
+  wss.on('connection', (ws) => {
+    console.log('New WebSocket connection');
+
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        console.log('Received:', data);
+      } catch (error) {
+        console.error('WebSocket message error:', error);
+      }
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
+  });
+
   setupAuth(app);
 
-  // Error handling middleware - Add this at the top
+  // Error handling middleware
   app.use((err: any, req: any, res: any, next: any) => {
     console.error('Error:', err);
     res.status(err.status || 500).json({
@@ -51,14 +74,14 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/bookings", async (req, res, next) => {
     try {
-      if (!req.isAuthenticated()) {
+      if (!req.isAuthenticated() || !req.user?.id) {
         res.status(401).json({ message: "Unauthorized" });
         return;
       }
 
       const booking = await storage.createBooking({
         ...req.body,
-        userId: req.user!.id,
+        userId: req.user.id,
       });
 
       // Notify connected clients about the new booking
@@ -79,12 +102,12 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/bookings", async (req, res, next) => {
     try {
-      if (!req.isAuthenticated()) {
+      if (!req.isAuthenticated() || !req.user?.id) {
         res.status(401).json({ message: "Unauthorized" });
         return;
       }
 
-      const bookings = await storage.getUserBookings(req.user!.id);
+      const bookings = await storage.getUserBookings(req.user.id);
       res.json(bookings);
     } catch (error) {
       next(error);
@@ -122,24 +145,53 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  const httpServer = createServer(app);
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-
-  wss.on('connection', (ws) => {
-    console.log('New WebSocket connection');
-
-    ws.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString());
-        console.log('Received:', data);
-      } catch (error) {
-        console.error('WebSocket message error:', error);
+  // Add the cancel booking endpoint
+  app.post("/api/restaurant/bookings/:bookingId/cancel", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || req.user?.type !== 'restaurant' || !req.user?.id) {
+        return res.status(401).json({ message: "Not authenticated as restaurant" });
       }
-    });
 
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
-    });
+      const bookingId = parseInt(req.params.bookingId);
+      const restaurantId = req.user.id;
+
+      // First get the booking
+      const [booking] = await db.select()
+        .from(bookings)
+        .innerJoin(
+          restaurantBranches,
+          eq(bookings.branchId, restaurantBranches.id)
+        )
+        .where(
+          and(
+            eq(bookings.id, bookingId),
+            eq(restaurantBranches.restaurantId, restaurantId)
+          )
+        );
+
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found or unauthorized" });
+      }
+
+      // Update the booking to be cancelled (confirmed = false)
+      await db.update(bookings)
+        .set({ confirmed: false })
+        .where(eq(bookings.id, bookingId));
+
+      // Notify connected clients about the cancelled booking
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: 'booking_cancelled',
+            data: { bookingId }
+          }));
+        }
+      });
+
+      res.json({ message: "Booking cancelled successfully" });
+    } catch (error) {
+      next(error);
+    }
   });
 
   return httpServer;
