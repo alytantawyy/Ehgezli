@@ -7,9 +7,10 @@ import {
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 import session from "express-session";
-import createMemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 
-const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -34,8 +35,14 @@ export class DatabaseStorage implements IStorage {
   readonly sessionStore: session.Store;
 
   constructor() {
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000,
+    // Initialize PostgreSQL session store with proper configuration
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      tableName: 'session', // Name of the session table
+      createTableIfMissing: true,
+      pruneSessionInterval: 60 * 15, // Cleanup every 15 minutes
+      // Error handling for session store operations
+      errorLog: (err) => console.error('Session store error:', err)
     });
   }
 

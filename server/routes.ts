@@ -11,20 +11,40 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  wss.on('connection', (ws) => {
-    console.log('New WebSocket connection');
+  wss.on('connection', (ws, req) => {
+    console.log('New WebSocket connection attempt:', {
+      headers: req.headers,
+      url: req.url
+    });
+
+    // Get session from the upgrade request
+    const sessionID = req.headers.cookie?.split(';')
+      .find(cookie => cookie.trim().startsWith('connect.sid='))
+      ?.split('=')[1];
+
+    if (!sessionID) {
+      console.error('WebSocket connection rejected: No session ID found');
+      ws.close(1008, 'Authentication required');
+      return;
+    }
+
+    console.log('WebSocket connected with session:', sessionID);
 
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message.toString());
-        console.log('Received:', data);
+        console.log('Received WebSocket message:', data);
       } catch (error) {
-        console.error('WebSocket message error:', error);
+        console.error('WebSocket message parsing error:', error);
       }
     });
 
     ws.on('error', (error) => {
       console.error('WebSocket error:', error);
+    });
+
+    ws.on('close', () => {
+      console.log('WebSocket connection closed');
     });
   });
 

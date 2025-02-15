@@ -25,7 +25,7 @@ export async function apiRequest(
       "Accept": "application/json",
     },
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    credentials: "include", // Always include credentials
   });
 
   await throwIfResNotOk(res);
@@ -39,7 +39,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const res = await fetch(queryKey[0] as string, {
-      credentials: "include",
+      credentials: "include", // Always include credentials
       headers: {
         "Accept": "application/json",
       },

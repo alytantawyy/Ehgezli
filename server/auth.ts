@@ -41,9 +41,9 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      secure: false, // Set to false in development
+      secure: false, // Disabled for development
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'lax',
+      sameSite: 'lax', // Relaxed for development
       path: '/',
       httpOnly: true
     }
@@ -190,7 +190,7 @@ export function setupAuth(app: Express) {
           console.error('Restaurant login error:', err);
           return next(err);
         }
-        console.log('Restaurant logged in successfully:', user.id);
+        console.log('Restaurant logged in successfully:', user.id); // Fixed the log message
         res.status(200).json(user);
       });
     })(req, res, next);
