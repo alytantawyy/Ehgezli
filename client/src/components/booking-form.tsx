@@ -76,40 +76,88 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const { toast } = useToast();
   const timeSlots = generateTimeSlots(openingTime, closingTime);
 
-  // Initialize WebSocket connection
+  // Initialize WebSocket connection with reconnection logic
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    const socket = new WebSocket(wsUrl);
+    let socket: WebSocket | null = null;
+    let reconnectAttempts = 0;
+    let heartbeatInterval: NodeJS.Timeout;
 
-    socket.onopen = () => {
-      console.log('WebSocket Connected');
-    };
+    const connect = () => {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
 
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'new_booking') {
-          // Invalidate queries to refresh the UI
-          queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      socket = new WebSocket(wsUrl);
 
-          // Show a toast notification
+      socket.onopen = () => {
+        console.log('WebSocket Connected');
+        reconnectAttempts = 0;
+
+        // Start heartbeat
+        heartbeatInterval = setInterval(() => {
+          if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: 'heartbeat' }));
+          }
+        }, 25000); // Slightly less than server's 30s timeout
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          switch (data.type) {
+            case 'new_booking':
+              // Invalidate queries to refresh the UI
+              queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+              toast({
+                title: "New Booking Received",
+                description: "A new booking has been made.",
+              });
+              break;
+            case 'booking_cancelled':
+              queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+              toast({
+                title: "Booking Cancelled",
+                description: "A booking has been cancelled.",
+              });
+              break;
+            case 'heartbeat':
+              console.log('Heartbeat received');
+              break;
+          }
+        } catch (error) {
+          console.error('WebSocket message error:', error);
+        }
+      };
+
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+
+      socket.onclose = (event) => {
+        console.log('WebSocket connection closed:', event.code, event.reason);
+        clearInterval(heartbeatInterval);
+
+        // Attempt to reconnect with exponential backoff
+        if (reconnectAttempts < 5) {
+          const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+          reconnectAttempts++;
+          setTimeout(connect, timeout);
+        } else {
           toast({
-            title: "New Booking Received",
-            description: "A new booking has been made.",
+            title: "Connection Lost",
+            description: "Unable to maintain real-time connection. Please refresh the page.",
+            variant: "destructive",
           });
         }
-      } catch (error) {
-        console.error('WebSocket message error:', error);
-      }
+      };
     };
 
-    socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+    connect();
 
     return () => {
-      socket.close();
+      clearInterval(heartbeatInterval);
+      if (socket) {
+        socket.close();
+      }
     };
   }, [toast]);
 
