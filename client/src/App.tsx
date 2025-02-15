@@ -24,6 +24,10 @@ function Router() {
         requiresProfile={false}
       />
       <ProtectedRestaurantRoute
+        path="/restaurant/profile"
+        component={RestaurantProfileSetup}
+      />
+      <ProtectedRestaurantRoute
         path="/restaurant/dashboard"
         component={RestaurantDashboard}
       />

@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut } from "lucide-react";
+import { Loader2, LogOut, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 export default function RestaurantDashboard() {
   const { toast } = useToast();
@@ -95,6 +96,15 @@ export default function RestaurantDashboard() {
             <div className="text-sm text-muted-foreground">
               Welcome back, {auth?.name}
             </div>
+            <Button 
+              variant="outline" 
+              asChild
+            >
+              <Link to="/restaurant/profile">
+                <Settings className="h-4 w-4 mr-2" />
+                My Restaurant
+              </Link>
+            </Button>
             <Button 
               variant="outline" 
               onClick={() => logoutMutation.mutate()}

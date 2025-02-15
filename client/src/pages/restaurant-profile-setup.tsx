@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { restaurantProfileSchema, type InsertRestaurantProfile } from "@shared/schema";
+import { restaurantProfileSchema, type InsertRestaurantProfile, Restaurant } from "@shared/schema";
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -25,10 +25,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Plus, Trash2, Upload } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const CUISINE_TYPES = [
   "Italian",
@@ -48,6 +48,18 @@ export default function RestaurantProfileSetup() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+  // Fetch existing restaurant data if we're in edit mode
+  const { data: existingRestaurant } = useQuery<Restaurant>({
+    queryKey: ["/api/restaurants", restaurant?.id],
+    queryFn: async () => {
+      if (!restaurant?.id) throw new Error("No restaurant ID");
+      const response = await fetch(`/api/restaurants/${restaurant.id}`);
+      if (!response.ok) throw new Error('Failed to fetch restaurant');
+      return response.json();
+    },
+    enabled: !!restaurant?.id,
+  });
 
   const form = useForm<InsertRestaurantProfile>({
     resolver: zodResolver(restaurantProfileSchema),
@@ -70,6 +82,30 @@ export default function RestaurantProfileSetup() {
     },
   });
 
+  // Load existing data into form when available
+  useEffect(() => {
+    if (existingRestaurant) {
+      form.reset({
+        restaurantId: existingRestaurant.id,
+        about: existingRestaurant.about || "",
+        cuisine: existingRestaurant.cuisine,
+        priceRange: existingRestaurant.priceRange || "$",
+        logo: existingRestaurant.logo || "",
+        branches: existingRestaurant.locations.map(location => ({
+          address: location.address,
+          city: location.city,
+          tablesCount: location.tablesCount,
+          seatsCount: location.seatsCount,
+          openingTime: location.openingTime,
+          closingTime: location.closingTime,
+        })),
+      });
+      if (existingRestaurant.logo) {
+        setLogoPreview(existingRestaurant.logo);
+      }
+    }
+  }, [existingRestaurant, form]);
+
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -86,19 +122,23 @@ export default function RestaurantProfileSetup() {
 
   const profileMutation = useMutation({
     mutationFn: async (data: InsertRestaurantProfile) => {
-      const res = await apiRequest("POST", "/api/restaurant/profile", data);
+      // Use PUT for updates, POST for creation
+      const method = existingRestaurant ? "PUT" : "POST";
+      const res = await apiRequest(method, "/api/restaurant/profile", data);
       return res.json();
     },
     onSuccess: () => {
       toast({
-        title: "Profile Setup Complete!",
-        description: "Your restaurant profile has been created successfully.",
+        title: existingRestaurant ? "Profile Updated!" : "Profile Setup Complete!",
+        description: existingRestaurant 
+          ? "Your restaurant profile has been updated successfully."
+          : "Your restaurant profile has been created successfully.",
       });
       setLocation(`/restaurant/dashboard`);
     },
     onError: (error: Error) => {
       toast({
-        title: "Setup Failed",
+        title: existingRestaurant ? "Update Failed" : "Setup Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -132,8 +172,10 @@ export default function RestaurantProfileSetup() {
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">Complete Your Restaurant Profile</h1>
-          <Progress value={33} className="w-full" />
+          <h1 className="text-2xl font-bold">
+            {existingRestaurant ? "Edit Restaurant Profile" : "Complete Your Restaurant Profile"}
+          </h1>
+          {!existingRestaurant && <Progress value={33} className="w-full" />}
         </div>
 
         <Form {...form}>
@@ -431,7 +473,7 @@ export default function RestaurantProfileSetup() {
               className="w-full"
               disabled={profileMutation.isPending}
             >
-              {profileMutation.isPending ? "Saving..." : "Save & Continue"}
+              {profileMutation.isPending ? "Saving..." : (existingRestaurant ? "Save Changes" : "Save & Continue")}
             </Button>
           </form>
         </Form>
