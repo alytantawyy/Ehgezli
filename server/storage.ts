@@ -109,17 +109,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
+    // First get restaurant auth and profile data
     const [restaurantData] = await db.select()
       .from(restaurantAuth)
       .where(eq(restaurantAuth.id, id))
-      .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId))
-      .leftJoin(restaurantBranches, eq(restaurantAuth.id, restaurantBranches.restaurantId));
+      .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId));
 
-    if (!restaurantData?.restaurant_auth || !restaurantData.restaurant_profiles || !restaurantData.restaurant_branches) {
+    if (!restaurantData?.restaurant_auth || !restaurantData.restaurant_profiles) {
       return undefined;
     }
 
-    const { restaurant_auth, restaurant_profiles, restaurant_branches } = restaurantData;
+    // Then get all branches for this restaurant
+    const branches = await db
+      .select()
+      .from(restaurantBranches)
+      .where(eq(restaurantBranches.restaurantId, id));
+
+    const { restaurant_auth, restaurant_profiles } = restaurantData;
 
     return {
       id: restaurant_auth.id,
@@ -129,13 +135,13 @@ export class DatabaseStorage implements IStorage {
       about: restaurant_profiles.about,
       logo: restaurant_profiles.logo || "",
       cuisine: restaurant_profiles.cuisine,
-      locations: [{
-        address: restaurant_branches.address,
-        tablesCount: restaurant_branches.tablesCount,
-        openingTime: restaurant_branches.openingTime,
-        closingTime: restaurant_branches.closingTime,
-        city: restaurant_branches.city as "Alexandria" | "Cairo"
-      }]
+      locations: branches.map(branch => ({
+        address: branch.address,
+        tablesCount: branch.tablesCount,
+        openingTime: branch.openingTime,
+        closingTime: branch.closingTime,
+        city: branch.city as "Alexandria" | "Cairo"
+      }))
     };
   }
 
