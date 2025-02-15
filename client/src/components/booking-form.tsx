@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -234,9 +234,10 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                     mode="single"
                     selected={field.value}
                     onSelect={field.onChange}
-                    disabled={(date) =>
-                      date < new Date() || date > new Date(2025, 10, 1)
-                    }
+                    disabled={(date) => {
+                      const today = startOfToday();
+                      return date < today || date > new Date(2025, 10, 1);
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
