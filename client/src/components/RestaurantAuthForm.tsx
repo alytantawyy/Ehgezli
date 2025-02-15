@@ -15,11 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 export default function RestaurantAuthForm() {
   const { restaurant, isProfileComplete, isLoading, loginMutation, registerMutation } = useRestaurantAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("login");
+  const { toast } = useToast();
 
   const loginForm = useForm({
     resolver: zodResolver(restaurantLoginSchema),
@@ -40,7 +42,6 @@ export default function RestaurantAuthForm() {
 
   useEffect(() => {
     if (!isLoading && restaurant) {
-      // Check if profile is complete to determine where to redirect
       if (isProfileComplete) {
         setLocation("/restaurant/dashboard");
       } else {
@@ -52,18 +53,24 @@ export default function RestaurantAuthForm() {
   const handleRegisterSubmit = async (data: any) => {
     try {
       await registerMutation.mutateAsync(data);
-    } catch (error) {
-      console.error('Registration error:', error);
-      // The form will display the error message through the mutation state
+    } catch (error: any) {
+      toast({
+        title: "Registration failed",
+        description: error.message || "An error occurred during registration",
+        variant: "destructive",
+      });
     }
   };
 
   const handleLoginSubmit = async (data: any) => {
     try {
       await loginMutation.mutateAsync(data);
-    } catch (error) {
-      console.error('Login error:', error);
-      // The form will display the error message through the mutation state
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "An error occurred during login",
+        variant: "destructive",
+      });
     }
   };
 
