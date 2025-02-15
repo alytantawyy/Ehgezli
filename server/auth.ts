@@ -9,7 +9,6 @@ import { User as SelectUser, RestaurantAuth as SelectRestaurantAuth } from "@sha
 
 declare global {
   namespace Express {
-    // Extend Express.User to allow both User and RestaurantAuth types
     interface User extends Partial<SelectUser>, Partial<SelectRestaurantAuth> {
       type?: 'user' | 'restaurant';
     }
@@ -32,28 +31,61 @@ async function comparePasswords(supplied: string, stored: string) {
 }
 
 export function setupAuth(app: Express) {
-  // Set trust proxy before session middleware
   app.set("trust proxy", 1);
 
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID!,
-    resave: true, // Changed to true to ensure session is saved
-    saveUninitialized: true, // Changed to true to ensure new sessions are saved
+    resave: false,
+    saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      secure: false, // Disabled for development
+      secure: false,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'lax', // Relaxed for development
+      sameSite: 'lax',
       path: '/',
       httpOnly: true
     },
-    name: 'connect.sid' // Explicitly set the cookie name
+    name: 'connect.sid'
   };
 
-  // Initialize session middleware
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  passport.serializeUser((user: Express.User, done) => {
+    if (!user || !user.id || !user.type) {
+      console.error('Invalid user data for serialization:', user);
+      return done(new Error('Invalid user data for serialization'));
+    }
+    console.log('Serializing user:', { id: user.id, type: user.type });
+    done(null, { id: user.id, type: user.type });
+  });
+
+  passport.deserializeUser(async (data: { id: number, type: 'user' | 'restaurant' }, done) => {
+    try {
+      console.log('Deserializing user:', data);
+      if (data.type === 'restaurant') {
+        const restaurant = await storage.getRestaurantAuth(data.id);
+        if (!restaurant) {
+          console.error('Restaurant not found during deserialization:', data.id);
+          return done(new Error('Restaurant not found'));
+        }
+        console.log('Restaurant deserialized successfully:', restaurant.id);
+        return done(null, { ...restaurant, type: 'restaurant' });
+      } else {
+        const user = await storage.getUser(data.id);
+        if (!user) {
+          console.error('User not found during deserialization:', data.id);
+          return done(new Error('User not found'));
+        }
+        console.log('User deserialized successfully:', user.id);
+        return done(null, { ...user, type: 'user' });
+      }
+    } catch (err) {
+      console.error('Deserialization error:', err);
+      done(err);
+    }
+  });
 
   // Restaurant authentication strategy
   passport.use('restaurant-local', new LocalStrategy({
@@ -83,49 +115,9 @@ export function setupAuth(app: Express) {
     }
   }));
 
-  passport.serializeUser((user: Express.User, done) => {
-    if (!user || !user.id || !user.type) {
-      console.error('Invalid user data for serialization:', user);
-      return done(new Error('Invalid user data for serialization'));
-    }
-    console.log('Serializing user:', { id: user.id, type: user.type });
-    done(null, { id: user.id, type: user.type });
-  });
-
-  passport.deserializeUser(async (data: { id: number, type: 'user' | 'restaurant' }, done) => {
-    try {
-      console.log('Deserializing user:', data);
-      if (data.type === 'restaurant') {
-        const restaurant = await storage.getRestaurantAuth(data.id);
-        if (!restaurant) {
-          console.error('Restaurant not found during deserialization:', data.id);
-          return done(new Error('Restaurant not found'));
-        }
-        console.log('Restaurant deserialized successfully:', restaurant.id);
-        done(null, { ...restaurant, type: 'restaurant' });
-      } else {
-        const user = await storage.getUser(data.id);
-        if (!user) {
-          console.error('User not found during deserialization:', data.id);
-          return done(new Error('User not found'));
-        }
-        console.log('User deserialized successfully:', user.id);
-        done(null, { ...user, type: 'user' });
-      }
-    } catch (err) {
-      console.error('Deserialization error:', err);
-      done(err);
-    }
-  });
-
-  // Restaurant login endpoint with enhanced error handling
+  // Restaurant login endpoint
   app.post("/api/restaurant/login", (req, res, next) => {
     console.log('Restaurant login attempt:', req.body.email);
-
-    if (!req.body.email || !req.body.password) {
-      return res.status(400).json({ message: "Email and password are required" });
-    }
-
     passport.authenticate("restaurant-local", (err: any, user: any, info: any) => {
       if (err) {
         console.error('Restaurant authentication error:', err);
@@ -152,6 +144,40 @@ export function setupAuth(app: Express) {
         res.status(200).json(user);
       });
     })(req, res, next);
+  });
+
+  // Current restaurant route
+  app.get("/api/restaurant", (req, res) => {
+    console.log('Restaurant data request:', {
+      isAuthenticated: req.isAuthenticated(),
+      userType: req.user?.type,
+      userId: req.user?.id,
+      sessionID: req.sessionID
+    });
+
+    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
+      console.log('Unauthorized restaurant access:', {
+        isAuthenticated: req.isAuthenticated(),
+        userType: req.user?.type,
+        sessionID: req.sessionID
+      });
+      return res.status(401).json({ message: "Not authenticated as restaurant" });
+    }
+    console.log('Restaurant data accessed:', req.user.id);
+    res.json(req.user);
+  });
+
+  // Add middleware to log authentication state for all requests
+  app.use((req, res, next) => {
+    console.log('Request authentication state:', {
+      path: req.path,
+      method: req.method,
+      isAuthenticated: req.isAuthenticated(),
+      sessionID: req.sessionID,
+      userType: req.user?.type,
+      userId: req.user?.id
+    });
+    next();
   });
 
   // Logout endpoint with enhanced session cleanup
@@ -181,19 +207,6 @@ export function setupAuth(app: Express) {
         res.sendStatus(200);
       });
     });
-  });
-
-  // Add middleware to log authentication state for all requests
-  app.use((req, res, next) => {
-    console.log('Request authentication state:', {
-      path: req.path,
-      method: req.method,
-      isAuthenticated: req.isAuthenticated(),
-      sessionID: req.sessionID,
-      userType: req.user?.type,
-      userId: req.user?.id
-    });
-    next();
   });
   // User authentication strategy
   passport.use('local', new LocalStrategy({
@@ -275,29 +288,6 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-
-  // Common logout route
-
-  // Current restaurant route
-  app.get("/api/restaurant", (req, res) => {
-    console.log('Restaurant data request:', {
-      isAuthenticated: req.isAuthenticated(),
-      userType: req.user?.type,
-      userId: req.user?.id,
-      sessionID: req.sessionID
-    });
-
-    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      console.log('Unauthorized restaurant access:', {
-        isAuthenticated: req.isAuthenticated(),
-        userType: req.user?.type,
-        sessionID: req.sessionID
-      });
-      return res.status(401).json({ message: "Not authenticated as restaurant" });
-    }
-    console.log('Restaurant data accessed:', req.user.id);
-    res.json(req.user);
-  });
 
   // Current user route
   app.get("/api/user", (req, res) => {

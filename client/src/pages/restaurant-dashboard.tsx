@@ -7,6 +7,14 @@ import { Loader2, LogOut, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useState } from "react";
 
 // Update Booking interface to include user info
 interface BookingWithUser extends Booking {
@@ -20,6 +28,7 @@ export default function RestaurantDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { restaurant: auth, logoutMutation } = useRestaurantAuth();
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
 
   // Fetch complete restaurant data including locations
   const { data: restaurant, isLoading: isRestaurantLoading } = useQuery<Restaurant>({
@@ -86,14 +95,30 @@ export default function RestaurantDashboard() {
     );
   }
 
+  // Filter bookings based on selected branch
+  const filteredBookings = bookings?.filter(booking => 
+    selectedBranchId === "all" || booking.branchId.toString() === selectedBranchId
+  ) || [];
+
   // Filter for upcoming bookings and sort by date
   const now = new Date();
-  const upcomingBookings = bookings
-    ?.filter(booking => new Date(booking.date) >= now)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
+  const upcomingBookings = filteredBookings
+    .filter(booking => new Date(booking.date) >= now)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const todayBookings = upcomingBookings
     .filter(booking => format(new Date(booking.date), 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd'));
+
+  // Get total tables for selected branch
+  const getTotalTables = () => {
+    if (selectedBranchId === "all") {
+      return restaurant?.locations?.reduce((sum, loc) => sum + loc.tablesCount, 0) || 0;
+    }
+    const branch = restaurant?.locations?.find((loc) => 
+      loc.address === selectedBranchId
+    );
+    return branch?.tablesCount || 0;
+  };
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -122,6 +147,25 @@ export default function RestaurantDashboard() {
               Logout
             </Button>
           </div>
+        </div>
+
+        <div className="flex justify-end mb-4">
+          <Select
+            value={selectedBranchId}
+            onValueChange={setSelectedBranchId}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select Branch" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Branches</SelectItem>
+              {restaurant?.locations?.map((location, index) => (
+                <SelectItem key={index} value={location.address}>
+                  {location.address}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
@@ -153,7 +197,7 @@ export default function RestaurantDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {restaurant?.locations?.reduce((sum, loc) => sum + loc.tablesCount, 0) || 0}
+                {getTotalTables()}
               </div>
             </CardContent>
           </Card>

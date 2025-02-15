@@ -10,7 +10,7 @@ import { parse as parseCookie } from 'cookie';
 
 // Define WebSocket message types
 type WebSocketMessage = {
-  type: 'new_booking' | 'booking_cancelled' | 'heartbeat';
+  type: 'new_booking' | 'booking_cancelled' | 'heartbeat' | 'connection_established';
   data?: any;
 };
 
@@ -18,7 +18,7 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  // Track active connections
+  // Track active connections with their authentication state
   const clients = new Map<WebSocket, {
     sessionID: string;
     userId?: number;
@@ -42,7 +42,8 @@ export function registerRoutes(app: Express): Server {
   wss.on('connection', async (ws, req) => {
     console.log('New WebSocket connection attempt:', {
       headers: req.headers,
-      url: req.url
+      url: req.url,
+      cookie: req.headers.cookie
     });
 
     try {
@@ -67,7 +68,7 @@ export function registerRoutes(app: Express): Server {
         sessionID.startsWith('s:') ? sessionID.slice(2).split('.')[0] : sessionID
       );
 
-      // Verify session using callback pattern
+      // Verify session
       storage.sessionStore.get(cleanSessionId, (err, session) => {
         if (err) {
           console.error('Session store error:', err);
@@ -97,7 +98,7 @@ export function registerRoutes(app: Express): Server {
           userType: type
         });
 
-        // Set up message handlers
+        // Set up event handlers
         ws.on('pong', () => {
           const client = clients.get(ws);
           if (client) {
@@ -108,26 +109,12 @@ export function registerRoutes(app: Express): Server {
         ws.on('message', (message) => {
           try {
             const data = JSON.parse(message.toString()) as WebSocketMessage;
-            console.log('Received WebSocket message:', {
-              type: data.type,
-              sessionID: cleanSessionId,
-              userId: id
-            });
-
             if (data.type === 'heartbeat') {
               ws.send(JSON.stringify({ type: 'heartbeat' }));
             }
           } catch (error) {
             console.error('WebSocket message parsing error:', error);
           }
-        });
-
-        ws.on('error', (error) => {
-          console.error('WebSocket error:', {
-            error,
-            sessionID: cleanSessionId,
-            userId: id
-          });
         });
 
         ws.on('close', () => {
@@ -137,6 +124,12 @@ export function registerRoutes(app: Express): Server {
           });
           clients.delete(ws);
         });
+
+        // Send initial connection success message
+        ws.send(JSON.stringify({ 
+          type: 'connection_established',
+          data: { userId: id, userType: type }
+        }));
       });
     } catch (error) {
       console.error('WebSocket setup error:', error);
@@ -154,6 +147,37 @@ export function registerRoutes(app: Express): Server {
   });
 
   setupAuth(app);
+
+  // Get restaurant bookings endpoint
+  app.get("/api/restaurant/bookings/:restaurantId", async (req, res) => {
+    console.log('Restaurant bookings request:', {
+      restaurantId: req.params.restaurantId,
+      user: req.user,
+      sessionID: req.sessionID
+    });
+
+    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
+      console.log('Authentication failed:', {
+        isAuthenticated: req.isAuthenticated(),
+        userType: req.user?.type,
+        sessionID: req.sessionID
+      });
+      return res.status(401).json({ message: "Not authenticated as restaurant" });
+    }
+
+    try {
+      const restaurantId = parseInt(req.params.restaurantId);
+      if (restaurantId !== req.user.id) {
+        return res.status(403).json({ message: "Unauthorized to access these bookings" });
+      }
+
+      const bookings = await storage.getRestaurantBookings(restaurantId);
+      res.json(bookings);
+    } catch (error: any) {
+      console.error('Error fetching restaurant bookings:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
 
   // Add restaurant profile endpoint
   app.get("/api/restaurant/profile/:id", async (req, res, next) => {
