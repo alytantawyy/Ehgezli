@@ -1,6 +1,5 @@
 import { RestaurantGrid } from "@/components/restaurant-grid";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
+import { UserNav } from "@/components/user-nav";
 import { SearchBar } from "@/components/SearchBar";
 import { useState } from "react";
 import {
@@ -12,7 +11,6 @@ import {
 } from "@/components/ui/select";
 
 export default function HomePage() {
-  const { user, logoutMutation } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
 
@@ -27,18 +25,7 @@ export default function HomePage() {
           <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-orange-400 text-transparent bg-clip-text">
             Ehgezli
           </h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              Welcome, {user?.firstName}
-            </span>
-            <Button
-              variant="outline"
-              onClick={() => logoutMutation.mutate()}
-              disabled={logoutMutation.isPending}
-            >
-              Logout
-            </Button>
-          </div>
+          <UserNav />
         </div>
       </header>
 
