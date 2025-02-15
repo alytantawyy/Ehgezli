@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/navigation-menu";
 
 export function UserNav() {
-  const { user, logout } = useAuth();
+  const { user, logoutMutation } = useAuth();
 
   if (!user) return null;
 
@@ -34,9 +34,10 @@ export function UserNav() {
         <NavigationMenuItem>
           <Button
             variant="outline"
-            onClick={() => logout()}
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
           >
-            Logout
+            {logoutMutation.isPending ? "Logging out..." : "Logout"}
           </Button>
         </NavigationMenuItem>
       </NavigationMenuList>
