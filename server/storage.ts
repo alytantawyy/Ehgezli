@@ -139,14 +139,21 @@ export class DatabaseStorage implements IStorage {
         about: restaurant_profiles.about,
         logo: restaurant_profiles.logo || "",
         cuisine: restaurant_profiles.cuisine,
-        locations: branches.map(branch => ({
-          address: branch.address,
-          tablesCount: branch.tablesCount,
-          seatsCount: branch.seatsCount,
-          openingTime: branch.openingTime,
-          closingTime: branch.closingTime,
-          city: branch.city as "Alexandria" | "Cairo"
-        }))
+        locations: branches.map(branch => {
+          console.log("Processing branch data:", {
+            branchId: branch.id,
+            city: branch.city,
+            address: branch.address
+          });
+          return {
+            address: branch.address,
+            tablesCount: branch.tablesCount,
+            seatsCount: branch.seatsCount,
+            openingTime: branch.openingTime,
+            closingTime: branch.closingTime,
+            city: branch.city as "Alexandria" | "Cairo"
+          };
+        })
       };
 
       console.log("Mapped restaurant data:", restaurant);

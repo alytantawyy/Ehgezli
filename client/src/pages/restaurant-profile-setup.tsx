@@ -111,14 +111,23 @@ export default function RestaurantProfileSetup() {
         const profile = await getProfileData();
 
         // Map the locations to branches, ensuring all required data is present
-        const branches = existingRestaurant.locations.map(location => ({
-          address: location.address,
-          city: location.city,
-          tablesCount: location.tablesCount,
-          seatsCount: location.seatsCount,
-          openingTime: location.openingTime,
-          closingTime: location.closingTime,
-        }));
+        const branches = existingRestaurant.locations.map(location => {
+          console.log("Processing location for form:", {
+            address: location.address,
+            city: location.city,
+            tablesCount: location.tablesCount,
+            seatsCount: location.seatsCount
+          });
+
+          return {
+            address: location.address,
+            city: location.city as "Alexandria" | "Cairo",  // Ensure we use the exact city value
+            tablesCount: location.tablesCount,
+            seatsCount: location.seatsCount,
+            openingTime: location.openingTime,
+            closingTime: location.closingTime,
+          };
+        });
 
         console.log("Mapped branches data:", branches);
 
