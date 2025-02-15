@@ -193,6 +193,54 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
+  // Add user registration endpoint with proper error handling
+  app.post("/api/register", async (req, res) => {
+    try {
+      console.log('User registration attempt:', req.body);
+
+      // Basic validation
+      if (!req.body.email || !req.body.password) {
+        return res.status(400).json({ 
+          message: "Missing required fields: email and password are required" 
+        });
+      }
+
+      const existingUser = await storage.getUserByEmail(req.body.email);
+      if (existingUser) {
+        console.log('User registration failed - email exists:', req.body.email);
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      const hashedPassword = await hashPassword(req.body.password);
+      const user = await storage.createUser({
+        ...req.body,
+        password: hashedPassword,
+      });
+
+      // Login after registration using a Promise
+      await new Promise<void>((resolve, reject) => {
+        req.login({ ...user, type: 'user' }, (err) => {
+          if (err) {
+            console.error('User login error after registration:', err);
+            reject(err);
+          } else {
+            console.log('User registered and logged in:', user.id);
+            resolve();
+          }
+        });
+      });
+
+      // Send the response only after login is complete
+      res.status(201).json(user);
+
+    } catch (error: any) {
+      console.error('User registration error:', error);
+      res.status(500).json({ 
+        message: error.message || "Registration failed. Please try again." 
+      });
+    }
+  });
+
   // Add middleware to log authentication state for all requests
   app.use((req, res, next) => {
     console.log('Request authentication state:', {
