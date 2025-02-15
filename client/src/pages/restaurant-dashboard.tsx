@@ -10,7 +10,7 @@ import { Link } from "wouter";
 
 // Update Booking interface to include user info
 interface BookingWithUser extends Booking {
-  user: {
+  user?: {
     firstName: string;
     lastName: string;
   };
@@ -173,7 +173,7 @@ export default function RestaurantDashboard() {
                   >
                     <div>
                       <div className="font-medium">
-                        {booking.user.firstName} {booking.user.lastName}
+                        {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : `Booking #${booking.id}`}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {format(new Date(booking.date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
