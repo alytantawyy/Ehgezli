@@ -32,6 +32,9 @@ async function comparePasswords(supplied: string, stored: string) {
 }
 
 export function setupAuth(app: Express) {
+  // Set trust proxy before session middleware
+  app.set("trust proxy", 1);
+
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID!,
     resave: false,
@@ -41,7 +44,8 @@ export function setupAuth(app: Express) {
       secure: false, // Set to false in development
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       sameSite: 'lax',
-      path: '/'
+      path: '/',
+      httpOnly: true
     }
   };
 
@@ -57,10 +61,18 @@ export function setupAuth(app: Express) {
     try {
       console.log('Attempting restaurant login:', email);
       const restaurant = await storage.getRestaurantAuthByEmail(email);
-      if (!restaurant || !(await comparePasswords(password, restaurant.password))) {
-        console.log('Restaurant authentication failed:', email);
-        return done(null, false);
+
+      if (!restaurant) {
+        console.log('Restaurant not found:', email);
+        return done(null, false, { message: 'Restaurant not found' });
       }
+
+      const isPasswordValid = await comparePasswords(password, restaurant.password);
+      if (!isPasswordValid) {
+        console.log('Invalid password for restaurant:', email);
+        return done(null, false, { message: 'Invalid password' });
+      }
+
       console.log('Restaurant authenticated successfully:', restaurant.id);
       return done(null, { ...restaurant, type: 'restaurant' });
     } catch (err) {
@@ -77,10 +89,18 @@ export function setupAuth(app: Express) {
     try {
       console.log('Attempting user login:', email);
       const user = await storage.getUserByEmail(email);
-      if (!user || !(await comparePasswords(password, user.password))) {
-        console.log('User authentication failed:', email);
-        return done(null, false);
+
+      if (!user) {
+        console.log('User not found:', email);
+        return done(null, false, { message: 'User not found' });
       }
+
+      const isPasswordValid = await comparePasswords(password, user.password);
+      if (!isPasswordValid) {
+        console.log('Invalid password for user:', email);
+        return done(null, false, { message: 'Invalid password' });
+      }
+
       console.log('User authenticated successfully:', user.id);
       return done(null, { ...user, type: 'user' });
     } catch (err) {
@@ -107,6 +127,7 @@ export function setupAuth(app: Express) {
           console.error('Restaurant not found during deserialization:', data.id);
           return done(new Error('Restaurant not found'));
         }
+        console.log('Restaurant deserialized successfully:', restaurant.id);
         done(null, { ...restaurant, type: 'restaurant' });
       } else {
         const user = await storage.getUser(data.id);
@@ -114,6 +135,7 @@ export function setupAuth(app: Express) {
           console.error('User not found during deserialization:', data.id);
           return done(new Error('User not found'));
         }
+        console.log('User deserialized successfully:', user.id);
         done(null, { ...user, type: 'user' });
       }
     } catch (err) {
@@ -125,8 +147,10 @@ export function setupAuth(app: Express) {
   // Restaurant registration endpoint
   app.post("/api/restaurant/register", async (req, res, next) => {
     try {
+      console.log('Restaurant registration attempt:', req.body.email);
       const existingRestaurant = await storage.getRestaurantAuthByEmail(req.body.email);
       if (existingRestaurant) {
+        console.log('Restaurant registration failed - email exists:', req.body.email);
         return res.status(400).json({ message: "Email already registered" });
       }
 
@@ -136,7 +160,10 @@ export function setupAuth(app: Express) {
       });
 
       req.login({ ...restaurant, type: 'restaurant' }, (err) => {
-        if (err) return next(err);
+        if (err) {
+          console.error('Restaurant login error after registration:', err);
+          return next(err);
+        }
         console.log('Restaurant registered and logged in:', restaurant.id);
         res.status(201).json(restaurant);
       });
@@ -148,13 +175,21 @@ export function setupAuth(app: Express) {
 
   // Restaurant login endpoint
   app.post("/api/restaurant/login", (req, res, next) => {
-    passport.authenticate("restaurant-local", (err, user, info) => {
-      if (err) return next(err);
+    console.log('Restaurant login attempt:', req.body.email);
+    passport.authenticate("restaurant-local", (err: any, user: any, info: any) => {
+      if (err) {
+        console.error('Restaurant authentication error:', err);
+        return next(err);
+      }
       if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
+        console.log('Restaurant authentication failed:', info?.message);
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
       }
       req.login(user, (err) => {
-        if (err) return next(err);
+        if (err) {
+          console.error('Restaurant login error:', err);
+          return next(err);
+        }
         console.log('Restaurant logged in successfully:', user.id);
         res.status(200).json(user);
       });
@@ -163,13 +198,21 @@ export function setupAuth(app: Express) {
 
   // User login endpoint
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
-      if (err) return next(err);
+    console.log('User login attempt:', req.body.email);
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) {
+        console.error('User authentication error:', err);
+        return next(err);
+      }
       if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
+        console.log('User authentication failed:', info?.message);
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
       }
       req.login(user, (err) => {
-        if (err) return next(err);
+        if (err) {
+          console.error('User login error:', err);
+          return next(err);
+        }
         console.log('User logged in successfully:', user.id);
         res.status(200).json(user);
       });
@@ -180,21 +223,33 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res, next) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
+    console.log('Logout attempt:', { id: userId, type: userType });
     req.logout((err) => {
-      if (err) return next(err);
-      console.log('User logged out:', { id: userId, type: userType });
+      if (err) {
+        console.error('Logout error:', err);
+        return next(err);
+      }
+      console.log('User logged out successfully:', { id: userId, type: userType });
       res.sendStatus(200);
     });
   });
 
   // Current restaurant route
   app.get("/api/restaurant", (req, res) => {
+    console.log('Restaurant data request:', {
+      isAuthenticated: req.isAuthenticated(),
+      userType: req.user?.type,
+      userId: req.user?.id,
+      sessionID: req.sessionID
+    });
+
     if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      console.log('Unauthorized restaurant access:', { 
+      console.log('Unauthorized restaurant access:', {
         isAuthenticated: req.isAuthenticated(),
-        userType: req.user?.type 
+        userType: req.user?.type,
+        sessionID: req.sessionID
       });
-      return res.sendStatus(401);
+      return res.status(401).json({ message: "Not authenticated as restaurant" });
     }
     console.log('Restaurant data accessed:', req.user.id);
     res.json(req.user);
@@ -202,16 +257,25 @@ export function setupAuth(app: Express) {
 
   // Current user route
   app.get("/api/user", (req, res) => {
+    console.log('User data request:', {
+      isAuthenticated: req.isAuthenticated(),
+      userType: req.user?.type,
+      userId: req.user?.id,
+      sessionID: req.sessionID
+    });
+
     if (!req.isAuthenticated() || req.user?.type !== 'user') {
-      console.log('Unauthorized user access:', { 
+      console.log('Unauthorized user access:', {
         isAuthenticated: req.isAuthenticated(),
-        userType: req.user?.type 
+        userType: req.user?.type,
+        sessionID: req.sessionID
       });
-      return res.sendStatus(401);
+      return res.status(401).json({ message: "Not authenticated as user" });
     }
     console.log('User data accessed:', req.user.id);
     res.json(req.user);
   });
+
   // Add the restaurant bookings endpoint
   app.get("/api/restaurant/bookings/:restaurantId", async (req, res) => {
     console.log('Restaurant bookings request:', {
