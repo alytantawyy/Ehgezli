@@ -270,8 +270,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="" disabled>
-                      No available time slots
+                    <SelectItem key="no-slots" value="no-slots" disabled>
+                      Select a date first
                     </SelectItem>
                   )}
                 </SelectContent>

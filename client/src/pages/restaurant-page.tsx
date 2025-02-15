@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Restaurant } from "@shared/schema";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { BookingForm } from "@/components/booking-form";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -9,11 +9,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function RestaurantPage() {
   const [, params] = useRoute("/restaurant/:id");
+  const [, setLocation] = useLocation();
   const restaurantId = parseInt(params?.id || "0");
   const branchIndex = parseInt(new URLSearchParams(window.location.search).get("branch") || "0");
 
   const { data: restaurant, isLoading, error } = useQuery<Restaurant>({
     queryKey: ["/api/restaurants", restaurantId],
+    enabled: restaurantId > 0,
+    retry: 1,
     queryFn: async () => {
       const response = await fetch(`/api/restaurants/${restaurantId}`);
       if (!response.ok) throw new Error('Failed to fetch restaurant');
@@ -48,6 +51,7 @@ export default function RestaurantPage() {
   }
 
   if (error) {
+    console.error('Restaurant page error:', error);
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -95,10 +99,12 @@ export default function RestaurantPage() {
 
         <div className="grid md:grid-cols-2 gap-12">
           <div>
-            <div
-              className="h-64 rounded-lg bg-cover bg-center mb-6"
-              style={{ backgroundImage: `url(${restaurant.logo})` }}
-            />
+            {restaurant.logo && (
+              <div
+                className="h-64 rounded-lg bg-cover bg-center mb-6"
+                style={{ backgroundImage: `url(${restaurant.logo})` }}
+              />
+            )}
 
             <h1 className="text-3xl font-bold mb-4">{restaurant.name}</h1>
 
@@ -118,7 +124,7 @@ export default function RestaurantPage() {
             </div>
 
             <p className="text-muted-foreground mb-6">
-              {restaurant.description}
+              {restaurant.about || restaurant.description}
             </p>
           </div>
 
