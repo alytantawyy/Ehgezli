@@ -30,7 +30,7 @@ import {
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const bookingSchema = z.object({
   date: z.date(),
@@ -40,10 +40,31 @@ const bookingSchema = z.object({
 
 type BookingFormData = z.infer<typeof bookingSchema>;
 
-const generateTimeSlots = (openingTime: string, closingTime: string) => {
+const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
   const slots = [];
   const [openHour, openMinute] = openingTime.split(':').map(Number);
   const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+
+  let startHour = openHour;
+  let startMinute = openMinute;
+
+  // If booking is for today, start from current time
+  const now = new Date();
+  if (bookingDate && 
+      bookingDate.getDate() === now.getDate() &&
+      bookingDate.getMonth() === now.getMonth() &&
+      bookingDate.getFullYear() === now.getFullYear()) {
+    startHour = now.getHours();
+    startMinute = now.getMinutes();
+
+    // Round up to the next 30-minute slot
+    if (startMinute > 30) {
+      startHour += 1;
+      startMinute = 0;
+    } else if (startMinute > 0) {
+      startMinute = 30;
+    }
+  }
 
   let lastSlotHour = closeHour;
   let lastSlotMinute = closeMinute;
@@ -53,9 +74,9 @@ const generateTimeSlots = (openingTime: string, closingTime: string) => {
   }
   lastSlotHour = lastSlotHour - 1; // One hour before closing
 
-  for (let hour = openHour; hour <= lastSlotHour; hour++) {
+  for (let hour = startHour; hour <= lastSlotHour; hour++) {
     for (let minute of [0, 30]) {
-      if (hour === openHour && minute < openMinute) continue;
+      if (hour === startHour && minute < startMinute) continue;
       if (hour === lastSlotHour && minute > lastSlotMinute) continue;
 
       const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
@@ -74,100 +95,23 @@ interface BookingFormProps {
 
 export function BookingForm({ restaurantId, branchIndex, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
-  const timeSlots = generateTimeSlots(openingTime, closingTime);
-
-  // Initialize WebSocket connection with reconnection logic
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let reconnectAttempts = 0;
-    let heartbeatInterval: NodeJS.Timeout;
-
-    const connect = () => {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-      socket = new WebSocket(wsUrl);
-
-      socket.onopen = () => {
-        console.log('WebSocket Connected');
-        reconnectAttempts = 0;
-
-        // Start heartbeat
-        heartbeatInterval = setInterval(() => {
-          if (socket?.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: 'heartbeat' }));
-          }
-        }, 25000); // Slightly less than server's 30s timeout
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          switch (data.type) {
-            case 'new_booking':
-              // Invalidate queries to refresh the UI
-              queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
-              toast({
-                title: "New Booking Received",
-                description: "A new booking has been made.",
-              });
-              break;
-            case 'booking_cancelled':
-              queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
-              toast({
-                title: "Booking Cancelled",
-                description: "A booking has been cancelled.",
-              });
-              break;
-            case 'heartbeat':
-              console.log('Heartbeat received');
-              break;
-          }
-        } catch (error) {
-          console.error('WebSocket message error:', error);
-        }
-      };
-
-      socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-
-      socket.onclose = (event) => {
-        console.log('WebSocket connection closed:', event.code, event.reason);
-        clearInterval(heartbeatInterval);
-
-        // Attempt to reconnect with exponential backoff
-        if (reconnectAttempts < 5) {
-          const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-          reconnectAttempts++;
-          setTimeout(connect, timeout);
-        } else {
-          toast({
-            title: "Connection Lost",
-            description: "Unable to maintain real-time connection. Please refresh the page.",
-            variant: "destructive",
-          });
-        }
-      };
-    };
-
-    connect();
-
-    return () => {
-      clearInterval(heartbeatInterval);
-      if (socket) {
-        socket.close();
-      }
-    };
-  }, [toast]);
+  const [timeSlots, setTimeSlots] = useState<string[]>([]);
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
       partySize: 2,
-      time: timeSlots[Math.floor(timeSlots.length / 2)],
     },
   });
+
+  // Update time slots when date changes
+  useEffect(() => {
+    const selectedDate = form.getValues("date");
+    if (selectedDate) {
+      const slots = generateTimeSlots(openingTime, closingTime, selectedDate);
+      setTimeSlots(slots);
+    }
+  }, [openingTime, closingTime, form.watch("date")]);
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
@@ -308,18 +252,28 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           render={({ field }) => (
             <FormItem>
               <FormLabel>Time</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select 
+                onValueChange={field.onChange} 
+                value={field.value}
+                defaultValue={field.value}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select time" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {timeSlots.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
+                  {timeSlots.length > 0 ? (
+                    timeSlots.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>
+                      No available time slots
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
               <FormMessage />
