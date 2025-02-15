@@ -25,7 +25,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Plus, Trash2, Upload } from "lucide-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
@@ -47,6 +47,7 @@ export default function RestaurantProfileSetup() {
   const { restaurant } = useRestaurantAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   // Fetch existing restaurant data if we're in edit mode
@@ -122,15 +123,19 @@ export default function RestaurantProfileSetup() {
 
   const profileMutation = useMutation({
     mutationFn: async (data: InsertRestaurantProfile) => {
-      // Use PUT for updates, POST for creation
-      const method = existingRestaurant ? "PUT" : "POST";
-      const res = await apiRequest(method, "/api/restaurant/profile", data);
+      const res = await apiRequest("PUT", "/api/restaurant/profile", data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to update profile");
+      }
       return res.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurants"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/profile-status", restaurant?.id] });
       toast({
         title: existingRestaurant ? "Profile Updated!" : "Profile Setup Complete!",
-        description: existingRestaurant 
+        description: existingRestaurant
           ? "Your restaurant profile has been updated successfully."
           : "Your restaurant profile has been created successfully.",
       });

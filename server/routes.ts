@@ -310,6 +310,28 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add restaurant profile endpoints
+  app.put("/api/restaurant/profile", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Please log in to update profile" });
+      }
+
+      if (!req.user?.type || req.user.type !== 'restaurant') {
+        return res.status(403).json({ message: "Not authorized as restaurant" });
+      }
+
+      await storage.createRestaurantProfile({
+        ...req.body,
+        restaurantId: req.user.id
+      });
+
+      res.json({ message: "Profile updated successfully" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Error handling middleware
   app.use((err: any, req: any, res: any, next: any) => {
     console.error('Error:', err);
