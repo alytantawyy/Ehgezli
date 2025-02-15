@@ -11,8 +11,12 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 
+interface BookingWithRestaurant extends Booking {
+  restaurantName: string;
+}
+
 export default function UserBookings() {
-  const { data: bookings, isLoading } = useQuery<Booking[]>({
+  const { data: bookings, isLoading } = useQuery<BookingWithRestaurant[]>({
     queryKey: ["/api/bookings"],
     queryFn: async () => {
       const response = await fetch("/api/bookings");

@@ -20,7 +20,7 @@ export interface IStorage {
   getRestaurant(id: number): Promise<Restaurant | undefined>;
   getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]>;
   createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking>;
-  getUserBookings(userId: number): Promise<Booking[]>;
+  getUserBookings(userId: number): Promise<(Booking & { restaurantName: string })[]>;
   getRestaurantBookings(restaurantId: number): Promise<Booking[]>;
   getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined>;
   getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined>;
@@ -207,8 +207,23 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getUserBookings(userId: number): Promise<Booking[]> {
-    return db.select().from(bookings).where(eq(bookings.userId, userId));
+  async getUserBookings(userId: number): Promise<(Booking & { restaurantName: string })[]> {
+    const bookingsWithRestaurants = await db
+      .select({
+        id: bookings.id,
+        userId: bookings.userId,
+        branchId: bookings.branchId,
+        date: bookings.date,
+        partySize: bookings.partySize,
+        confirmed: bookings.confirmed,
+        restaurantName: restaurantAuth.name,
+      })
+      .from(bookings)
+      .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
+      .innerJoin(restaurantAuth, eq(restaurantBranches.restaurantId, restaurantAuth.id))
+      .where(eq(bookings.userId, userId));
+
+    return bookingsWithRestaurants;
   }
 
   async getRestaurantBookings(restaurantId: number): Promise<Booking[]> {
