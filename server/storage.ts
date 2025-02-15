@@ -274,14 +274,18 @@ export class DatabaseStorage implements IStorage {
         return [];
       }
 
-      const bookingsWithBranches = await db
+      const bookingsWithUsers = await db
         .select({
           id: bookings.id,
           userId: bookings.userId,
           branchId: bookings.branchId,
           date: bookings.date,
           partySize: bookings.partySize,
-          confirmed: bookings.confirmed
+          confirmed: bookings.confirmed,
+          user: {
+            firstName: users.firstName,
+            lastName: users.lastName
+          }
         })
         .from(bookings)
         .innerJoin(
@@ -290,10 +294,11 @@ export class DatabaseStorage implements IStorage {
             eq(bookings.branchId, restaurantBranches.id),
             eq(restaurantBranches.restaurantId, restaurantId)
           )
-        );
+        )
+        .leftJoin(users, eq(bookings.userId, users.id));
 
-      console.log(`Found ${bookingsWithBranches.length} bookings for restaurant ${restaurantId}:`, bookingsWithBranches);
-      return bookingsWithBranches;
+      console.log(`Found ${bookingsWithUsers.length} bookings with users for restaurant ${restaurantId}:`, bookingsWithUsers);
+      return bookingsWithUsers;
     } catch (error) {
       console.error('Error fetching restaurant bookings:', error);
       throw error;
