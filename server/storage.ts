@@ -109,26 +109,29 @@ export class DatabaseStorage implements IStorage {
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
     try {
+      // Get restaurant auth and profile data
       const [restaurantData] = await db.select()
         .from(restaurantAuth)
         .where(eq(restaurantAuth.id, id))
         .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId));
 
       if (!restaurantData?.restaurant_auth || !restaurantData.restaurant_profiles) {
-        console.log("No restaurant found for id:", id); 
+        console.log("No restaurant found for id:", id);
         return undefined;
       }
 
+      // Get branches data separately to ensure we get all branches
       const branches = await db
         .select()
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, id));
 
-      console.log("Found branches for restaurant:", id, branches); 
+      console.log("Found branches for restaurant:", id, branches);
 
       const { restaurant_auth, restaurant_profiles } = restaurantData;
 
-      return {
+      // Map the data to the Restaurant type
+      const restaurant: Restaurant = {
         id: restaurant_auth.id,
         authId: restaurant_auth.id,
         name: restaurant_auth.name,
@@ -139,11 +142,15 @@ export class DatabaseStorage implements IStorage {
         locations: branches.map(branch => ({
           address: branch.address,
           tablesCount: branch.tablesCount,
+          seatsCount: branch.seatsCount,
           openingTime: branch.openingTime,
           closingTime: branch.closingTime,
           city: branch.city as "Alexandria" | "Cairo"
         }))
       };
+
+      console.log("Mapped restaurant data:", restaurant);
+      return restaurant;
     } catch (error) {
       console.error("Error in getRestaurant:", error);
       throw error;
@@ -335,9 +342,13 @@ export class DatabaseStorage implements IStorage {
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
     try {
+      console.log("Creating/updating restaurant profile with data:", profile);
+
+      // First check if profile exists
       const existingProfile = await this.getRestaurantProfile(profile.restaurantId);
 
       if (existingProfile) {
+        // If profile exists, update it
         await db.update(restaurantProfiles)
           .set({
             about: profile.about,
@@ -349,6 +360,7 @@ export class DatabaseStorage implements IStorage {
           })
           .where(eq(restaurantProfiles.restaurantId, profile.restaurantId));
       } else {
+        // If profile doesn't exist, insert new one
         await db.insert(restaurantProfiles).values({
           restaurantId: profile.restaurantId,
           about: profile.about,
@@ -361,21 +373,26 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
+      // Update branches - first delete existing ones
       await db.delete(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, profile.restaurantId));
 
-      await db.insert(restaurantBranches).values(
-        profile.branches.map(branch => ({
-          restaurantId: profile.restaurantId,
-          address: branch.address,
-          city: branch.city,
-          tablesCount: branch.tablesCount,
-          seatsCount: branch.seatsCount,
-          openingTime: branch.openingTime,
-          closingTime: branch.closingTime,
-          reservationDuration: 120 
-        }))
-      );
+      // Then insert the new/updated branches
+      const branchData = profile.branches.map(branch => ({
+        restaurantId: profile.restaurantId,
+        address: branch.address,
+        city: branch.city,
+        tablesCount: branch.tablesCount,
+        seatsCount: branch.seatsCount,
+        openingTime: branch.openingTime,
+        closingTime: branch.closingTime,
+        reservationDuration: 120 // Default 2 hours in minutes
+      }));
+
+      console.log("Inserting branch data:", branchData);
+
+      await db.insert(restaurantBranches).values(branchData);
+
     } catch (error) {
       console.error('Error creating/updating restaurant profile:', error);
       throw error;

@@ -58,7 +58,7 @@ export default function RestaurantProfileSetup() {
       const response = await fetch(`/api/restaurants/${restaurant.id}`);
       if (!response.ok) throw new Error('Failed to fetch restaurant');
       const data = await response.json();
-      console.log("Fetched restaurant data:", data); // Add logging
+      console.log("Fetched restaurant data:", data);
       return data;
     },
     enabled: !!restaurant?.id,
@@ -88,25 +88,55 @@ export default function RestaurantProfileSetup() {
   // Load existing data into form when available
   useEffect(() => {
     if (existingRestaurant) {
-      console.log("Setting form data with:", existingRestaurant); // Add logging
-      form.reset({
-        restaurantId: existingRestaurant.id,
-        about: existingRestaurant.about || "",
-        cuisine: existingRestaurant.cuisine,
-        priceRange: existingRestaurant.priceRange || "$", 
-        logo: existingRestaurant.logo || "",
-        branches: existingRestaurant.locations.map(location => ({
+      console.log("Setting form data with:", existingRestaurant);
+
+      // Get the profile data
+      const getProfileData = async () => {
+        try {
+          const response = await fetch(`/api/restaurant/profile/${existingRestaurant.id}`);
+          if (!response.ok) {
+            console.error("Error fetching profile data:", response.status);
+            return null;
+          }
+          const data = await response.json();
+          console.log("Fetched profile data:", data);
+          return data;
+        } catch (error) {
+          console.error("Error fetching profile data:", error);
+          return null;
+        }
+      };
+
+      const loadProfileData = async () => {
+        const profile = await getProfileData();
+
+        // Map the locations to branches, ensuring all required data is present
+        const branches = existingRestaurant.locations.map(location => ({
           address: location.address,
           city: location.city,
           tablesCount: location.tablesCount,
           seatsCount: location.seatsCount,
           openingTime: location.openingTime,
           closingTime: location.closingTime,
-        })),
-      });
-      if (existingRestaurant.logo) {
-        setLogoPreview(existingRestaurant.logo);
-      }
+        }));
+
+        console.log("Mapped branches data:", branches);
+
+        form.reset({
+          restaurantId: existingRestaurant.id,
+          about: existingRestaurant.about || "",
+          cuisine: existingRestaurant.cuisine,
+          priceRange: profile?.priceRange || "$",
+          logo: existingRestaurant.logo || "",
+          branches,
+        });
+
+        if (existingRestaurant.logo) {
+          setLogoPreview(existingRestaurant.logo);
+        }
+      };
+
+      loadProfileData();
     }
   }, [existingRestaurant, form]);
 
