@@ -10,7 +10,7 @@ import { User as SelectUser, RestaurantAuth as SelectRestaurantAuth } from "@sha
 declare global {
   namespace Express {
     interface User extends Partial<SelectUser>, Partial<SelectRestaurantAuth> {
-      type?: 'user' | 'restaurant';
+      type: 'user' | 'restaurant';
     }
   }
 }
@@ -68,7 +68,7 @@ export function setupAuth(app: Express) {
         const restaurant = await storage.getRestaurantAuth(data.id);
         if (!restaurant) {
           console.error('Restaurant not found during deserialization:', data.id);
-          return done(new Error('Restaurant not found'));
+          return done(null, false);
         }
         console.log('Restaurant deserialized successfully:', restaurant.id);
         return done(null, { ...restaurant, type: 'restaurant' });
@@ -76,7 +76,7 @@ export function setupAuth(app: Express) {
         const user = await storage.getUser(data.id);
         if (!user) {
           console.error('User not found during deserialization:', data.id);
-          return done(new Error('User not found'));
+          return done(null, false);
         }
         console.log('User deserialized successfully:', user.id);
         return done(null, { ...user, type: 'user' });

@@ -23,6 +23,7 @@ export function ProtectedRestaurantRoute({
     );
   }
 
+  // Always redirect to auth if not authenticated
   if (!restaurant) {
     return (
       <Route path={path}>

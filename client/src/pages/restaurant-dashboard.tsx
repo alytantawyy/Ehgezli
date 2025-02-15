@@ -16,12 +16,12 @@ import {
 } from "@/components/ui/select";
 import { useState } from "react";
 
-// Update Booking interface to include user info
+// Update Booking interface to make user optional
 interface BookingWithUser extends Booking {
   user?: {
     firstName: string;
     lastName: string;
-  };
+  } | null;
 }
 
 export default function RestaurantDashboard() {
@@ -96,7 +96,7 @@ export default function RestaurantDashboard() {
   }
 
   // Filter bookings based on selected branch
-  const filteredBookings = bookings?.filter(booking => 
+  const filteredBookings = bookings?.filter(booking =>
     selectedBranchId === "all" || booking.branchId.toString() === selectedBranchId
   ) || [];
 
@@ -114,7 +114,7 @@ export default function RestaurantDashboard() {
     if (selectedBranchId === "all") {
       return restaurant?.locations?.reduce((sum, loc) => sum + loc.tablesCount, 0) || 0;
     }
-    const branch = restaurant?.locations?.find((loc) => 
+    const branch = restaurant?.locations?.find((loc) =>
       loc.address === selectedBranchId
     );
     return branch?.tablesCount || 0;
@@ -129,8 +129,8 @@ export default function RestaurantDashboard() {
             <div className="text-sm text-muted-foreground">
               Welcome back, {auth?.name}
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               asChild
             >
               <Link to="/restaurant/profile">
@@ -138,8 +138,8 @@ export default function RestaurantDashboard() {
                 My Restaurant
               </Link>
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => logoutMutation.mutate()}
               disabled={logoutMutation.isPending}
             >
@@ -217,7 +217,10 @@ export default function RestaurantDashboard() {
                   >
                     <div>
                       <div className="font-medium">
-                        {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : `Booking #${booking.id}`}
+                        {booking.user ?
+                          `${booking.user.firstName} ${booking.user.lastName}` :
+                          `Guest Booking #${booking.id}`
+                        }
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {format(new Date(booking.date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
@@ -226,7 +229,7 @@ export default function RestaurantDashboard() {
                         Party size: {booking.partySize}
                       </div>
                     </div>
-                    <Button 
+                    <Button
                       variant="destructive"
                       onClick={() => {
                         if (window.confirm('Are you sure you want to cancel this booking?')) {
