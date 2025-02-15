@@ -240,28 +240,42 @@ export function setupAuth(app: Express) {
   app.post("/api/restaurant/register", async (req, res, next) => {
     try {
       console.log('Restaurant registration attempt:', req.body.email);
+
+      // Basic validation
+      if (!req.body.email || !req.body.password || !req.body.name) {
+        return res.status(400).json({ 
+          message: "Missing required fields: email, password, and name are required" 
+        });
+      }
+
       const existingRestaurant = await storage.getRestaurantAuthByEmail(req.body.email);
       if (existingRestaurant) {
         console.log('Restaurant registration failed - email exists:', req.body.email);
         return res.status(400).json({ message: "Email already registered" });
       }
 
+      const hashedPassword = await hashPassword(req.body.password);
       const restaurant = await storage.createRestaurantAuth({
         ...req.body,
-        password: await hashPassword(req.body.password),
+        password: hashedPassword,
       });
 
       req.login({ ...restaurant, type: 'restaurant' }, (err) => {
         if (err) {
           console.error('Restaurant login error after registration:', err);
-          return next(err);
+          return res.status(500).json({ 
+            message: "Registration successful but login failed. Please try logging in." 
+          });
         }
         console.log('Restaurant registered and logged in:', restaurant.id);
         res.status(201).json(restaurant);
       });
     } catch (error: any) {
       console.error('Restaurant registration error:', error);
-      res.status(400).json({ message: error.message });
+      // Ensure we always return JSON, even for errors
+      res.status(400).json({ 
+        message: error.message || "Registration failed. Please try again." 
+      });
     }
   });
 
