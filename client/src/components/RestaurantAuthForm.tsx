@@ -49,6 +49,24 @@ export default function RestaurantAuthForm() {
     }
   }, [restaurant, isProfileComplete, isLoading, setLocation]);
 
+  const handleRegisterSubmit = async (data: any) => {
+    try {
+      await registerMutation.mutateAsync(data);
+    } catch (error) {
+      console.error('Registration error:', error);
+      // The form will display the error message through the mutation state
+    }
+  };
+
+  const handleLoginSubmit = async (data: any) => {
+    try {
+      await loginMutation.mutateAsync(data);
+    } catch (error) {
+      console.error('Login error:', error);
+      // The form will display the error message through the mutation state
+    }
+  };
+
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
       <TabsList className="grid w-full grid-cols-2">
@@ -59,9 +77,7 @@ export default function RestaurantAuthForm() {
       <TabsContent value="login">
         <Form {...loginForm}>
           <form
-            onSubmit={loginForm.handleSubmit((data) => {
-              loginMutation.mutate(data);
-            })}
+            onSubmit={loginForm.handleSubmit(handleLoginSubmit)}
             className="space-y-4"
           >
             <FormField
@@ -97,6 +113,11 @@ export default function RestaurantAuthForm() {
             >
               {loginMutation.isPending ? "Logging in..." : "Login"}
             </Button>
+            {loginMutation.error && (
+              <p className="text-sm text-red-500 mt-2">
+                {loginMutation.error.message}
+              </p>
+            )}
           </form>
         </Form>
       </TabsContent>
@@ -104,9 +125,7 @@ export default function RestaurantAuthForm() {
       <TabsContent value="register">
         <Form {...registerForm}>
           <form
-            onSubmit={registerForm.handleSubmit((data) => {
-              registerMutation.mutate(data);
-            })}
+            onSubmit={registerForm.handleSubmit(handleRegisterSubmit)}
             className="space-y-4"
           >
             <FormField
@@ -155,6 +174,11 @@ export default function RestaurantAuthForm() {
             >
               {registerMutation.isPending ? "Creating Account..." : "Register"}
             </Button>
+            {registerMutation.error && (
+              <p className="text-sm text-red-500 mt-2">
+                {registerMutation.error.message}
+              </p>
+            )}
           </form>
         </Form>
       </TabsContent>

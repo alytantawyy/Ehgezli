@@ -25,7 +25,6 @@ export const RestaurantAuthContext = createContext<RestaurantAuthContextType | n
 export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
-  // Query for restaurant authentication status
   const {
     data: restaurant,
     error,
@@ -37,23 +36,28 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     retry: false,
   });
 
-  // Query for restaurant profile completion status
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["/api/restaurant/profile-status", restaurant?.id],
     queryFn: async () => {
       if (!restaurant) return { isComplete: false };
       const res = await apiRequest("GET", `/api/restaurant/profile-status/${restaurant.id}`);
+      if (!res.ok) {
+        throw new Error("Failed to fetch profile status");
+      }
       return res.json();
     },
     enabled: !!restaurant,
     retry: false,
   });
 
-  // Login mutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
       const res = await apiRequest("POST", "/api/restaurant/login", credentials);
-      return await res.json();
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: "Login failed" }));
+        throw new Error(errorData.message || "Login failed");
+      }
+      return res.json();
     },
     onSuccess: (restaurant: RestaurantAuth) => {
       queryClient.setQueryData(["/api/restaurant"], restaurant);
@@ -66,17 +70,20 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     onError: (error: Error) => {
       toast({
         title: "Login failed",
-        description: error.message.replace(/^\d+:\s*/, ''), // Remove status code prefix
+        description: error.message.replace(/^\d+:\s*/, ''),
         variant: "destructive",
       });
     },
   });
 
-  // Registration mutation
   const registerMutation = useMutation({
     mutationFn: async (credentials: InsertRestaurantAuth) => {
       const res = await apiRequest("POST", "/api/restaurant/register", credentials);
-      return await res.json();
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: "Registration failed" }));
+        throw new Error(errorData.message || "Registration failed");
+      }
+      return res.json();
     },
     onSuccess: (restaurant: RestaurantAuth) => {
       queryClient.setQueryData(["/api/restaurant"], restaurant);
@@ -88,20 +95,23 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     onError: (error: Error) => {
       toast({
         title: "Registration failed",
-        description: error.message.replace(/^\d+:\s*/, ''), // Remove status code prefix
+        description: error.message.replace(/^\d+:\s*/, ''),
         variant: "destructive",
       });
     },
   });
 
-  // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
+      const res = await apiRequest("POST", "/api/logout");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: "Logout failed" }));
+        throw new Error(errorData.message || "Logout failed");
+      }
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/restaurant"], null);
-      queryClient.clear(); // Clear all queries from the cache
+      queryClient.clear();
       toast({
         title: "Logged out",
         description: "You have been successfully logged out.",
@@ -110,10 +120,9 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     onError: (error: Error) => {
       toast({
         title: "Logout failed",
-        description: error.message.replace(/^\d+:\s*/, ''), // Remove status code prefix
+        description: error.message.replace(/^\d+:\s*/, ''),
         variant: "destructive",
       });
-      // Force refetch authentication status on logout error
       refetchRestaurant();
     },
   });
