@@ -37,8 +37,8 @@ export function setupAuth(app: Express) {
 
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID!,
-    resave: false,
-    saveUninitialized: false,
+    resave: true, // Changed to true to ensure session is saved
+    saveUninitialized: true, // Changed to true to ensure new sessions are saved
     store: storage.sessionStore,
     cookie: {
       secure: false, // Disabled for development
@@ -46,9 +46,11 @@ export function setupAuth(app: Express) {
       sameSite: 'lax', // Relaxed for development
       path: '/',
       httpOnly: true
-    }
+    },
+    name: 'connect.sid' // Explicitly set the cookie name
   };
 
+  // Initialize session middleware
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
@@ -77,34 +79,6 @@ export function setupAuth(app: Express) {
       return done(null, { ...restaurant, type: 'restaurant' });
     } catch (err) {
       console.error('Restaurant authentication error:', err);
-      return done(err);
-    }
-  }));
-
-  // User authentication strategy
-  passport.use('local', new LocalStrategy({
-    usernameField: 'email',
-    passwordField: 'password'
-  }, async (email, password, done) => {
-    try {
-      console.log('Attempting user login:', email);
-      const user = await storage.getUserByEmail(email);
-
-      if (!user) {
-        console.log('User not found:', email);
-        return done(null, false, { message: 'User not found' });
-      }
-
-      const isPasswordValid = await comparePasswords(password, user.password);
-      if (!isPasswordValid) {
-        console.log('Invalid password for user:', email);
-        return done(null, false, { message: 'Invalid password' });
-      }
-
-      console.log('User authenticated successfully:', user.id);
-      return done(null, { ...user, type: 'user' });
-    } catch (err) {
-      console.error('User authentication error:', err);
       return done(err);
     }
   }));
@@ -144,6 +118,111 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Restaurant login endpoint with enhanced error handling
+  app.post("/api/restaurant/login", (req, res, next) => {
+    console.log('Restaurant login attempt:', req.body.email);
+
+    if (!req.body.email || !req.body.password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    passport.authenticate("restaurant-local", (err: any, user: any, info: any) => {
+      if (err) {
+        console.error('Restaurant authentication error:', err);
+        return next(err);
+      }
+      if (!user) {
+        console.log('Restaurant authentication failed:', info?.message);
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      }
+
+      req.login(user, (err) => {
+        if (err) {
+          console.error('Restaurant login error:', err);
+          return next(err);
+        }
+
+        // Log session information after successful login
+        console.log('Restaurant logged in successfully:', {
+          id: user.id,
+          sessionID: req.sessionID,
+          cookie: req.session.cookie
+        });
+
+        res.status(200).json(user);
+      });
+    })(req, res, next);
+  });
+
+  // Logout endpoint with enhanced session cleanup
+  app.post("/api/logout", (req, res, next) => {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    console.log('Logout attempt:', { id: userId, type: userType });
+
+    if (!req.isAuthenticated()) {
+      console.log('Logout requested for unauthenticated session');
+      return res.sendStatus(200);
+    }
+
+    req.logout((err) => {
+      if (err) {
+        console.error('Logout error:', err);
+        return next(err);
+      }
+
+      // Destroy the session completely
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Session destruction error:', err);
+          return next(err);
+        }
+        console.log('User logged out successfully:', { id: userId, type: userType });
+        res.sendStatus(200);
+      });
+    });
+  });
+
+  // Add middleware to log authentication state for all requests
+  app.use((req, res, next) => {
+    console.log('Request authentication state:', {
+      path: req.path,
+      method: req.method,
+      isAuthenticated: req.isAuthenticated(),
+      sessionID: req.sessionID,
+      userType: req.user?.type,
+      userId: req.user?.id
+    });
+    next();
+  });
+  // User authentication strategy
+  passport.use('local', new LocalStrategy({
+    usernameField: 'email',
+    passwordField: 'password'
+  }, async (email, password, done) => {
+    try {
+      console.log('Attempting user login:', email);
+      const user = await storage.getUserByEmail(email);
+
+      if (!user) {
+        console.log('User not found:', email);
+        return done(null, false, { message: 'User not found' });
+      }
+
+      const isPasswordValid = await comparePasswords(password, user.password);
+      if (!isPasswordValid) {
+        console.log('Invalid password for user:', email);
+        return done(null, false, { message: 'Invalid password' });
+      }
+
+      console.log('User authenticated successfully:', user.id);
+      return done(null, { ...user, type: 'user' });
+    } catch (err) {
+      console.error('User authentication error:', err);
+      return done(err);
+    }
+  }));
+
   // Restaurant registration endpoint
   app.post("/api/restaurant/register", async (req, res, next) => {
     try {
@@ -173,29 +252,6 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Restaurant login endpoint
-  app.post("/api/restaurant/login", (req, res, next) => {
-    console.log('Restaurant login attempt:', req.body.email);
-    passport.authenticate("restaurant-local", (err: any, user: any, info: any) => {
-      if (err) {
-        console.error('Restaurant authentication error:', err);
-        return next(err);
-      }
-      if (!user) {
-        console.log('Restaurant authentication failed:', info?.message);
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-      req.login(user, (err) => {
-        if (err) {
-          console.error('Restaurant login error:', err);
-          return next(err);
-        }
-        console.log('Restaurant logged in successfully:', user.id); // Fixed the log message
-        res.status(200).json(user);
-      });
-    })(req, res, next);
-  });
-
   // User login endpoint
   app.post("/api/login", (req, res, next) => {
     console.log('User login attempt:', req.body.email);
@@ -219,20 +275,8 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
+
   // Common logout route
-  app.post("/api/logout", (req, res, next) => {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
-    console.log('Logout attempt:', { id: userId, type: userType });
-    req.logout((err) => {
-      if (err) {
-        console.error('Logout error:', err);
-        return next(err);
-      }
-      console.log('User logged out successfully:', { id: userId, type: userType });
-      res.sendStatus(200);
-    });
-  });
 
   // Current restaurant route
   app.get("/api/restaurant", (req, res) => {
