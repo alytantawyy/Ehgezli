@@ -169,7 +169,7 @@ export default function RestaurantDashboard() {
           </Select>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Today's Bookings</CardTitle>
@@ -177,17 +177,6 @@ export default function RestaurantDashboard() {
             <CardContent>
               <div className="text-3xl font-bold">
                 {todayBookings.length}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Upcoming Bookings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">
-                {upcomingBookings.length}
               </div>
             </CardContent>
           </Card>
