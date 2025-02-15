@@ -115,13 +115,60 @@ export function setupAuth(app: Express) {
     }
   }));
 
+  // Restaurant registration endpoint with improved error handling
+  app.post("/api/restaurant/register", async (req, res) => {
+    try {
+      console.log('Restaurant registration attempt:', req.body);
+
+      // Basic validation
+      if (!req.body.email || !req.body.password || !req.body.name) {
+        return res.status(400).json({ 
+          message: "Missing required fields: email, password, and name are required" 
+        });
+      }
+
+      const existingRestaurant = await storage.getRestaurantAuthByEmail(req.body.email);
+      if (existingRestaurant) {
+        console.log('Restaurant registration failed - email exists:', req.body.email);
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      const hashedPassword = await hashPassword(req.body.password);
+      const restaurant = await storage.createRestaurantAuth({
+        ...req.body,
+        password: hashedPassword,
+      });
+
+      // Manual login after registration
+      return new Promise((resolve) => {
+        req.login({ ...restaurant, type: 'restaurant' }, (err) => {
+          if (err) {
+            console.error('Restaurant login error after registration:', err);
+            res.status(500).json({ 
+              message: "Registration successful but login failed. Please try logging in." 
+            });
+          } else {
+            console.log('Restaurant registered and logged in:', restaurant.id);
+            res.status(201).json(restaurant);
+          }
+          resolve();
+        });
+      });
+    } catch (error: any) {
+      console.error('Restaurant registration error:', error);
+      res.status(400).json({ 
+        message: error.message || "Registration failed. Please try again." 
+      });
+    }
+  });
+
   // Restaurant login endpoint
   app.post("/api/restaurant/login", (req, res, next) => {
     console.log('Restaurant login attempt:', req.body.email);
     passport.authenticate("restaurant-local", (err: any, user: any, info: any) => {
       if (err) {
         console.error('Restaurant authentication error:', err);
-        return next(err);
+        return res.status(500).json({ message: "Authentication error occurred" });
       }
       if (!user) {
         console.log('Restaurant authentication failed:', info?.message);
@@ -131,10 +178,9 @@ export function setupAuth(app: Express) {
       req.login(user, (err) => {
         if (err) {
           console.error('Restaurant login error:', err);
-          return next(err);
+          return res.status(500).json({ message: "Login error occurred" });
         }
 
-        // Log session information after successful login
         console.log('Restaurant logged in successfully:', {
           id: user.id,
           sessionID: req.sessionID,
@@ -144,6 +190,19 @@ export function setupAuth(app: Express) {
         res.status(200).json(user);
       });
     })(req, res, next);
+  });
+
+  // Add middleware to log authentication state for all requests
+  app.use((req, res, next) => {
+    console.log('Request authentication state:', {
+      path: req.path,
+      method: req.method,
+      isAuthenticated: req.isAuthenticated(),
+      sessionID: req.sessionID,
+      userType: req.user?.type,
+      userId: req.user?.id
+    });
+    next();
   });
 
   // Current restaurant route
@@ -167,20 +226,7 @@ export function setupAuth(app: Express) {
     res.json(req.user);
   });
 
-  // Add middleware to log authentication state for all requests
-  app.use((req, res, next) => {
-    console.log('Request authentication state:', {
-      path: req.path,
-      method: req.method,
-      isAuthenticated: req.isAuthenticated(),
-      sessionID: req.sessionID,
-      userType: req.user?.type,
-      userId: req.user?.id
-    });
-    next();
-  });
-
-  // Logout endpoint with enhanced session cleanup
+  // Improved logout endpoint with enhanced session cleanup
   app.post("/api/logout", (req, res, next) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
@@ -194,14 +240,14 @@ export function setupAuth(app: Express) {
     req.logout((err) => {
       if (err) {
         console.error('Logout error:', err);
-        return next(err);
+        return res.status(500).json({ message: "Logout failed" });
       }
 
       // Destroy the session completely
       req.session.destroy((err) => {
         if (err) {
           console.error('Session destruction error:', err);
-          return next(err);
+          return res.status(500).json({ message: "Session cleanup failed" });
         }
         console.log('User logged out successfully:', { id: userId, type: userType });
         res.sendStatus(200);
@@ -236,56 +282,13 @@ export function setupAuth(app: Express) {
     }
   }));
 
-  // Restaurant registration endpoint
-  app.post("/api/restaurant/register", async (req, res, next) => {
-    try {
-      console.log('Restaurant registration attempt:', req.body.email);
-
-      // Basic validation
-      if (!req.body.email || !req.body.password || !req.body.name) {
-        return res.status(400).json({ 
-          message: "Missing required fields: email, password, and name are required" 
-        });
-      }
-
-      const existingRestaurant = await storage.getRestaurantAuthByEmail(req.body.email);
-      if (existingRestaurant) {
-        console.log('Restaurant registration failed - email exists:', req.body.email);
-        return res.status(400).json({ message: "Email already registered" });
-      }
-
-      const hashedPassword = await hashPassword(req.body.password);
-      const restaurant = await storage.createRestaurantAuth({
-        ...req.body,
-        password: hashedPassword,
-      });
-
-      req.login({ ...restaurant, type: 'restaurant' }, (err) => {
-        if (err) {
-          console.error('Restaurant login error after registration:', err);
-          return res.status(500).json({ 
-            message: "Registration successful but login failed. Please try logging in." 
-          });
-        }
-        console.log('Restaurant registered and logged in:', restaurant.id);
-        res.status(201).json(restaurant);
-      });
-    } catch (error: any) {
-      console.error('Restaurant registration error:', error);
-      // Ensure we always return JSON, even for errors
-      res.status(400).json({ 
-        message: error.message || "Registration failed. Please try again." 
-      });
-    }
-  });
-
   // User login endpoint
   app.post("/api/login", (req, res, next) => {
     console.log('User login attempt:', req.body.email);
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
         console.error('User authentication error:', err);
-        return next(err);
+        return res.status(500).json({ message: "Authentication error occurred" });
       }
       if (!user) {
         console.log('User authentication failed:', info?.message);
@@ -294,7 +297,7 @@ export function setupAuth(app: Express) {
       req.login(user, (err) => {
         if (err) {
           console.error('User login error:', err);
-          return next(err);
+          return res.status(500).json({ message: "Login error occurred" });
         }
         console.log('User logged in successfully:', user.id);
         res.status(200).json(user);

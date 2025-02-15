@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
+import express from 'express';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
@@ -15,8 +16,24 @@ type WebSocketMessage = {
 };
 
 export function registerRoutes(app: Express): Server {
+  // Add JSON and URL-encoded body parsing before any routes
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  // Add error handling middleware for JSON parsing errors
+  app.use((err: any, req: any, res: any, next: any) => {
+    if (err instanceof SyntaxError && 'body' in err) {
+      console.error('JSON parsing error:', err);
+      return res.status(400).json({ message: 'Invalid JSON in request body' });
+    }
+    next(err);
+  });
+
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
+  // Set up authentication after body parsing but before routes
+  setupAuth(app);
 
   // Track active connections with their authentication state
   const clients = new Map<WebSocket, {
@@ -126,7 +143,7 @@ export function registerRoutes(app: Express): Server {
         });
 
         // Send initial connection success message
-        ws.send(JSON.stringify({ 
+        ws.send(JSON.stringify({
           type: 'connection_established',
           data: { userId: id, userType: type }
         }));
@@ -146,7 +163,6 @@ export function registerRoutes(app: Express): Server {
     clients.clear();
   });
 
-  setupAuth(app);
 
   // Get restaurant bookings endpoint
   app.get("/api/restaurant/bookings/:restaurantId", async (req, res) => {
@@ -261,7 +277,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/restaurants", async (req, res, next) => {
     try {
       const query = req.query.q as string;
-      const restaurants = query 
+      const restaurants = query
         ? await storage.searchRestaurants(query)
         : await storage.getRestaurants();
       res.json(restaurants);
@@ -356,9 +372,10 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Error handling middleware
+  // Error handling middleware should be last
   app.use((err: any, req: any, res: any, next: any) => {
     console.error('Error:', err);
+    // Ensure we always send JSON response
     res.status(err.status || 500).json({
       message: err.message || "Internal server error"
     });
