@@ -8,6 +8,14 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
+// Update Booking interface to include user info
+interface BookingWithUser extends Booking {
+  user: {
+    firstName: string;
+    lastName: string;
+  };
+}
+
 export default function RestaurantDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -25,8 +33,8 @@ export default function RestaurantDashboard() {
     enabled: !!auth?.id,
   });
 
-  // Fetch bookings for all branches of this restaurant
-  const { data: bookings, isLoading: isBookingsLoading } = useQuery<Booking[]>({
+  // Update type for bookings to include user info
+  const { data: bookings, isLoading: isBookingsLoading } = useQuery<BookingWithUser[]>({
     queryKey: ["/api/restaurant/bookings", auth?.id],
     queryFn: async () => {
       if (!auth?.id) throw new Error("No restaurant ID");
@@ -165,7 +173,7 @@ export default function RestaurantDashboard() {
                   >
                     <div>
                       <div className="font-medium">
-                        Booking #{booking.id}
+                        {booking.user.firstName} {booking.user.lastName}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {format(new Date(booking.date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
