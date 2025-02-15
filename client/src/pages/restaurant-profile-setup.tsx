@@ -51,13 +51,15 @@ export default function RestaurantProfileSetup() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   // Fetch existing restaurant data if we're in edit mode
-  const { data: existingRestaurant } = useQuery<Restaurant>({
+  const { data: existingRestaurant, isLoading } = useQuery<Restaurant>({
     queryKey: ["/api/restaurants", restaurant?.id],
     queryFn: async () => {
       if (!restaurant?.id) throw new Error("No restaurant ID");
       const response = await fetch(`/api/restaurants/${restaurant.id}`);
       if (!response.ok) throw new Error('Failed to fetch restaurant');
-      return response.json();
+      const data = await response.json();
+      console.log("Fetched restaurant data:", data); // Add logging
+      return data;
     },
     enabled: !!restaurant?.id,
   });
@@ -86,11 +88,12 @@ export default function RestaurantProfileSetup() {
   // Load existing data into form when available
   useEffect(() => {
     if (existingRestaurant) {
+      console.log("Setting form data with:", existingRestaurant); // Add logging
       form.reset({
         restaurantId: existingRestaurant.id,
         about: existingRestaurant.about || "",
         cuisine: existingRestaurant.cuisine,
-        priceRange: existingRestaurant.priceRange || "$",
+        priceRange: existingRestaurant.priceRange || "$", 
         logo: existingRestaurant.logo || "",
         branches: existingRestaurant.locations.map(location => ({
           address: location.address,

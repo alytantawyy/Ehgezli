@@ -35,13 +35,11 @@ export class DatabaseStorage implements IStorage {
   readonly sessionStore: session.Store;
 
   constructor() {
-    // Initialize PostgreSQL session store with proper configuration
     this.sessionStore = new PostgresSessionStore({
       pool,
-      tableName: 'session', // Name of the session table
+      tableName: 'session',
       createTableIfMissing: true,
-      pruneSessionInterval: 60 * 15, // Cleanup every 15 minutes
-      // Error handling for session store operations
+      pruneSessionInterval: 60 * 15,
       errorLog: (err) => console.error('Session store error:', err)
     });
   }
@@ -57,7 +55,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    // Convert the birthday string to a Date object before inserting
     const userWithDateBirthday = {
       ...insertUser,
       birthday: new Date(insertUser.birthday),
@@ -80,6 +77,7 @@ export class DatabaseStorage implements IStorage {
       if (!restaurant_auth || !restaurant_profiles) continue;
 
       if (!restaurantMap.has(restaurant_auth.id)) {
+        console.log("Creating restaurant entry:", restaurant_auth.id); 
         restaurantMap.set(restaurant_auth.id, {
           id: restaurant_auth.id,
           authId: restaurant_auth.id,
@@ -95,6 +93,7 @@ export class DatabaseStorage implements IStorage {
       const restaurant = restaurantMap.get(restaurant_auth.id)!;
 
       if (restaurant_branches) {
+        console.log("Adding branch for restaurant:", restaurant_auth.id, restaurant_branches); 
         restaurant.locations.push({
           address: restaurant_branches.address,
           tablesCount: restaurant_branches.tablesCount,
@@ -109,45 +108,50 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
-    // First get restaurant auth and profile data
-    const [restaurantData] = await db.select()
-      .from(restaurantAuth)
-      .where(eq(restaurantAuth.id, id))
-      .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId));
+    try {
+      const [restaurantData] = await db.select()
+        .from(restaurantAuth)
+        .where(eq(restaurantAuth.id, id))
+        .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId));
 
-    if (!restaurantData?.restaurant_auth || !restaurantData.restaurant_profiles) {
-      return undefined;
+      if (!restaurantData?.restaurant_auth || !restaurantData.restaurant_profiles) {
+        console.log("No restaurant found for id:", id); 
+        return undefined;
+      }
+
+      const branches = await db
+        .select()
+        .from(restaurantBranches)
+        .where(eq(restaurantBranches.restaurantId, id));
+
+      console.log("Found branches for restaurant:", id, branches); 
+
+      const { restaurant_auth, restaurant_profiles } = restaurantData;
+
+      return {
+        id: restaurant_auth.id,
+        authId: restaurant_auth.id,
+        name: restaurant_auth.name,
+        description: restaurant_profiles.about.slice(0, 100) + (restaurant_profiles.about.length > 100 ? '...' : ''),
+        about: restaurant_profiles.about,
+        logo: restaurant_profiles.logo || "",
+        cuisine: restaurant_profiles.cuisine,
+        locations: branches.map(branch => ({
+          address: branch.address,
+          tablesCount: branch.tablesCount,
+          openingTime: branch.openingTime,
+          closingTime: branch.closingTime,
+          city: branch.city as "Alexandria" | "Cairo"
+        }))
+      };
+    } catch (error) {
+      console.error("Error in getRestaurant:", error);
+      throw error;
     }
-
-    // Then get all branches for this restaurant
-    const branches = await db
-      .select()
-      .from(restaurantBranches)
-      .where(eq(restaurantBranches.restaurantId, id));
-
-    const { restaurant_auth, restaurant_profiles } = restaurantData;
-
-    return {
-      id: restaurant_auth.id,
-      authId: restaurant_auth.id,
-      name: restaurant_auth.name,
-      description: restaurant_profiles.about.slice(0, 100) + (restaurant_profiles.about.length > 100 ? '...' : ''),
-      about: restaurant_profiles.about,
-      logo: restaurant_profiles.logo || "",
-      cuisine: restaurant_profiles.cuisine,
-      locations: branches.map(branch => ({
-        address: branch.address,
-        tablesCount: branch.tablesCount,
-        openingTime: branch.openingTime,
-        closingTime: branch.closingTime,
-        city: branch.city as "Alexandria" | "Cairo"
-      }))
-    };
   }
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
     try {
-      // First verify if the restaurant exists in restaurant_auth table
       const [restaurant] = await db
         .select()
         .from(restaurantAuth)
@@ -157,13 +161,11 @@ export class DatabaseStorage implements IStorage {
         throw new Error('Restaurant not found');
       }
 
-      // Get all branches for this restaurant
       const branches = await db
         .select()
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, restaurantId));
 
-      // Convert branches to the expected format
       return branches.map(branch => ({
         id: branch.id,
         restaurantId: branch.restaurantId,
@@ -185,7 +187,6 @@ export class DatabaseStorage implements IStorage {
     try {
       const date = booking.date instanceof Date ? booking.date : new Date(booking.date);
 
-      // Validate if the branch exists
       const [branch] = await db
         .select()
         .from(restaurantBranches)
@@ -195,14 +196,13 @@ export class DatabaseStorage implements IStorage {
         throw new Error('Restaurant branch not found');
       }
 
-      // Create the booking with validated data - auto-confirmed
       const [newBooking] = await db.insert(bookings)
         .values({
           userId: booking.userId,
           branchId: booking.branchId,
           date: date,
           partySize: booking.partySize,
-          confirmed: true // Set to true by default
+          confirmed: true 
         })
         .returning();
 
@@ -236,7 +236,6 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log(`Fetching bookings for restaurant ${restaurantId}`);
 
-      // First verify if the restaurant exists in restaurant_auth table
       const [restaurant] = await db
         .select()
         .from(restaurantAuth)
@@ -247,7 +246,6 @@ export class DatabaseStorage implements IStorage {
         throw new Error('Restaurant not found');
       }
 
-      // Get all branches for this restaurant
       const branches = await db
         .select()
         .from(restaurantBranches)
@@ -260,7 +258,6 @@ export class DatabaseStorage implements IStorage {
         return [];
       }
 
-      // Get all bookings for all branches of this restaurant
       const bookingsWithBranches = await db
         .select({
           id: bookings.id,
@@ -321,7 +318,6 @@ export class DatabaseStorage implements IStorage {
       const profile = await this.getRestaurantProfile(restaurantId);
       if (!profile) return false;
 
-      // Check if all required fields are present and not empty
       const isComplete = Boolean(
         profile.isProfileComplete &&
         profile.about &&
@@ -339,11 +335,9 @@ export class DatabaseStorage implements IStorage {
 
   async createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void> {
     try {
-      // First check if profile exists
       const existingProfile = await this.getRestaurantProfile(profile.restaurantId);
 
       if (existingProfile) {
-        // If profile exists, update it
         await db.update(restaurantProfiles)
           .set({
             about: profile.about,
@@ -355,7 +349,6 @@ export class DatabaseStorage implements IStorage {
           })
           .where(eq(restaurantProfiles.restaurantId, profile.restaurantId));
       } else {
-        // If profile doesn't exist, insert new one
         await db.insert(restaurantProfiles).values({
           restaurantId: profile.restaurantId,
           about: profile.about,
@@ -368,7 +361,6 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
-      // Delete existing branches and insert new ones
       await db.delete(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, profile.restaurantId));
 
@@ -381,7 +373,7 @@ export class DatabaseStorage implements IStorage {
           seatsCount: branch.seatsCount,
           openingTime: branch.openingTime,
           closingTime: branch.closingTime,
-          reservationDuration: 120 // Default 2 hours in minutes
+          reservationDuration: 120 
         }))
       );
     } catch (error) {
