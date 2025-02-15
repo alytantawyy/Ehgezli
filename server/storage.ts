@@ -180,6 +180,8 @@ export class DatabaseStorage implements IStorage {
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, restaurantId));
 
+      console.log('Fetched branches from database:', branches);
+
       return branches.map(branch => ({
         id: branch.id,
         restaurantId: branch.restaurantId,

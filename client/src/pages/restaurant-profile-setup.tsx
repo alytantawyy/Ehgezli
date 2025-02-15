@@ -110,26 +110,30 @@ export default function RestaurantProfileSetup() {
       const loadProfileData = async () => {
         const profile = await getProfileData();
 
-        // Map the locations to branches, ensuring all required data is present
-        const branches = existingRestaurant.locations.map(location => {
-          console.log("Processing location for form:", {
-            address: location.address,
-            city: location.city,
-            tablesCount: location.tablesCount,
-            seatsCount: location.seatsCount
+        // Get branches data
+        const branchesResponse = await fetch(`/api/restaurants/${existingRestaurant.id}/branches`);
+        const branchesData = await branchesResponse.json();
+        console.log("Fetched branches data:", branchesData);
+
+        // Map the branches, ensuring we preserve the exact city value
+        const branches = branchesData.map(branch => {
+          console.log("Processing branch for form:", {
+            id: branch.id,
+            city: branch.city,
+            address: branch.address
           });
 
           return {
-            address: location.address,
-            city: location.city as "Alexandria" | "Cairo",  // Ensure we use the exact city value
-            tablesCount: location.tablesCount,
-            seatsCount: location.seatsCount,
-            openingTime: location.openingTime,
-            closingTime: location.closingTime,
+            address: branch.address,
+            city: branch.city,  // This should already be "Alexandria" or "Cairo"
+            tablesCount: branch.tablesCount,
+            seatsCount: branch.seatsCount,
+            openingTime: branch.openingTime,
+            closingTime: branch.closingTime,
           };
         });
 
-        console.log("Mapped branches data:", branches);
+        console.log("Final mapped branches for form:", branches);
 
         form.reset({
           restaurantId: existingRestaurant.id,
@@ -423,7 +427,11 @@ export default function RestaurantProfileSetup() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>City</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select 
+                            onValueChange={field.onChange} 
+                            value={field.value}
+                            defaultValue={field.value}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select city" />
