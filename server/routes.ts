@@ -6,6 +6,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { and, eq } from "drizzle-orm";
 import { bookings, restaurantBranches } from "@shared/schema";
+import { parse as parseCookie } from 'cookie';
 
 // Define WebSocket message types
 type WebSocketMessage = {
@@ -44,94 +45,109 @@ export function registerRoutes(app: Express): Server {
       url: req.url
     });
 
-    // Extract and validate session
-    const sessionID = req.headers.cookie
-      ?.split(';')
-      .find(cookie => cookie.trim().startsWith('connect.sid='))
-      ?.split('=')[1];
-
-    if (!sessionID) {
-      console.error('WebSocket connection rejected: No session ID found');
-      ws.close(1008, 'Authentication required');
-      return;
-    }
-
-    // Verify session in the database
     try {
-      const session = await storage.sessionStore.get(sessionID);
-      if (!session || !session.passport?.user) {
-        console.error('Invalid or expired session:', sessionID);
-        ws.close(1008, 'Invalid session');
+      // Extract and parse cookie
+      const cookieHeader = req.headers.cookie;
+      if (!cookieHeader) {
+        console.error('No cookie header found');
+        ws.close(1008, 'No session cookie');
         return;
       }
 
-      // Add client to tracked connections
-      clients.set(ws, {
-        sessionID,
-        userId: session.passport.user.id,
-        userType: session.passport.user.type,
-        isAlive: true
-      });
-
-      console.log('WebSocket connected with session:', {
-        sessionID,
-        userId: session.passport.user.id,
-        userType: session.passport.user.type
-      });
-
-    } catch (error) {
-      console.error('Session verification error:', error);
-      ws.close(1008, 'Session verification failed');
-      return;
-    }
-
-    // Handle pong messages (heartbeat response)
-    ws.on('pong', () => {
-      const client = clients.get(ws);
-      if (client) {
-        client.isAlive = true;
+      const cookies = parseCookie(cookieHeader);
+      const sessionID = cookies['connect.sid'];
+      if (!sessionID) {
+        console.error('No session ID found in cookies');
+        ws.close(1008, 'No session ID');
+        return;
       }
-    });
 
-    ws.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString()) as WebSocketMessage;
-        console.log('Received WebSocket message:', {
-          type: data.type,
-          sessionID,
-          userId: clients.get(ws)?.userId
+      // Clean the session ID (remove 's:' prefix and decode)
+      const cleanSessionId = decodeURIComponent(
+        sessionID.startsWith('s:') ? sessionID.slice(2).split('.')[0] : sessionID
+      );
+
+      // Verify session using callback pattern
+      storage.sessionStore.get(cleanSessionId, (err, session) => {
+        if (err) {
+          console.error('Session store error:', err);
+          ws.close(1008, 'Session store error');
+          return;
+        }
+
+        if (!session?.passport?.user) {
+          console.error('Invalid or expired session:', cleanSessionId);
+          ws.close(1008, 'Invalid session');
+          return;
+        }
+
+        const { id, type } = session.passport.user;
+
+        // Add client to tracked connections
+        clients.set(ws, {
+          sessionID: cleanSessionId,
+          userId: id,
+          userType: type,
+          isAlive: true
         });
 
-        // Handle heartbeat messages
-        if (data.type === 'heartbeat') {
-          ws.send(JSON.stringify({ type: 'heartbeat' }));
-        }
-      } catch (error) {
-        console.error('WebSocket message parsing error:', error);
-      }
-    });
+        console.log('WebSocket connected with session:', {
+          sessionID: cleanSessionId,
+          userId: id,
+          userType: type
+        });
 
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', {
-        error,
-        sessionID,
-        userId: clients.get(ws)?.userId
-      });
-    });
+        // Set up message handlers
+        ws.on('pong', () => {
+          const client = clients.get(ws);
+          if (client) {
+            client.isAlive = true;
+          }
+        });
 
-    ws.on('close', () => {
-      console.log('WebSocket connection closed:', {
-        sessionID,
-        userId: clients.get(ws)?.userId
+        ws.on('message', (message) => {
+          try {
+            const data = JSON.parse(message.toString()) as WebSocketMessage;
+            console.log('Received WebSocket message:', {
+              type: data.type,
+              sessionID: cleanSessionId,
+              userId: id
+            });
+
+            if (data.type === 'heartbeat') {
+              ws.send(JSON.stringify({ type: 'heartbeat' }));
+            }
+          } catch (error) {
+            console.error('WebSocket message parsing error:', error);
+          }
+        });
+
+        ws.on('error', (error) => {
+          console.error('WebSocket error:', {
+            error,
+            sessionID: cleanSessionId,
+            userId: id
+          });
+        });
+
+        ws.on('close', () => {
+          console.log('WebSocket connection closed:', {
+            sessionID: cleanSessionId,
+            userId: id
+          });
+          clients.delete(ws);
+        });
       });
-      clients.delete(ws);
-    });
+    } catch (error) {
+      console.error('WebSocket setup error:', error);
+      ws.close(1008, 'Connection setup failed');
+    }
   });
 
   // Clean up on server close
   httpServer.on('close', () => {
     clearInterval(heartbeatInterval);
-    for (const [ws] of clients) {
+    for (const ws of clients.keys()) {
       ws.terminate();
     }
     clients.clear();
