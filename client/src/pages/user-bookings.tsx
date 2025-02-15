@@ -10,6 +10,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
+import { ArrowLeft } from "lucide-react";
 
 interface BookingWithRestaurant extends Booking {
   restaurantName: string;
@@ -40,6 +43,13 @@ export default function UserBookings() {
 
   return (
     <div className="container mx-auto py-8">
+      <Button variant="ghost" asChild className="mb-6">
+        <Link to="/">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Home
+        </Link>
+      </Button>
+
       <h1 className="text-2xl font-bold mb-6">My Bookings</h1>
       {bookings && bookings.length > 0 ? (
         <Table>
