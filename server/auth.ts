@@ -139,24 +139,25 @@ export function setupAuth(app: Express) {
         password: hashedPassword,
       });
 
-      // Manual login after registration
-      return new Promise((resolve) => {
+      // Login after registration using a Promise
+      await new Promise<void>((resolve, reject) => {
         req.login({ ...restaurant, type: 'restaurant' }, (err) => {
           if (err) {
             console.error('Restaurant login error after registration:', err);
-            res.status(500).json({ 
-              message: "Registration successful but login failed. Please try logging in." 
-            });
+            reject(err);
           } else {
             console.log('Restaurant registered and logged in:', restaurant.id);
-            res.status(201).json(restaurant);
+            resolve();
           }
-          resolve();
         });
       });
+
+      // Send the response only after login is complete
+      res.status(201).json(restaurant);
+
     } catch (error: any) {
       console.error('Restaurant registration error:', error);
-      res.status(400).json({ 
+      res.status(500).json({ 
         message: error.message || "Registration failed. Please try again." 
       });
     }
