@@ -16,12 +16,15 @@ import {
 } from "@/components/ui/select";
 import { useState } from "react";
 
-// Update Booking interface to make user optional
-interface BookingWithUser extends Booking {
+interface BookingWithDetails extends Booking {
   user?: {
     firstName: string;
     lastName: string;
   } | null;
+  branch: {
+    address: string;
+    city: string;
+  };
 }
 
 export default function RestaurantDashboard() {
@@ -42,8 +45,8 @@ export default function RestaurantDashboard() {
     enabled: !!auth?.id,
   });
 
-  // Update type for bookings to include user info
-  const { data: bookings, isLoading: isBookingsLoading } = useQuery<BookingWithUser[]>({
+  // Update type for bookings to include branch info
+  const { data: bookings, isLoading: isBookingsLoading } = useQuery<BookingWithDetails[]>({
     queryKey: ["/api/restaurant/bookings", auth?.id],
     queryFn: async () => {
       if (!auth?.id) throw new Error("No restaurant ID");
@@ -97,7 +100,7 @@ export default function RestaurantDashboard() {
 
   // Filter bookings based on selected branch
   const filteredBookings = bookings?.filter(booking =>
-    selectedBranchId === "all" || booking.branchId.toString() === selectedBranchId
+    selectedBranchId === "all" || booking.branch.address === selectedBranchId
   ) || [];
 
   // Filter for upcoming bookings and sort by date
@@ -114,9 +117,7 @@ export default function RestaurantDashboard() {
     if (selectedBranchId === "all") {
       return restaurant?.locations?.reduce((sum, loc) => sum + loc.tablesCount, 0) || 0;
     }
-    const branch = restaurant?.locations?.find((loc) =>
-      loc.address === selectedBranchId
-    );
+    const branch = restaurant?.locations?.find(loc => loc.address === selectedBranchId);
     return branch?.tablesCount || 0;
   };
 
@@ -227,6 +228,9 @@ export default function RestaurantDashboard() {
                       </div>
                       <div className="text-sm">
                         Party size: {booking.partySize}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Branch: {booking.branch.address}, {booking.branch.city}
                       </div>
                     </div>
                     <Button
