@@ -40,6 +40,7 @@ const CUISINE_TYPES = [
   "Thai",
   "Mediterranean",
   "American",
+  "Egyptian",
   "Middle Eastern",
 ];
 
