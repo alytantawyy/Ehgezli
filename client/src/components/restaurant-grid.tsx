@@ -6,15 +6,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface RestaurantGridProps {
   searchQuery?: string;
   cityFilter?: string;
+  cuisineFilter?: string;
 }
 
-export function RestaurantGrid({ searchQuery, cityFilter }: RestaurantGridProps) {
+export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter }: RestaurantGridProps) {
   const { data: restaurants, isLoading } = useQuery<Restaurant[]>({
-    queryKey: ["/api/restaurants", searchQuery, cityFilter],
+    queryKey: ["/api/restaurants", searchQuery, cityFilter, cuisineFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchQuery) params.append("q", searchQuery);
       if (cityFilter && cityFilter !== 'all') params.append("city", cityFilter);
+      if (cuisineFilter && cuisineFilter !== 'all') params.append("cuisine", cuisineFilter);
 
       const url = `/api/restaurants${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await fetch(url);
@@ -58,7 +60,16 @@ export function RestaurantGrid({ searchQuery, cityFilter }: RestaurantGridProps)
 
     // Apply city filter
     if (cityFilter && cityFilter !== 'all') {
-      return branch.city === cityFilter;
+      if (branch.city !== cityFilter) {
+        return false;
+      }
+    }
+
+    // Apply cuisine filter
+    if (cuisineFilter && cuisineFilter !== 'all') {
+      if (branch.restaurant.cuisine !== cuisineFilter) {
+        return false;
+      }
     }
 
     return true;
@@ -71,6 +82,7 @@ export function RestaurantGrid({ searchQuery, cityFilter }: RestaurantGridProps)
           No restaurant branches found
           {searchQuery ? " matching your search" : ""}
           {cityFilter && cityFilter !== 'all' ? ` in ${cityFilter}` : ""}
+          {cuisineFilter && cuisineFilter !== 'all' ? ` serving ${cuisineFilter} cuisine` : ""}
         </p>
       </div>
     );

@@ -10,9 +10,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const CUISINES = [
+  "American",
+  "Italian",
+  "Japanese",
+  "Chinese",
+  "Indian",
+  "Mexican",
+  "French",
+  "Thai",
+  "Mediterranean",
+  "Middle Eastern"
+];
+
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
+  const [selectedCuisine, setSelectedCuisine] = useState<string | undefined>(undefined);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -53,18 +67,38 @@ export default function HomePage() {
                 <SelectItem value="Cairo">Cairo</SelectItem>
               </SelectContent>
             </Select>
+            <Select
+              value={selectedCuisine}
+              onValueChange={setSelectedCuisine}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select cuisine" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Cuisines</SelectItem>
+                {CUISINES.map((cuisine) => (
+                  <SelectItem key={cuisine} value={cuisine}>{cuisine}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
         <div className="mb-8">
           <h3 className="text-2xl font-semibold">
-            {selectedCity && selectedCity !== 'all' ? `Restaurants in ${selectedCity}` : 'Available Restaurants'}
+            {selectedCity && selectedCity !== 'all' 
+              ? `Restaurants in ${selectedCity}${selectedCuisine && selectedCuisine !== 'all' ? ` - ${selectedCuisine} Cuisine` : ''}`
+              : selectedCuisine && selectedCuisine !== 'all'
+                ? `${selectedCuisine} Restaurants`
+                : 'Available Restaurants'
+            }
           </h3>
         </div>
 
         <RestaurantGrid 
           searchQuery={searchQuery} 
-          cityFilter={selectedCity === 'all' ? undefined : selectedCity} 
+          cityFilter={selectedCity === 'all' ? undefined : selectedCity}
+          cuisineFilter={selectedCuisine === 'all' ? undefined : selectedCuisine}
         />
       </main>
 
