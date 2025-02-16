@@ -55,6 +55,7 @@ export const restaurants = pgTable("restaurants", {
   logo: text("logo").notNull(),
   cuisine: text("cuisine").notNull(),
   locations: jsonb("locations").notNull().$type<Location[]>(),
+  priceRange: text("price_range").notNull().$default(() => "$"),
 });
 
 export const restaurantProfiles = pgTable("restaurant_profiles", {
@@ -133,6 +134,7 @@ export const insertRestaurantSchema = createInsertSchema(restaurants).omit({
   id: true
 }).extend({
   about: z.string().max(100),
+  priceRange: z.enum(["$", "$$", "$$$", "$$$$"]), // Add price range validation
   locations: z.array(z.object({
     address: z.string(),
     tablesCount: z.number(),
