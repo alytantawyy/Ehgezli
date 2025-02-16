@@ -157,13 +157,13 @@ export default function RestaurantDashboard() {
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
 
-  // Get total tables for selected branch
-  const getTotalTables = () => {
+  // Get total seats for selected branch
+  const getTotalSeats = () => {
     if (selectedBranchId === "all") {
-      return restaurant?.locations?.reduce((sum, loc) => sum + loc.tablesCount, 0) || 0;
+      return restaurant?.locations?.reduce((sum, loc) => sum + loc.seatsCount, 0) || 0;
     }
     const branch = restaurant?.locations?.find(loc => loc.address === selectedBranchId);
-    return branch?.tablesCount || 0;
+    return branch?.seatsCount || 0;
   };
 
   // Get the correct branch ID from the restaurant's locations
@@ -298,11 +298,11 @@ export default function RestaurantDashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Total Tables</CardTitle>
+              <CardTitle>Total Seats</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {getTotalTables()}
+                {getTotalSeats()}
               </div>
             </CardContent>
           </Card>

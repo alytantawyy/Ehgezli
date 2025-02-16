@@ -39,7 +39,7 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      secure: false,
+      secure: false, // Since we're in dev environment
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       sameSite: 'lax',
       path: '/',
@@ -51,6 +51,19 @@ export function setupAuth(app: Express) {
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Add more detailed logging for authentication state
+  app.use((req, res, next) => {
+    console.log('Request authentication state:', {
+      path: req.path,
+      method: req.method,
+      isAuthenticated: req.isAuthenticated(),
+      sessionID: req.sessionID,
+      userType: req.user?.type,
+      userId: req.user?.id
+    });
+    next();
+  });
 
   passport.serializeUser((user: Express.User, done) => {
     if (!user || !user.id || !user.type) {
@@ -122,8 +135,8 @@ export function setupAuth(app: Express) {
 
       // Basic validation
       if (!req.body.email || !req.body.password || !req.body.name) {
-        return res.status(400).json({ 
-          message: "Missing required fields: email, password, and name are required" 
+        return res.status(400).json({
+          message: "Missing required fields: email, password, and name are required"
         });
       }
 
@@ -157,8 +170,8 @@ export function setupAuth(app: Express) {
 
     } catch (error: any) {
       console.error('Restaurant registration error:', error);
-      res.status(500).json({ 
-        message: error.message || "Registration failed. Please try again." 
+      res.status(500).json({
+        message: error.message || "Registration failed. Please try again."
       });
     }
   });
@@ -200,8 +213,8 @@ export function setupAuth(app: Express) {
 
       // Basic validation
       if (!req.body.email || !req.body.password) {
-        return res.status(400).json({ 
-          message: "Missing required fields: email and password are required" 
+        return res.status(400).json({
+          message: "Missing required fields: email and password are required"
         });
       }
 
@@ -235,24 +248,12 @@ export function setupAuth(app: Express) {
 
     } catch (error: any) {
       console.error('User registration error:', error);
-      res.status(500).json({ 
-        message: error.message || "Registration failed. Please try again." 
+      res.status(500).json({
+        message: error.message || "Registration failed. Please try again."
       });
     }
   });
 
-  // Add middleware to log authentication state for all requests
-  app.use((req, res, next) => {
-    console.log('Request authentication state:', {
-      path: req.path,
-      method: req.method,
-      isAuthenticated: req.isAuthenticated(),
-      sessionID: req.sessionID,
-      userType: req.user?.type,
-      userId: req.user?.id
-    });
-    next();
-  });
 
   // Current restaurant route
   app.get("/api/restaurant", (req, res) => {

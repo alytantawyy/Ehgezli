@@ -25,12 +25,18 @@ export function ProtectedRestaurantRoute({
 
   // Always redirect to auth if not authenticated
   if (!restaurant) {
+    console.log('Protected route: redirecting to auth due to missing restaurant data');
     return (
       <Route path={path}>
         <Redirect to="/auth" />
       </Route>
     );
   }
+
+  console.log('Protected route: rendering component for authenticated restaurant', {
+    restaurantId: restaurant.id,
+    path
+  });
 
   return <Route path={path} component={Component} />;
 }
