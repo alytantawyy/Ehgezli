@@ -308,48 +308,93 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/restaurant/bookings", async (req, res, next) => { // New endpoint
+  app.post("/api/restaurant/bookings", async (req, res, next) => {
     try {
+      // Log the incoming request
+      console.log('Booking request received:', {
+        body: req.body,
+        auth: {
+          isAuthenticated: req.isAuthenticated(),
+          userType: req.user?.type
+        }
+      });
+
       if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
         return res.status(401).json({ message: "Not authenticated as restaurant" });
       }
 
       const { firstName, lastName, partySize, branchId, date } = req.body;
 
+      // Validate required fields
+      if (!firstName || !lastName || !partySize || !branchId || !date) {
+        return res.status(400).json({ 
+          message: "Missing required fields",
+          required: ['firstName', 'lastName', 'partySize', 'branchId', 'date']
+        });
+      }
+
+      // Validate data types
+      if (typeof partySize !== 'number' || partySize < 1) {
+        return res.status(400).json({ message: "Party size must be a positive number" });
+      }
+
+      if (isNaN(Date.parse(date))) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+
       // Create temporary user for guest booking
-      const [guestUser] = await db.insert(users)
-        .values({
-          firstName,
-          lastName,
-          email: `guest_${Date.now()}@example.com`, // Temporary email for guest
-          password: 'guest',  // Not used since this is a restaurant-created booking
-          gender: 'not_specified',
-          birthday: new Date('2000-01-01'), // Default date for guest bookings
-          city: 'not_specified',
-          favoriteCuisines: []
-        })
-        .returning();
+      let guestUser;
+      try {
+        [guestUser] = await db.insert(users)
+          .values({
+            firstName,
+            lastName,
+            email: `guest_${Date.now()}@example.com`,
+            password: 'guest',
+            gender: 'not_specified',
+            birthday: new Date('2000-01-01'),
+            city: 'not_specified',
+            favoriteCuisines: []
+          })
+          .returning();
 
-      const booking = await storage.createBooking({
-        userId: guestUser.id,
-        branchId,
-        date: new Date(date),
-        partySize,
-      });
-
-      // Notify connected clients about the new booking
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: 'new_booking',
-            data: booking
-          }));
+        if (!guestUser) {
+          throw new Error('Failed to create guest user');
         }
-      });
+      } catch (error) {
+        console.error('Error creating guest user:', error);
+        return res.status(500).json({ message: "Failed to create guest booking" });
+      }
 
-      res.status(201).json(booking);
+      // Create the booking
+      try {
+        const booking = await storage.createBooking({
+          userId: guestUser.id,
+          branchId,
+          date: new Date(date),
+          partySize,
+        });
+
+        // Notify connected clients about the new booking
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: 'new_booking',
+              data: booking
+            }));
+          }
+        });
+
+        return res.status(201).json(booking);
+      } catch (error) {
+        console.error('Error creating booking:', error);
+        // Clean up the guest user if booking creation fails
+        await db.delete(users).where(eq(users.id, guestUser.id));
+        return res.status(500).json({ message: "Failed to create booking" });
+      }
     } catch (error) {
-      next(error);
+      console.error('Unexpected error in booking creation:', error);
+      return res.status(500).json({ message: "An unexpected error occurred" });
     }
   });
 
