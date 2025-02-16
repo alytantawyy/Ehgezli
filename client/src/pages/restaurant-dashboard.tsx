@@ -117,7 +117,32 @@ export default function RestaurantDashboard() {
     },
   });
 
-  const isLoading = isRestaurantLoading || isBookingsLoading || isBranchesLoading;
+  // Add new query for available seats
+  const { data: availableSeats, isLoading: isAvailableSeatsLoading } = useQuery({
+    queryKey: ["/api/restaurant/available-seats", selectedBranchId, selectedDate, selectedTime],
+    queryFn: async () => {
+      if (selectedBranchId === "all" || !selectedDate || selectedTime === "all") {
+        return null;
+      }
+
+      const branch = restaurant?.locations?.find(loc => loc.address === selectedBranchId);
+      if (!branch) return null;
+
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      const dateTime = new Date(selectedDate);
+      dateTime.setHours(hours, minutes);
+
+      const response = await fetch(`/api/restaurants/${branch.id}/available-seats?date=${dateTime.toISOString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch available seats');
+      }
+      return response.json();
+    },
+    enabled: !!restaurant?.id && selectedBranchId !== "all" && !!selectedDate && selectedTime !== "all",
+  });
+
+
+  const isLoading = isRestaurantLoading || isBookingsLoading || isBranchesLoading || isAvailableSeatsLoading;
 
   if (isLoading) {
     return (
@@ -276,7 +301,7 @@ export default function RestaurantDashboard() {
           )}
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-3">
           <Card>
             <CardHeader>
               <CardTitle>Bookings</CardTitle>
@@ -299,11 +324,41 @@ export default function RestaurantDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Total Seats</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {selectedBranchId === "all" ? "Across all branches" : `At ${selectedBranchId}`}
+              </p>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
                 {getTotalSeats()}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Available Seats</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {selectedBranchId === "all" || !selectedDate || selectedTime === "all" 
+                  ? "Select branch, date, and time to view availability"
+                  : `At ${selectedBranchId} on ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {isAvailableSeatsLoading ? (
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                ) : availableSeats ? (
+                  availableSeats.availableSeats
+                ) : (
+                  "—"
+                )}
+              </div>
+              {availableSeats && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  {availableSeats.existingBookings} current {availableSeats.existingBookings === 1 ? 'booking' : 'bookings'} in this time slot
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

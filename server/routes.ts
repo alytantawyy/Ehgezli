@@ -226,6 +226,30 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add this endpoint before the booking creation endpoints
+  app.get("/api/restaurants/availability/:branchId", async (req, res, next) => {
+    try {
+      const branchId = parseInt(req.params.branchId);
+      const date = new Date(req.query.date as string);
+      const partySize = parseInt(req.query.partySize as string);
+
+      if (isNaN(branchId) || isNaN(date.getTime()) || isNaN(partySize)) {
+        return res.status(400).json({ message: "Invalid parameters" });
+      }
+
+      const availability = await storage.getAvailableSeats(branchId, date);
+      const isAvailable = availability.availableSeats >= partySize;
+
+      res.json({
+        ...availability,
+        isAvailable,
+        requestedPartySize: partySize
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Add the cancel booking endpoint
   app.post("/api/restaurant/bookings/:bookingId/cancel", async (req, res, next) => {
     try {
@@ -303,30 +327,6 @@ export function registerRoutes(app: Express): Server {
     try {
       const branches = await storage.getRestaurantBranches(parseInt(req.params.id));
       res.json(branches);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Add this endpoint before the booking creation endpoints
-  app.get("/api/restaurants/availability/:branchId", async (req, res, next) => {
-    try {
-      const branchId = parseInt(req.params.branchId);
-      const date = new Date(req.query.date as string);
-      const partySize = parseInt(req.query.partySize as string);
-
-      if (isNaN(branchId) || isNaN(date.getTime()) || isNaN(partySize)) {
-        return res.status(400).json({ message: "Invalid parameters" });
-      }
-
-      const availability = await storage.getAvailableSeats(branchId, date);
-      const isAvailable = availability.availableSeats >= partySize;
-
-      res.json({
-        ...availability,
-        isAvailable,
-        requestedPartySize: partySize
-      });
     } catch (error) {
       next(error);
     }
