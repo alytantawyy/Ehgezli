@@ -38,9 +38,10 @@ export const restaurantAuth = pgTable("restaurant_auth", {
 
 // Define Location type first, before the restaurant schema
 export type Location = {
+  id: number;
   address: string;
   tablesCount: number;
-  seatsCount: number;  // Added seatsCount
+  seatsCount: number;
   openingTime: string;
   closingTime: string;
   city: "Alexandria" | "Cairo";

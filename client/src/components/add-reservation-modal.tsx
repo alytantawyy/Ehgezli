@@ -19,6 +19,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -36,7 +43,7 @@ const addReservationSchema = z.object({
   partySize: z.number().min(1, "Party size must be at least 1"),
   date: z.date(),
   time: z.string().min(1, "Time is required"),
-  branchId: z.number(),
+  branchId: z.string().min(1, "Branch is required"),
 });
 
 type AddReservationFormData = z.infer<typeof addReservationSchema>;
@@ -62,7 +69,7 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
       firstName: "",
       lastName: "",
       partySize: 2,
-      branchId: selectedBranchId || branches[0]?.id,
+      branchId: selectedBranchId?.toString() || "",
       time: "12:00",
     },
   });
@@ -82,7 +89,7 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
           firstName: data.firstName,
           lastName: data.lastName,
           partySize: data.partySize,
-          branchId: data.branchId,
+          branchId: parseInt(data.branchId),
           date: dateTime.toISOString(),
         }),
       });
@@ -121,6 +128,33 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
+              name="branchId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Branch</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id.toString()}>
+                          {branch.address}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="firstName"
               render={({ field }) => (
                 <FormItem>
@@ -156,7 +190,7 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
                       type="number"
                       min={1}
                       {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
                     />
                   </FormControl>
                   <FormMessage />

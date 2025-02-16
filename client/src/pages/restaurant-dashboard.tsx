@@ -49,6 +49,18 @@ export default function RestaurantDashboard() {
     enabled: !!auth?.id,
   });
 
+  // Get branch data
+  const { data: branches, isLoading: isBranchesLoading } = useQuery({
+    queryKey: ["/api/restaurants", auth?.id, "branches"],
+    queryFn: async () => {
+      if (!auth?.id) throw new Error("No restaurant ID");
+      const response = await fetch(`/api/restaurants/${auth.id}/branches`);
+      if (!response.ok) throw new Error('Failed to fetch branches');
+      return response.json();
+    },
+    enabled: !!auth?.id,
+  });
+
   // Update type for bookings to include branch info
   const { data: bookings, isLoading: isBookingsLoading } = useQuery<BookingWithDetails[]>({
     queryKey: ["/api/restaurant/bookings", auth?.id],
@@ -92,7 +104,7 @@ export default function RestaurantDashboard() {
     },
   });
 
-  const isLoading = isRestaurantLoading || isBookingsLoading;
+  const isLoading = isRestaurantLoading || isBookingsLoading || isBranchesLoading;
 
   if (isLoading) {
     return (
@@ -122,6 +134,12 @@ export default function RestaurantDashboard() {
     }
     const branch = restaurant?.locations?.find(loc => loc.address === selectedBranchId);
     return branch?.tablesCount || 0;
+  };
+
+  // Get the correct branch ID from the restaurant's locations
+  const getActualBranchId = (address: string) => {
+    const branch = restaurant?.locations?.find(loc => loc.address === address);
+    return branch ? branch.id : undefined;
   };
 
   return (
@@ -155,10 +173,7 @@ export default function RestaurantDashboard() {
 
         <div className="flex justify-end gap-4 mb-4">
           <AddReservationModal 
-            branches={restaurant?.locations?.map((loc, index) => ({
-              id: index,
-              address: loc.address
-            })) || []}
+            branches={branches || []}
             selectedBranchId={selectedBranchId === "all" ? undefined : parseInt(selectedBranchId)}
           />
           <Select
