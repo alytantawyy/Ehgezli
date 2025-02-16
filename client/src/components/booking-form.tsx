@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
@@ -96,12 +96,69 @@ interface BookingFormProps {
 export function BookingForm({ restaurantId, branchIndex, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const [branchId, setBranchId] = useState<number | null>(null);
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
       partySize: 2,
     },
+  });
+
+  // Fetch branch information
+  const { data: branches } = useQuery({
+    queryKey: ['/api/restaurants', restaurantId, 'branches'],
+    queryFn: async () => {
+      const response = await fetch(`/api/restaurants/${restaurantId}/branches`);
+      if (!response.ok) throw new Error('Failed to fetch branches');
+      return response.json();
+    },
+  });
+
+  // Set the branchId when branches data is available
+  useEffect(() => {
+    if (branches && branches[branchIndex]) {
+      setBranchId(branches[branchIndex].id);
+    }
+  }, [branches, branchIndex]);
+
+  // Check availability when date, time, and party size are selected
+  const { data: availability, isLoading: checkingAvailability } = useQuery({
+    queryKey: [
+      '/api/restaurants/availability',
+      branchId,
+      form.watch('date'),
+      form.watch('time'),
+      form.watch('partySize'),
+    ],
+    queryFn: async () => {
+      const date = form.watch('date');
+      const time = form.watch('time');
+      const partySize = form.watch('partySize');
+
+      if (!branchId || !date || !time || !partySize) return null;
+
+      const bookingDate = new Date(date);
+      const [hours, minutes] = time.split(':').map(Number);
+      bookingDate.setHours(hours, minutes);
+
+      const response = await fetch(
+        `/api/restaurants/availability/${branchId}?` +
+        new URLSearchParams({
+          date: bookingDate.toISOString(),
+          partySize: partySize.toString(),
+        })
+      );
+
+      if (!response.ok) throw new Error('Failed to check availability');
+      return response.json();
+    },
+    enabled: Boolean(
+      branchId &&
+      form.watch('date') &&
+      form.watch('time') &&
+      form.watch('partySize')
+    ),
   });
 
   // Update time slots when date changes
@@ -116,30 +173,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
       try {
-        // Check if user is logged in
-        const userResponse = await fetch('/api/user');
-        if (!userResponse.ok) {
-          if (userResponse.status === 401) {
-            throw new Error('Please log in to make a booking');
-          }
-          throw new Error('Unable to verify user session');
-        }
-
-        // Get branch information
-        const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
-        if (!branchResponse.ok) {
-          throw new Error('Unable to fetch restaurant information');
-        }
-
-        const branches = await branchResponse.json();
-
-        if (!Array.isArray(branches) || branches.length === 0) {
-          throw new Error('No branches available for this restaurant');
-        }
-
-        const branch = branches[branchIndex];
-        if (!branch?.id) {
-          throw new Error('Selected branch is not available');
+        if (!branchId) {
+          throw new Error('Invalid branch selection');
         }
 
         // Create the booking
@@ -157,7 +192,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            branchId: branch.id,
+            branchId,
             date: bookingDate.toISOString(),
             partySize: data.partySize,
           }),
@@ -192,6 +227,17 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       });
     },
   });
+
+  const isSlotAvailable = availability?.isAvailable ?? false;
+  const availabilityInfo = availability ? (
+    <div className="text-sm text-muted-foreground mb-4">
+      {isSlotAvailable ? (
+        `${availability.availableSeats} seats available`
+      ) : (
+        `Not enough seats available for party of ${form.watch('partySize')}`
+      )}
+    </div>
+  ) : null;
 
   return (
     <Form {...form}>
@@ -297,10 +343,17 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
             </FormItem>
           )}
         />
+
+        {availabilityInfo}
+
         <Button
           type="submit"
           className="w-full"
-          disabled={bookingMutation.isPending}
+          disabled={
+            bookingMutation.isPending ||
+            checkingAvailability ||
+            !isSlotAvailable
+          }
         >
           {bookingMutation.isPending ? "Booking..." : "Book Now"}
         </Button>

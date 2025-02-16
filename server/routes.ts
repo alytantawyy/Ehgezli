@@ -308,28 +308,44 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/restaurant/bookings", async (req, res, next) => {
+  // Add this endpoint before the booking creation endpoints
+  app.get("/api/restaurants/availability/:branchId", async (req, res, next) => {
     try {
-      // Log the incoming request
-      console.log('Booking request received:', {
-        body: req.body,
-        auth: {
-          isAuthenticated: req.isAuthenticated(),
-          userType: req.user?.type
-        }
-      });
+      const branchId = parseInt(req.params.branchId);
+      const date = new Date(req.query.date as string);
+      const partySize = parseInt(req.query.partySize as string);
 
-      if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-        return res.status(401).json({ message: "Not authenticated as restaurant" });
+      if (isNaN(branchId) || isNaN(date.getTime()) || isNaN(partySize)) {
+        return res.status(400).json({ message: "Invalid parameters" });
       }
 
-      const { firstName, lastName, partySize, branchId, date } = req.body;
+      const availability = await storage.getAvailableSeats(branchId, date);
+      const isAvailable = availability.availableSeats >= partySize;
+
+      res.json({
+        ...availability,
+        isAvailable,
+        requestedPartySize: partySize
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update the POST /api/bookings endpoint
+  app.post("/api/bookings", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+        return res.status(401).json({ message: "Not authenticated as user" });
+      }
+
+      const { branchId, date, partySize } = req.body;
 
       // Validate required fields
-      if (!firstName || !lastName || !partySize || !branchId || !date) {
+      if (!branchId || !date || !partySize) {
         return res.status(400).json({
           message: "Missing required fields",
-          required: ['firstName', 'lastName', 'partySize', 'branchId', 'date']
+          required: ['branchId', 'date', 'partySize']
         });
       }
 
@@ -342,59 +358,38 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid date format" });
       }
 
-      // Create temporary user for guest booking
-      let guestUser;
-      try {
-        [guestUser] = await db.insert(users)
-          .values({
-            firstName,
-            lastName,
-            email: `guest_${Date.now()}@example.com`,
-            password: 'guest',
-            gender: 'not_specified',
-            birthday: new Date('2000-01-01'),
-            city: 'not_specified',
-            favoriteCuisines: []
-          })
-          .returning();
-
-        if (!guestUser) {
-          throw new Error('Failed to create guest user');
-        }
-      } catch (error) {
-        console.error('Error creating guest user:', error);
-        return res.status(500).json({ message: "Failed to create guest booking" });
+      // Check availability before creating booking
+      const isAvailable = await storage.isTimeSlotAvailable(branchId, new Date(date), partySize);
+      if (!isAvailable) {
+        return res.status(400).json({ 
+          message: "Selected time slot is not available for the requested party size" 
+        });
       }
 
       // Create the booking
-      try {
-        const booking = await storage.createBooking({
-          userId: guestUser.id,
-          branchId,
-          date: new Date(date),
-          partySize,
-        });
+      const booking = await storage.createBooking({
+        userId: req.user.id,
+        branchId,
+        date: new Date(date),
+        partySize,
+      });
 
-        // Notify connected clients about the new booking
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'new_booking',
-              data: booking
-            }));
-          }
-        });
+      // Notify connected clients about the new booking
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: 'new_booking',
+            data: booking
+          }));
+        }
+      });
 
-        return res.status(201).json(booking);
-      } catch (error) {
-        console.error('Error creating booking:', error);
-        // Clean up the guest user if booking creation fails
-        await db.delete(users).where(eq(users.id, guestUser.id));
-        return res.status(500).json({ message: "Failed to create booking" });
-      }
+      return res.status(201).json(booking);
     } catch (error) {
-      console.error('Unexpected error in booking creation:', error);
-      return res.status(500).json({ message: "An unexpected error occurred" });
+      console.error('Error creating booking:', error);
+      return res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to create booking" 
+      });
     }
   });
 
@@ -434,64 +429,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add booking endpoint for users
-  app.post("/api/bookings", async (req, res, next) => {
-    try {
-      // Verify user authentication
-      if (!req.isAuthenticated() || req.user?.type !== 'user') {
-        return res.status(401).json({ message: "Not authenticated as user" });
-      }
-
-      const { branchId, date, partySize } = req.body;
-
-      // Validate required fields
-      if (!branchId || !date || !partySize) {
-        return res.status(400).json({
-          message: "Missing required fields",
-          required: ['branchId', 'date', 'partySize']
-        });
-      }
-
-      // Validate data types
-      if (typeof partySize !== 'number' || partySize < 1) {
-        return res.status(400).json({ message: "Party size must be a positive number" });
-      }
-
-      if (isNaN(Date.parse(date))) {
-        return res.status(400).json({ message: "Invalid date format" });
-      }
-
-      // Create the booking
-      try {
-        const booking = await storage.createBooking({
-          userId: req.user.id,
-          branchId,
-          date: new Date(date),
-          partySize,
-        });
-
-        // Notify connected clients about the new booking
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'new_booking',
-              data: booking
-            }));
-          }
-        });
-
-        return res.status(201).json(booking);
-      } catch (error) {
-        console.error('Error creating booking:', error);
-        return res.status(500).json({
-          message: error instanceof Error ? error.message : "Failed to create booking"
-        });
-      }
-    } catch (error) {
-      console.error('Unexpected error in booking creation:', error);
-      return res.status(500).json({ message: "An unexpected error occurred" });
-    }
-  });
 
   // Error handling middleware should be last
   app.use((err: any, req: any, res: any, next: any) => {

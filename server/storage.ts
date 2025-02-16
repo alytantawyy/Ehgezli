@@ -29,6 +29,12 @@ export interface IStorage {
   sessionStore: session.Store;
   searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
   isRestaurantProfileComplete(restaurantId: number): Promise<boolean>;
+  getAvailableSeats(branchId: number, date: Date): Promise<{
+    availableSeats: number;
+    totalSeats: number;
+    existingBookings: number;
+  }>;
+  isTimeSlotAvailable(branchId: number, date: Date, partySize: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -439,6 +445,70 @@ export class DatabaseStorage implements IStorage {
 
       return matchesName || matchesCuisine || matchesLocation;
     });
+  }
+
+
+  async getAvailableSeats(branchId: number, date: Date): Promise<{
+    availableSeats: number;
+    totalSeats: number;
+    existingBookings: number;
+  }> {
+    try {
+      // Get branch details first
+      const [branch] = await db.select()
+        .from(restaurantBranches)
+        .where(eq(restaurantBranches.id, branchId));
+
+      if (!branch) {
+        throw new Error('Branch not found');
+      }
+
+      // Calculate the time window (2 hours)
+      const startTime = new Date(date);
+      const endTime = new Date(date);
+      endTime.setHours(endTime.getHours() + 2);
+
+      // Get overlapping bookings
+      const overlappingBookings = await db.select()
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.branchId, branchId),
+            eq(bookings.confirmed, true)
+          )
+        );
+
+      // Filter bookings that overlap with the requested time slot
+      const conflictingBookings = overlappingBookings.filter(booking => {
+        const bookingStart = new Date(booking.date);
+        const bookingEnd = new Date(booking.date);
+        bookingEnd.setHours(bookingEnd.getHours() + 2);
+
+        return (
+          (startTime >= bookingStart && startTime < bookingEnd) ||
+          (endTime > bookingStart && endTime <= bookingEnd) ||
+          (startTime <= bookingStart && endTime >= bookingEnd)
+        );
+      });
+
+      // Calculate total booked seats
+      const bookedSeats = conflictingBookings.reduce((total, booking) => 
+        total + booking.partySize, 0);
+
+      return {
+        availableSeats: branch.seatsCount - bookedSeats,
+        totalSeats: branch.seatsCount,
+        existingBookings: conflictingBookings.length
+      };
+    } catch (error) {
+      console.error('Error checking availability:', error);
+      throw error;
+    }
+  }
+
+  async isTimeSlotAvailable(branchId: number, date: Date, partySize: number): Promise<boolean> {
+    const { availableSeats } = await this.getAvailableSeats(branchId, date);
+    return availableSeats >= partySize;
   }
 }
 
