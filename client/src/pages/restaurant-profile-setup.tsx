@@ -169,6 +169,7 @@ export default function RestaurantProfileSetup() {
 
   const profileMutation = useMutation({
     mutationFn: async (data: InsertRestaurantProfile) => {
+      console.log('Submitting profile data:', data); // Add logging
       const res = await apiRequest("PUT", "/api/restaurant/profile", data);
       if (!res.ok) {
         const error = await res.json();
@@ -188,6 +189,7 @@ export default function RestaurantProfileSetup() {
       setLocation(`/restaurant/dashboard`);
     },
     onError: (error: Error) => {
+      console.error('Profile mutation error:', error); // Add error logging
       toast({
         title: existingRestaurant ? "Update Failed" : "Setup Failed",
         description: error.message,
