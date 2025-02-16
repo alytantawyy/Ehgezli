@@ -17,6 +17,7 @@ import {
 import { useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AddReservationModal } from "@/components/add-reservation-modal";
 
 interface BookingWithDetails extends Booking {
   user?: {
@@ -153,6 +154,13 @@ export default function RestaurantDashboard() {
         </div>
 
         <div className="flex justify-end gap-4 mb-4">
+          <AddReservationModal 
+            branches={restaurant?.locations?.map((loc, index) => ({
+              id: index,
+              address: loc.address
+            })) || []}
+            selectedBranchId={selectedBranchId === "all" ? undefined : parseInt(selectedBranchId)}
+          />
           <Select
             value={selectedBranchId}
             onValueChange={setSelectedBranchId}

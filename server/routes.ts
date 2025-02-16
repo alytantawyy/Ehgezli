@@ -6,7 +6,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { and, eq } from "drizzle-orm";
-import { bookings, restaurantBranches } from "@shared/schema";
+import { bookings, restaurantBranches, users } from "@shared/schema"; // Added users import
 import { parse as parseCookie } from 'cookie';
 
 // Define WebSocket message types
@@ -308,16 +308,33 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/bookings", async (req, res, next) => {
+  app.post("/api/restaurant/bookings", async (req, res, next) => { // New endpoint
     try {
-      if (!req.isAuthenticated() || !req.user?.id) {
-        res.status(401).json({ message: "Unauthorized" });
-        return;
+      if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
+        return res.status(401).json({ message: "Not authenticated as restaurant" });
       }
 
+      const { firstName, lastName, partySize, branchId, date } = req.body;
+
+      // Create temporary user for guest booking
+      const [guestUser] = await db.insert(users)
+        .values({
+          firstName,
+          lastName,
+          email: `guest_${Date.now()}@example.com`, // Temporary email for guest
+          password: 'guest',  // Not used since this is a restaurant-created booking
+          gender: 'not_specified',
+          birthday: new Date('2000-01-01'), // Default date for guest bookings
+          city: 'not_specified',
+          favoriteCuisines: []
+        })
+        .returning();
+
       const booking = await storage.createBooking({
-        ...req.body,
-        userId: req.user.id,
+        userId: guestUser.id,
+        branchId,
+        date: new Date(date),
+        partySize,
       });
 
       // Notify connected clients about the new booking
