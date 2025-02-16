@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut, Settings } from "lucide-react";
-import { format } from "date-fns";
+import { Loader2, LogOut, Settings, CalendarIcon } from "lucide-react";
+import { format, isSameDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState } from "react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface BookingWithDetails extends Booking {
   user?: {
@@ -32,6 +34,7 @@ export default function RestaurantDashboard() {
   const queryClient = useQueryClient();
   const { restaurant: auth, logoutMutation } = useRestaurantAuth();
   const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   // Fetch complete restaurant data including locations
   const { data: restaurant, isLoading: isRestaurantLoading } = useQuery<Restaurant>({
@@ -100,7 +103,8 @@ export default function RestaurantDashboard() {
 
   // Filter bookings based on selected branch
   const filteredBookings = bookings?.filter(booking =>
-    selectedBranchId === "all" || booking.branch.address === selectedBranchId
+    (selectedBranchId === "all" || booking.branch.address === selectedBranchId) &&
+    (!selectedDate || isSameDay(new Date(booking.date), selectedDate))
   ) || [];
 
   // Filter for upcoming bookings and sort by date
@@ -150,7 +154,7 @@ export default function RestaurantDashboard() {
           </div>
         </div>
 
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end gap-4 mb-4">
           <Select
             value={selectedBranchId}
             onValueChange={setSelectedBranchId}
@@ -167,6 +171,32 @@ export default function RestaurantDashboard() {
               ))}
             </SelectContent>
           </Select>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-[200px] justify-start text-left font-normal">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          {selectedDate && (
+            <Button 
+              variant="ghost" 
+              onClick={() => setSelectedDate(undefined)}
+              className="px-3"
+            >
+              Clear date
+            </Button>
+          )}
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -194,8 +224,13 @@ export default function RestaurantDashboard() {
         </div>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>Latest Bookings</CardTitle>
+            {selectedDate && (
+              <span className="text-sm text-muted-foreground">
+                Showing bookings for {format(selectedDate, "MMMM d, yyyy")}
+              </span>
+            )}
           </CardHeader>
           <CardContent>
             {upcomingBookings && upcomingBookings.length > 0 ? (
@@ -238,7 +273,7 @@ export default function RestaurantDashboard() {
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                No upcoming bookings
+                {selectedDate ? "No bookings for this date" : "No upcoming bookings"}
               </div>
             )}
           </CardContent>
