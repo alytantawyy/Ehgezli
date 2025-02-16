@@ -40,7 +40,7 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
           <p className="text-sm font-medium text-muted-foreground">{restaurant.cuisine} Cuisine</p>
           <div className="flex items-center text-muted-foreground">
             <DollarSign className="h-4 w-4 mr-1" />
-            <span className="text-sm">{restaurant.priceRange}</span>
+            <span className="text-sm">Price Range: {restaurant.priceRange}</span>
           </div>
         </div>
       </CardHeader>
