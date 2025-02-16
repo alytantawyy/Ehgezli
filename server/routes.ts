@@ -231,19 +231,16 @@ export function registerRoutes(app: Express): Server {
     try {
       const branchId = parseInt(req.params.branchId);
       const date = new Date(req.query.date as string);
-      const partySize = parseInt(req.query.partySize as string);
 
-      if (isNaN(branchId) || isNaN(date.getTime()) || isNaN(partySize)) {
+      if (isNaN(branchId) || isNaN(date.getTime())) {
         return res.status(400).json({ message: "Invalid parameters" });
       }
 
       const availability = await storage.getAvailableSeats(branchId, date);
-      const isAvailable = availability.availableSeats >= partySize;
 
       res.json({
         ...availability,
-        isAvailable,
-        requestedPartySize: partySize
+        isAvailable: true // Not checking against party size here
       });
     } catch (error) {
       next(error);

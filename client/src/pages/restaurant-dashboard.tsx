@@ -125,14 +125,14 @@ export default function RestaurantDashboard() {
         return null;
       }
 
-      const branch = restaurant?.locations?.find(loc => loc.address === selectedBranchId);
+      const branch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
       if (!branch) return null;
 
       const [hours, minutes] = selectedTime.split(':').map(Number);
       const dateTime = new Date(selectedDate);
       dateTime.setHours(hours, minutes);
 
-      const response = await fetch(`/api/restaurants/${branch.id}/available-seats?date=${dateTime.toISOString()}`);
+      const response = await fetch(`/api/restaurants/availability/${branch.id}?date=${dateTime.toISOString()}`);
       if (!response.ok) {
         throw new Error('Failed to fetch available seats');
       }
@@ -152,11 +152,15 @@ export default function RestaurantDashboard() {
     );
   }
 
-  // Filter bookings based on selected branch, date, and time
   const filteredBookings = bookings?.filter(booking => {
     // Branch filter
-    if (selectedBranchId !== "all" && booking.branch.address !== selectedBranchId) {
-      return false;
+    if (selectedBranchId !== "all") {
+      const branch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
+      if (!branch) return false;
+      // Compare using branch address since that's what we have in booking.branch
+      if (booking.branch.address !== branch.address) {
+        return false;
+      }
     }
 
     // Date filter
@@ -181,13 +185,12 @@ export default function RestaurantDashboard() {
     .filter(booking => new Date(booking.date) >= now)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-
   // Get total seats for selected branch
   const getTotalSeats = () => {
     if (selectedBranchId === "all") {
       return restaurant?.locations?.reduce((sum, loc) => sum + loc.seatsCount, 0) || 0;
     }
-    const branch = restaurant?.locations?.find(loc => loc.address === selectedBranchId);
+    const branch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
     return branch?.seatsCount || 0;
   };
 
@@ -240,8 +243,8 @@ export default function RestaurantDashboard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Branches</SelectItem>
-              {restaurant?.locations?.map((location, index) => (
-                <SelectItem key={index} value={location.address}>
+              {restaurant?.locations?.map((location) => (
+                <SelectItem key={location.id} value={location.id.toString()}>
                   {location.address}
                 </SelectItem>
               ))}
@@ -307,10 +310,10 @@ export default function RestaurantDashboard() {
               <CardTitle>Bookings</CardTitle>
               <p className="text-sm text-muted-foreground">
                 {selectedBranchId === "all" && !selectedDate && selectedTime === "all" && "Total bookings"}
-                {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Bookings at ${selectedBranchId}`}
+                {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
                 {selectedDate && selectedBranchId === "all" && selectedTime === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
                 {selectedDate && selectedBranchId !== "all" && selectedTime === "all" && 
-                  `Bookings at ${selectedBranchId} on ${format(selectedDate, "MMMM d, yyyy")}`}
+                  `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")}`}
                 {selectedTime !== "all" && `Bookings at ${selectedTime}${selectedDate ? ` on ${format(selectedDate, "MMMM d, yyyy")}` : ''}`}
               </p>
             </CardHeader>
@@ -325,7 +328,7 @@ export default function RestaurantDashboard() {
             <CardHeader>
               <CardTitle>Total Seats</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {selectedBranchId === "all" ? "Across all branches" : `At ${selectedBranchId}`}
+                {selectedBranchId === "all" ? "Across all branches" : `At ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
               </p>
             </CardHeader>
             <CardContent>
@@ -341,7 +344,7 @@ export default function RestaurantDashboard() {
               <p className="text-sm text-muted-foreground">
                 {selectedBranchId === "all" || !selectedDate || selectedTime === "all" 
                   ? "Select branch, date, and time to view availability"
-                  : `At ${selectedBranchId} on ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
+                  : `At ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
               </p>
             </CardHeader>
             <CardContent>
