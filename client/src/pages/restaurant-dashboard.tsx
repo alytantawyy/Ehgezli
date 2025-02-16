@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut, Settings, CalendarIcon } from "lucide-react";
-import { format, isSameDay } from "date-fns";
+import { Loader2, LogOut, Settings, CalendarIcon, Clock } from "lucide-react";
+import { format, isSameDay, parseISO, setHours, setMinutes } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
@@ -36,6 +36,19 @@ export default function RestaurantDashboard() {
   const { restaurant: auth, logoutMutation } = useRestaurantAuth();
   const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedTime, setSelectedTime] = useState<string>("all");
+
+  // Generate time slots for the dropdown
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute of [0, 30]) {
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        slots.push(time);
+      }
+    }
+    return slots;
+  };
 
   // Fetch complete restaurant data including locations
   const { data: restaurant, isLoading: isRestaurantLoading } = useQuery<Restaurant>({
@@ -114,11 +127,28 @@ export default function RestaurantDashboard() {
     );
   }
 
-  // Filter bookings based on selected branch
-  const filteredBookings = bookings?.filter(booking =>
-    (selectedBranchId === "all" || booking.branch.address === selectedBranchId) &&
-    (!selectedDate || isSameDay(new Date(booking.date), selectedDate))
-  ) || [];
+  // Filter bookings based on selected branch, date, and time
+  const filteredBookings = bookings?.filter(booking => {
+    // Branch filter
+    if (selectedBranchId !== "all" && booking.branch.address !== selectedBranchId) {
+      return false;
+    }
+
+    // Date filter
+    if (selectedDate && !isSameDay(new Date(booking.date), selectedDate)) {
+      return false;
+    }
+
+    // Time filter
+    if (selectedTime !== "all") {
+      const bookingTime = format(new Date(booking.date), 'HH:mm');
+      if (bookingTime !== selectedTime) {
+        return false;
+      }
+    }
+
+    return true;
+  }) || [];
 
   // Filter for upcoming bookings and sort by date
   const now = new Date();
@@ -209,13 +239,39 @@ export default function RestaurantDashboard() {
               />
             </PopoverContent>
           </Popover>
-          {selectedDate && (
+
+          <Select
+            value={selectedTime}
+            onValueChange={setSelectedTime}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select Time">
+                <div className="flex items-center">
+                  <Clock className="mr-2 h-4 w-4" />
+                  {selectedTime === "all" ? "Select Time" : selectedTime}
+                </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Times</SelectItem>
+              {generateTimeSlots().map((time) => (
+                <SelectItem key={time} value={time}>
+                  {time}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {(selectedDate || selectedTime !== "all") && (
             <Button 
               variant="ghost" 
-              onClick={() => setSelectedDate(undefined)}
+              onClick={() => {
+                setSelectedDate(undefined);
+                setSelectedTime("all");
+              }}
               className="px-3"
             >
-              Clear date
+              Clear filters
             </Button>
           )}
         </div>
@@ -225,11 +281,12 @@ export default function RestaurantDashboard() {
             <CardHeader>
               <CardTitle>Bookings</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {selectedBranchId === "all" && !selectedDate && "Total bookings"}
-                {selectedBranchId !== "all" && !selectedDate && `Bookings at ${selectedBranchId}`}
-                {selectedDate && selectedBranchId === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
-                {selectedDate && selectedBranchId !== "all" && 
+                {selectedBranchId === "all" && !selectedDate && selectedTime === "all" && "Total bookings"}
+                {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Bookings at ${selectedBranchId}`}
+                {selectedDate && selectedBranchId === "all" && selectedTime === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
+                {selectedDate && selectedBranchId !== "all" && selectedTime === "all" && 
                   `Bookings at ${selectedBranchId} on ${format(selectedDate, "MMMM d, yyyy")}`}
+                {selectedTime !== "all" && `Bookings at ${selectedTime}${selectedDate ? ` on ${format(selectedDate, "MMMM d, yyyy")}` : ''}`}
               </p>
             </CardHeader>
             <CardContent>
