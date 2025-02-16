@@ -278,7 +278,7 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Favorite Cuisines (Max 3)</FormLabel>
                           <Select
-                            onValueChange={(value) => {
+                            onValueChange={(value: string) => {
                               const currentValues = field.value || [];
                               if (currentValues.length < 3 && !currentValues.includes(value)) {
                                 field.onChange([...currentValues, value]);
@@ -291,7 +291,7 @@ export default function AuthPage() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {CUISINES.filter(cuisine => !field.value?.includes(cuisine)).map(cuisine => (
+                              {CUISINES.filter(cuisine => !field.value?.includes(cuisine)).map((cuisine: string) => (
                                 <SelectItem key={cuisine} value={cuisine}>
                                   {cuisine}
                                 </SelectItem>
@@ -300,12 +300,12 @@ export default function AuthPage() {
                           </Select>
                           {field.value?.length > 0 && (
                             <div className="flex flex-wrap gap-2 mt-2">
-                              {field.value.map((cuisine) => (
+                              {field.value.map((cuisine: string) => (
                                 <Button
                                   key={cuisine}
                                   variant="secondary"
                                   size="sm"
-                                  onClick={() => field.onChange(field.value.filter(c => c !== cuisine))}
+                                  onClick={() => field.onChange(field.value.filter((c: string) => c !== cuisine))}
                                 >
                                   {cuisine} ×
                                 </Button>
