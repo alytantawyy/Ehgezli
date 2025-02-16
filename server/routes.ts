@@ -6,7 +6,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { and, eq } from "drizzle-orm";
-import { bookings, restaurantBranches, users } from "@shared/schema"; // Added users import
+import { bookings, restaurantBranches, users } from "@shared/schema";
 import { parse as parseCookie } from 'cookie';
 
 // Define WebSocket message types
@@ -327,7 +327,7 @@ export function registerRoutes(app: Express): Server {
 
       // Validate required fields
       if (!firstName || !lastName || !partySize || !branchId || !date) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Missing required fields",
           required: ['firstName', 'lastName', 'partySize', 'branchId', 'date']
         });
@@ -431,6 +431,65 @@ export function registerRoutes(app: Express): Server {
       res.json({ message: "Profile updated successfully" });
     } catch (error) {
       next(error);
+    }
+  });
+
+  // Add booking endpoint for users
+  app.post("/api/bookings", async (req, res, next) => {
+    try {
+      // Verify user authentication
+      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+        return res.status(401).json({ message: "Not authenticated as user" });
+      }
+
+      const { branchId, date, partySize } = req.body;
+
+      // Validate required fields
+      if (!branchId || !date || !partySize) {
+        return res.status(400).json({
+          message: "Missing required fields",
+          required: ['branchId', 'date', 'partySize']
+        });
+      }
+
+      // Validate data types
+      if (typeof partySize !== 'number' || partySize < 1) {
+        return res.status(400).json({ message: "Party size must be a positive number" });
+      }
+
+      if (isNaN(Date.parse(date))) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+
+      // Create the booking
+      try {
+        const booking = await storage.createBooking({
+          userId: req.user.id,
+          branchId,
+          date: new Date(date),
+          partySize,
+        });
+
+        // Notify connected clients about the new booking
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: 'new_booking',
+              data: booking
+            }));
+          }
+        });
+
+        return res.status(201).json(booking);
+      } catch (error) {
+        console.error('Error creating booking:', error);
+        return res.status(500).json({
+          message: error instanceof Error ? error.message : "Failed to create booking"
+        });
+      }
+    } catch (error) {
+      console.error('Unexpected error in booking creation:', error);
+      return res.status(500).json({ message: "An unexpected error occurred" });
     }
   });
 

@@ -50,7 +50,7 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
 
   // If booking is for today, start from current time
   const now = new Date();
-  if (bookingDate && 
+  if (bookingDate &&
       bookingDate.getDate() === now.getDate() &&
       bookingDate.getMonth() === now.getMonth() &&
       bookingDate.getFullYear() === now.getFullYear()) {
@@ -125,8 +125,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           throw new Error('Unable to verify user session');
         }
 
-        const user = await userResponse.json();
-
         // Get branch information
         const branchResponse = await fetch(`/api/restaurants/${restaurantId}/branches`);
         if (!branchResponse.ok) {
@@ -153,24 +151,21 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           parseInt(data.time.split(':')[1])
         );
 
-        const bookingData = {
-          branchId: branch.id,
-          userId: user.id,
-          date: bookingDate.toISOString(),
-          partySize: data.partySize,
-        };
-
         const bookingResponse = await fetch('/api/bookings', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(bookingData),
+          body: JSON.stringify({
+            branchId: branch.id,
+            date: bookingDate.toISOString(),
+            partySize: data.partySize,
+          }),
         });
 
         if (!bookingResponse.ok) {
-          const errorData = await bookingResponse.json();
-          throw new Error(errorData.message || 'Unable to complete booking');
+          const errorData = await bookingResponse.json().catch(() => ({ message: 'Failed to create booking' }));
+          throw new Error(errorData.message || 'Failed to create booking');
         }
 
         return bookingResponse.json();
@@ -253,8 +248,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           render={({ field }) => (
             <FormItem>
               <FormLabel>Time</FormLabel>
-              <Select 
-                onValueChange={field.onChange} 
+              <Select
+                onValueChange={field.onChange}
                 value={field.value}
                 defaultValue={field.value}
               >
