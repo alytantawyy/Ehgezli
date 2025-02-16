@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Restaurant } from "@shared/schema";
 import { Link } from "wouter";
-import { MapPin, DollarSign } from "lucide-react";
+import { MapPin } from "lucide-react";
 
 interface RestaurantBranchCardProps {
   restaurant: Restaurant;
@@ -36,12 +36,9 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
         <CardTitle className="flex items-center justify-between">
           <span>{restaurant.name}</span>
         </CardTitle>
-        <div className="flex items-center gap-2">
+        <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">{restaurant.cuisine} Cuisine</p>
-          <div className="flex items-center text-muted-foreground">
-            <DollarSign className="h-4 w-4 mr-1" />
-            <span className="text-sm">Price Range: {restaurant.priceRange}</span>
-          </div>
+          <p className="text-sm text-muted-foreground">Price Range: {restaurant.priceRange}</p>
         </div>
       </CardHeader>
       <CardContent>
