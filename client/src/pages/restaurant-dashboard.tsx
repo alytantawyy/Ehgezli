@@ -113,8 +113,6 @@ export default function RestaurantDashboard() {
     .filter(booking => new Date(booking.date) >= now)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const todayBookings = upcomingBookings
-    .filter(booking => format(new Date(booking.date), 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd'));
 
   // Get total tables for selected branch
   const getTotalTables = () => {
@@ -202,11 +200,18 @@ export default function RestaurantDashboard() {
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Today's Bookings</CardTitle>
+              <CardTitle>Bookings</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {selectedBranchId === "all" && !selectedDate && "Total bookings"}
+                {selectedBranchId !== "all" && !selectedDate && `Bookings at ${selectedBranchId}`}
+                {selectedDate && selectedBranchId === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
+                {selectedDate && selectedBranchId !== "all" && 
+                  `Bookings at ${selectedBranchId} on ${format(selectedDate, "MMMM d, yyyy")}`}
+              </p>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {todayBookings.length}
+                {filteredBookings.length}
               </div>
             </CardContent>
           </Card>
