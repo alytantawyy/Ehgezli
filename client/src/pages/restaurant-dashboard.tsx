@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AddReservationModal } from "@/components/add-reservation-modal";
@@ -30,6 +30,62 @@ interface BookingWithDetails extends Booking {
   };
 }
 
+const generateTimeSlots = (openingTime: string | undefined, closingTime: string | undefined, bookingDate?: Date) => {
+  if (!openingTime || !closingTime) return [];
+
+  const slots = [];
+  const [openHour, openMinute] = openingTime.split(':').map(Number);
+  const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+
+  let startHour = openHour;
+  let startMinute = openMinute;
+
+  // If booking is for today, start from current time
+  const now = new Date();
+  if (bookingDate &&
+      bookingDate.getDate() === now.getDate() &&
+      bookingDate.getMonth() === now.getMonth() &&
+      bookingDate.getFullYear() === now.getFullYear()) {
+    startHour = now.getHours();
+    startMinute = now.getMinutes();
+
+    // Round up to the next 30-minute slot
+    if (startMinute > 30) {
+      startHour += 1;
+      startMinute = 0;
+    } else if (startMinute > 0) {
+      startMinute = 30;
+    }
+
+    // If current time is after opening time, use current time
+    if (startHour < openHour || (startHour === openHour && startMinute < openMinute)) {
+      startHour = openHour;
+      startMinute = openMinute;
+    }
+  }
+
+  let lastSlotHour = closeHour;
+  let lastSlotMinute = closeMinute;
+
+  // Ensure we don't allow bookings in the last hour of operation
+  lastSlotHour = lastSlotHour - 1;
+
+  for (let hour = startHour; hour <= lastSlotHour; hour++) {
+    for (let minute of [0, 30]) {
+      // Skip slots before opening time
+      if (hour === openHour && minute < openMinute) continue;
+      // Skip slots after closing time
+      if (hour === lastSlotHour && minute > lastSlotMinute) continue;
+      // Skip slots before current time for today's bookings
+      if (hour === startHour && minute < startMinute) continue;
+
+      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      slots.push(time);
+    }
+  }
+  return slots;
+};
+
 export default function RestaurantDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -37,20 +93,8 @@ export default function RestaurantDashboard() {
   const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>("all");
+  const [timeSlots, setTimeSlots] = useState<string[]>([]);
 
-  // Generate time slots for the dropdown
-  const generateTimeSlots = () => {
-    const slots = [];
-    for (let hour = 0; hour < 24; hour++) {
-      for (let minute of [0, 30]) {
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        slots.push(time);
-      }
-    }
-    return slots;
-  };
-
-  // Fetch complete restaurant data including locations
   const { data: restaurant, isLoading: isRestaurantLoading } = useQuery<Restaurant>({
     queryKey: ["/api/restaurants", auth?.id],
     queryFn: async () => {
@@ -62,7 +106,6 @@ export default function RestaurantDashboard() {
     enabled: !!auth?.id,
   });
 
-  // Get branch data
   const { data: branches, isLoading: isBranchesLoading } = useQuery({
     queryKey: ["/api/restaurants", auth?.id, "branches"],
     queryFn: async () => {
@@ -74,7 +117,6 @@ export default function RestaurantDashboard() {
     enabled: !!auth?.id,
   });
 
-  // Update type for bookings to include branch info
   const { data: bookings, isLoading: isBookingsLoading } = useQuery<BookingWithDetails[]>({
     queryKey: ["/api/restaurant/bookings", auth?.id],
     queryFn: async () => {
@@ -89,7 +131,6 @@ export default function RestaurantDashboard() {
     enabled: !!auth?.id,
   });
 
-  // Cancel booking mutation
   const cancelBookingMutation = useMutation({
     mutationFn: async (bookingId: number) => {
       const response = await fetch(`/api/restaurant/bookings/${bookingId}/cancel`, {
@@ -117,7 +158,6 @@ export default function RestaurantDashboard() {
     },
   });
 
-  // Add new query for available seats
   const { data: availableSeats, isLoading: isAvailableSeatsLoading } = useQuery({
     queryKey: ["/api/restaurant/available-seats", selectedBranchId, selectedDate, selectedTime],
     queryFn: async () => {
@@ -141,8 +181,25 @@ export default function RestaurantDashboard() {
     enabled: !!restaurant?.id && selectedBranchId !== "all" && !!selectedDate && selectedTime !== "all",
   });
 
-
   const isLoading = isRestaurantLoading || isBookingsLoading || isBranchesLoading || isAvailableSeatsLoading;
+
+  useEffect(() => {
+    if (selectedBranchId === "all") {
+      setTimeSlots([]); // Clear time slots when no specific branch is selected
+      return;
+    }
+
+    const selectedBranch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
+    if (selectedBranch) {
+      const slots = generateTimeSlots(selectedBranch.openingTime, selectedBranch.closingTime, selectedDate);
+      setTimeSlots(slots);
+      // Reset selected time if it's not in the new slots
+      if (selectedTime !== "all" && !slots.includes(selectedTime)) {
+        setSelectedTime("all");
+      }
+    }
+  }, [selectedBranchId, selectedDate, restaurant?.locations]);
+
 
   if (isLoading) {
     return (
@@ -153,22 +210,18 @@ export default function RestaurantDashboard() {
   }
 
   const filteredBookings = bookings?.filter(booking => {
-    // Branch filter
     if (selectedBranchId !== "all") {
       const branch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
       if (!branch) return false;
-      // Compare using branch address since that's what we have in booking.branch
       if (booking.branch.address !== branch.address) {
         return false;
       }
     }
 
-    // Date filter
     if (selectedDate && !isSameDay(new Date(booking.date), selectedDate)) {
       return false;
     }
 
-    // Time filter
     if (selectedTime !== "all") {
       const bookingTime = format(new Date(booking.date), 'HH:mm');
       if (bookingTime !== selectedTime) {
@@ -179,13 +232,11 @@ export default function RestaurantDashboard() {
     return true;
   }) || [];
 
-  // Filter for upcoming bookings and sort by date
   const now = new Date();
   const upcomingBookings = filteredBookings
     .filter(booking => new Date(booking.date) >= now)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Get total seats for selected branch
   const getTotalSeats = () => {
     if (selectedBranchId === "all") {
       return restaurant?.locations?.reduce((sum, loc) => sum + loc.seatsCount, 0) || 0;
@@ -194,7 +245,6 @@ export default function RestaurantDashboard() {
     return branch?.seatsCount || 0;
   };
 
-  // Get the correct branch ID from the restaurant's locations
   const getActualBranchId = (address: string) => {
     const branch = restaurant?.locations?.find(loc => loc.address === address);
     return branch ? branch.id : undefined;
@@ -282,11 +332,21 @@ export default function RestaurantDashboard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Times</SelectItem>
-              {generateTimeSlots().map((time) => (
-                <SelectItem key={time} value={time}>
-                  {time}
+              {selectedBranchId === "all" ? (
+                <SelectItem value="select-branch" disabled>
+                  Select a branch first
                 </SelectItem>
-              ))}
+              ) : timeSlots.length > 0 ? (
+                timeSlots.map((time) => (
+                  <SelectItem key={time} value={time}>
+                    {time}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="no-slots" disabled>
+                  No available time slots
+                </SelectItem>
+              )}
             </SelectContent>
           </Select>
 
