@@ -12,6 +12,7 @@ import {
 
 const CUISINES = [
   "American",
+  "Egyptian",
   "Italian",
   "Japanese",
   "Chinese",

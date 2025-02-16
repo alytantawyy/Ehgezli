@@ -32,6 +32,7 @@ import RestaurantAuthForm from "@/components/RestaurantAuthForm";
 
 const CUISINES = [
   "American",
+  "Egyptian",
   "Italian",
   "Japanese",
   "Chinese",
