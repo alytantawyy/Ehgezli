@@ -86,6 +86,7 @@ export class DatabaseStorage implements IStorage {
           about: restaurant_profiles.about,
           logo: restaurant_profiles.logo || "",
           cuisine: restaurant_profiles.cuisine,
+          priceRange: restaurant_profiles.priceRange,
           locations: []
         });
       }
@@ -97,6 +98,7 @@ export class DatabaseStorage implements IStorage {
         restaurant.locations.push({
           address: restaurant_branches.address,
           tablesCount: restaurant_branches.tablesCount,
+          seatsCount: restaurant_branches.seatsCount,
           openingTime: restaurant_branches.openingTime,
           closingTime: restaurant_branches.closingTime,
           city: restaurant_branches.city as "Alexandria" | "Cairo"
