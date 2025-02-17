@@ -136,13 +136,6 @@ export default function HomePage() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto text-center mb-12">
-          <h2 className="text-4xl font-bold mb-4 text-primary">
-            Find Your Perfect Table
-          </h2>
-          <p className="text-lg text-muted-foreground mb-8">
-            Discover and book tables at the finest restaurants in your area.
-            Experience exceptional dining with just a few clicks.
-          </p>
           <div className="flex gap-4 items-center justify-center mb-4">
             <SearchBar onSearch={handleSearch} placeholder="Search by name, cuisine, or location..." />
           </div>
