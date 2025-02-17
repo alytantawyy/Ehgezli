@@ -59,10 +59,78 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-primary">
-            Ehgezli
-          </h1>
-          <UserNav />
+          <div className="flex items-center gap-4">
+            <UserNav />
+            <h1 className="text-2xl font-bold text-primary">
+              Ehgezli
+            </h1>
+          </div>
+          <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+            <DrawerTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <FilterIcon className="h-4 w-4" />
+                Filters
+                {(selectedCity || selectedCuisine) && (
+                  <span className="ml-2 h-4 w-4 rounded-full bg-primary text-[0.6rem] text-primary-foreground inline-flex items-center justify-center">
+                    {[selectedCity, selectedCuisine].filter(Boolean).length}
+                  </span>
+                )}
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent>
+              <div className="mx-auto w-full max-w-sm">
+                <DrawerHeader>
+                  <DrawerTitle>Filters</DrawerTitle>
+                  <DrawerDescription>
+                    Apply filters to find the perfect restaurant
+                  </DrawerDescription>
+                </DrawerHeader>
+                <div className="p-4 space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">City</label>
+                    <Select
+                      value={selectedCity}
+                      onValueChange={setSelectedCity}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select city" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Cities</SelectItem>
+                        <SelectItem value="Alexandria">Alexandria</SelectItem>
+                        <SelectItem value="Cairo">Cairo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Cuisine</label>
+                    <Select
+                      value={selectedCuisine}
+                      onValueChange={setSelectedCuisine}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select cuisine" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Cuisines</SelectItem>
+                        {CUISINES.map((cuisine) => (
+                          <SelectItem key={cuisine} value={cuisine}>{cuisine}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DrawerFooter>
+                  <Button onClick={handleApplyFilters}>Apply Filters</Button>
+                  <DrawerClose asChild>
+                    <Button variant="outline" onClick={handleClearFilters}>
+                      Clear Filters
+                    </Button>
+                  </DrawerClose>
+                </DrawerFooter>
+              </div>
+            </DrawerContent>
+          </Drawer>
         </div>
       </header>
 
@@ -77,78 +145,12 @@ export default function HomePage() {
           </p>
           <div className="flex gap-4 items-center justify-center mb-4">
             <SearchBar onSearch={handleSearch} placeholder="Search by name, cuisine, or location..." />
-            <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-              <DrawerTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <FilterIcon className="h-4 w-4" />
-                  Filters
-                  {(selectedCity || selectedCuisine) && (
-                    <span className="ml-2 h-4 w-4 rounded-full bg-primary text-[0.6rem] text-primary-foreground inline-flex items-center justify-center">
-                      {[selectedCity, selectedCuisine].filter(Boolean).length}
-                    </span>
-                  )}
-                </Button>
-              </DrawerTrigger>
-              <DrawerContent>
-                <div className="mx-auto w-full max-w-sm">
-                  <DrawerHeader>
-                    <DrawerTitle>Filters</DrawerTitle>
-                    <DrawerDescription>
-                      Apply filters to find the perfect restaurant
-                    </DrawerDescription>
-                  </DrawerHeader>
-                  <div className="p-4 space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">City</label>
-                      <Select
-                        value={selectedCity}
-                        onValueChange={setSelectedCity}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select city" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Cities</SelectItem>
-                          <SelectItem value="Alexandria">Alexandria</SelectItem>
-                          <SelectItem value="Cairo">Cairo</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Cuisine</label>
-                      <Select
-                        value={selectedCuisine}
-                        onValueChange={setSelectedCuisine}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select cuisine" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Cuisines</SelectItem>
-                          {CUISINES.map((cuisine) => (
-                            <SelectItem key={cuisine} value={cuisine}>{cuisine}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <DrawerFooter>
-                    <Button onClick={handleApplyFilters}>Apply Filters</Button>
-                    <DrawerClose asChild>
-                      <Button variant="outline" onClick={handleClearFilters}>
-                        Clear Filters
-                      </Button>
-                    </DrawerClose>
-                  </DrawerFooter>
-                </div>
-              </DrawerContent>
-            </Drawer>
           </div>
         </div>
 
         <div className="mb-8">
           <h3 className="text-2xl font-semibold">
-            {selectedCity && selectedCity !== 'all' 
+            {selectedCity && selectedCity !== 'all'
               ? `Restaurants in ${selectedCity}${selectedCuisine && selectedCuisine !== 'all' ? ` - ${selectedCuisine} Cuisine` : ''}`
               : selectedCuisine && selectedCuisine !== 'all'
                 ? `${selectedCuisine} Restaurants`
@@ -157,8 +159,8 @@ export default function HomePage() {
           </h3>
         </div>
 
-        <RestaurantGrid 
-          searchQuery={searchQuery} 
+        <RestaurantGrid
+          searchQuery={searchQuery}
           cityFilter={selectedCity === 'all' ? undefined : selectedCity}
           cuisineFilter={selectedCuisine === 'all' ? undefined : selectedCuisine}
         />
