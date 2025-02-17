@@ -37,7 +37,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-orange-400 text-transparent bg-clip-text">
+          <h1 className="text-2xl font-bold text-primary">
             Ehgezli
           </h1>
           <UserNav />
@@ -46,7 +46,7 @@ export default function HomePage() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto text-center mb-12">
-          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-orange-600 to-orange-400 text-transparent bg-clip-text">
+          <h2 className="text-4xl font-bold mb-4 text-primary">
             Find Your Perfect Table
           </h2>
           <p className="text-lg text-muted-foreground mb-8">
