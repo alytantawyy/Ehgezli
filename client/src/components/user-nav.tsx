@@ -17,24 +17,28 @@ export function UserNav() {
   if (!user) return null;
 
   return (
-    <Drawer>
+    <Drawer direction="left">
       <DrawerTrigger asChild>
         <Button variant="ghost" size="icon">
           <Menu className="h-6 w-6" />
         </Button>
       </DrawerTrigger>
-      <DrawerContent>
-        <div className="mx-auto w-full max-w-sm">
+      <DrawerContent className="left-0 right-auto h-full" side="left">
+        <div className="h-full flex flex-col">
           <DrawerHeader>
             <DrawerTitle>Menu</DrawerTitle>
           </DrawerHeader>
-          <div className="p-4 space-y-4">
-            <Button asChild variant="ghost" className="w-full justify-start">
-              <Link href="/">Home</Link>
-            </Button>
-            <Button asChild variant="ghost" className="w-full justify-start">
-              <Link href="/bookings">My Bookings</Link>
-            </Button>
+          <div className="px-4 flex-1">
+            <div className="space-y-2">
+              <Button asChild variant="ghost" className="w-full justify-start">
+                <Link href="/">Home</Link>
+              </Button>
+              <Button asChild variant="ghost" className="w-full justify-start">
+                <Link href="/bookings">My Bookings</Link>
+              </Button>
+            </div>
+          </div>
+          <div className="p-4 mt-auto border-t">
             <Button
               variant="ghost"
               onClick={() => logoutMutation.mutate()}
