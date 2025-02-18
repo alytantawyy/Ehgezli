@@ -56,18 +56,20 @@ export function registerRoutes(app: Express): Server {
     });
   }, 30000);
 
+  // WebSocket connection setup with improved session handling
   wss.on('connection', async (ws, req) => {
     console.log('New WebSocket connection attempt:', {
       headers: req.headers,
       url: req.url,
-      cookie: req.headers.cookie
+      cookie: req.headers.cookie,
+      sessionID: req.headers.cookie?.match(/connect\.sid=([^;]+)/)?.[1]
     });
 
     try {
       // Extract and parse cookie
       const cookieHeader = req.headers.cookie;
       if (!cookieHeader) {
-        console.error('No cookie header found');
+        console.error('No cookie header found in WebSocket connection');
         ws.close(1008, 'No session cookie');
         return;
       }
@@ -75,7 +77,7 @@ export function registerRoutes(app: Express): Server {
       const cookies = parseCookie(cookieHeader);
       const sessionID = cookies['connect.sid'];
       if (!sessionID) {
-        console.error('No session ID found in cookies');
+        console.error('No session ID found in WebSocket cookies');
         ws.close(1008, 'No session ID');
         return;
       }
@@ -85,23 +87,35 @@ export function registerRoutes(app: Express): Server {
         sessionID.split('.')[0].replace(/^s:/, '')
       );
 
-      console.log('Cleaned session ID:', cleanSessionId);
+      console.log('WebSocket connection - cleaned session ID:', cleanSessionId);
 
       // Verify session using the storage's session store
       storage.sessionStore.get(cleanSessionId, async (err, session) => {
         if (err) {
-          console.error('Session store error:', err);
+          console.error('Session store error in WebSocket:', err);
           ws.close(1008, 'Session store error');
           return;
         }
 
         if (!session?.passport?.user) {
-          console.error('Invalid or expired session:', cleanSessionId);
+          console.error('Invalid or expired session in WebSocket:', {
+            sessionId: cleanSessionId,
+            session: session
+          });
           ws.close(1008, 'Invalid session');
           return;
         }
 
         const { id, type } = session.passport.user;
+        if (typeof id !== 'number') {
+          console.error('Invalid user ID in session:', {
+            sessionId: cleanSessionId,
+            userId: id,
+            type: type
+          });
+          ws.close(1008, 'Invalid user ID');
+          return;
+        }
 
         // Add client to tracked connections
         clients.set(ws, {
@@ -111,7 +125,7 @@ export function registerRoutes(app: Express): Server {
           isAlive: true
         });
 
-        console.log('WebSocket connected with session:', {
+        console.log('WebSocket connected successfully:', {
           sessionID: cleanSessionId,
           userId: id,
           userType: type
@@ -129,7 +143,11 @@ export function registerRoutes(app: Express): Server {
           try {
             const data = JSON.parse(message.toString()) as WebSocketMessage;
             if (data.type === 'heartbeat') {
-              ws.send(JSON.stringify({ type: 'heartbeat' }));
+              const client = clients.get(ws);
+              if (client) {
+                client.isAlive = true;
+                ws.send(JSON.stringify({ type: 'heartbeat' }));
+              }
             }
           } catch (error) {
             console.error('WebSocket message parsing error:', error);
@@ -321,10 +339,10 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update the POST /api/bookings endpoint
+  // Update the POST /api/bookings endpoint with proper type checking
   app.post("/api/bookings", async (req, res, next) => {
     try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+      if (!req.isAuthenticated() || req.user?.type !== 'user' || typeof req.user?.id !== 'number') {
         return res.status(401).json({ message: "Not authenticated as user" });
       }
 
@@ -355,7 +373,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Create the booking
+      // Create the booking - now we know req.user.id is a number
       const booking = await storage.createBooking({
         userId: req.user.id,
         branchId,

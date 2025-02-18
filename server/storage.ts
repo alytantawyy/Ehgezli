@@ -27,6 +27,7 @@ export interface IStorage {
   createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth>;
   createRestaurantProfile(profile: InsertRestaurantProfile): Promise<void>;
   sessionStore: session.Store;
+  setSessionStore(store: session.Store): void;
   searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
   isRestaurantProfileComplete(restaurantId: number): Promise<boolean>;
   getAvailableSeats(branchId: number, date: Date): Promise<{
@@ -38,16 +39,24 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  readonly sessionStore: session.Store;
+  private _sessionStore: session.Store;
 
   constructor() {
-    this.sessionStore = new PostgresSessionStore({
+    this._sessionStore = new PostgresSessionStore({
       pool,
       tableName: 'session',
       createTableIfMissing: true,
       pruneSessionInterval: 60 * 15,
       errorLog: (err) => console.error('Session store error:', err)
     });
+  }
+
+  get sessionStore(): session.Store {
+    return this._sessionStore;
+  }
+
+  setSessionStore(store: session.Store): void {
+    this._sessionStore = store;
   }
 
   async getUser(id: number): Promise<User | undefined> {
@@ -219,7 +228,7 @@ export class DatabaseStorage implements IStorage {
           branchId: booking.branchId,
           date: date,
           partySize: booking.partySize,
-          confirmed: true 
+          confirmed: true
         })
         .returning();
 
@@ -490,7 +499,7 @@ export class DatabaseStorage implements IStorage {
       });
 
       // Calculate total booked seats
-      const bookedSeats = conflictingBookings.reduce((total, booking) => 
+      const bookedSeats = conflictingBookings.reduce((total, booking) =>
         total + booking.partySize, 0);
 
       return {

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { restaurantLoginSchema, insertRestaurantAuthSchema } from "@shared/schema";
+import { insertRestaurantAuthSchema } from "@shared/schema";
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +24,7 @@ export default function RestaurantAuthForm() {
   const { toast } = useToast();
 
   const loginForm = useForm({
-    resolver: zodResolver(restaurantLoginSchema),
+    resolver: zodResolver(insertRestaurantAuthSchema.pick({ email: true, password: true })),
     defaultValues: {
       email: "",
       password: "",
@@ -120,11 +120,6 @@ export default function RestaurantAuthForm() {
             >
               {loginMutation.isPending ? "Logging in..." : "Login"}
             </Button>
-            {loginMutation.error && (
-              <p className="text-sm text-red-500 mt-2">
-                {loginMutation.error.message}
-              </p>
-            )}
           </form>
         </Form>
       </TabsContent>
@@ -181,11 +176,6 @@ export default function RestaurantAuthForm() {
             >
               {registerMutation.isPending ? "Creating Account..." : "Register"}
             </Button>
-            {registerMutation.error && (
-              <p className="text-sm text-red-500 mt-2">
-                {registerMutation.error.message}
-              </p>
-            )}
           </form>
         </Form>
       </TabsContent>
