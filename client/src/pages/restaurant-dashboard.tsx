@@ -209,6 +209,11 @@ export default function RestaurantDashboard() {
   }
 
   const filteredBookings = bookings?.filter(booking => {
+    const bookingDate = new Date(booking.date);
+    if (bookingDate < now) {
+      return false;
+    }
+
     if (selectedBranchId !== "all") {
       const branch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
       if (!branch) return false;
@@ -233,7 +238,6 @@ export default function RestaurantDashboard() {
 
   const now = new Date();
   const upcomingBookings = filteredBookings
-    .filter(booking => new Date(booking.date) >= now)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const getTotalSeats = () => {
