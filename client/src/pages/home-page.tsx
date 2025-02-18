@@ -36,10 +36,18 @@ const CUISINES = [
   "Middle Eastern"
 ];
 
+const PRICE_RANGES = [
+  { value: "low", label: "$", description: "Under $15" },
+  { value: "medium", label: "$$", description: "$15-$30" },
+  { value: "high", label: "$$$", description: "$31-$60" },
+  { value: "luxury", label: "$$$$", description: "Above $60" }
+];
+
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
   const [selectedCuisine, setSelectedCuisine] = useState<string | undefined>(undefined);
+  const [selectedPriceRange, setSelectedPriceRange] = useState<string | undefined>(undefined);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const handleSearch = (query: string) => {
@@ -52,6 +60,7 @@ export default function HomePage() {
 
   const handleClearFilters = () => {
     setSelectedCuisine(undefined);
+    setSelectedPriceRange(undefined);
   };
 
   return (
@@ -78,14 +87,22 @@ export default function HomePage() {
                 <SelectItem value="Cairo">Cairo</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-3xl mx-auto text-center mb-12">
+          <div className="flex flex-col gap-4 items-center justify-center">
+            <SearchBar onSearch={handleSearch} placeholder="Search by name, cuisine, or location..." />
             <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
               <DrawerTrigger asChild>
                 <Button variant="outline" className="gap-2">
                   <FilterIcon className="h-4 w-4" />
-                  Cuisine Filter
-                  {selectedCuisine && (
+                  Filters
+                  {(selectedCuisine || selectedPriceRange) && (
                     <span className="ml-2 h-4 w-4 rounded-full bg-primary text-[0.6rem] text-primary-foreground inline-flex items-center justify-center">
-                      1
+                      {[selectedCuisine, selectedPriceRange].filter(Boolean).length}
                     </span>
                   )}
                 </Button>
@@ -93,9 +110,9 @@ export default function HomePage() {
               <DrawerContent>
                 <div className="mx-auto w-full max-w-sm">
                   <DrawerHeader>
-                    <DrawerTitle>Cuisine Filter</DrawerTitle>
+                    <DrawerTitle>Filters</DrawerTitle>
                     <DrawerDescription>
-                      Filter restaurants by cuisine type
+                      Filter restaurants by cuisine and price range
                     </DrawerDescription>
                   </DrawerHeader>
                   <div className="p-4 space-y-4">
@@ -116,26 +133,42 @@ export default function HomePage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Price Range</label>
+                      <Select
+                        value={selectedPriceRange}
+                        onValueChange={setSelectedPriceRange}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select price range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Prices</SelectItem>
+                          {PRICE_RANGES.map((range) => (
+                            <SelectItem key={range.value} value={range.value}>
+                              <div className="flex items-center justify-between w-full">
+                                <span>{range.label}</span>
+                                <span className="text-sm text-muted-foreground">
+                                  {range.description}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <DrawerFooter>
-                    <Button onClick={handleApplyFilters}>Apply Filter</Button>
+                    <Button onClick={handleApplyFilters}>Apply Filters</Button>
                     <DrawerClose asChild>
                       <Button variant="outline" onClick={handleClearFilters}>
-                        Clear Filter
+                        Clear Filters
                       </Button>
                     </DrawerClose>
                   </DrawerFooter>
                 </div>
               </DrawerContent>
             </Drawer>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-3xl mx-auto text-center mb-12">
-          <div className="flex gap-4 items-center justify-center mb-4">
-            <SearchBar onSearch={handleSearch} placeholder="Search by name, cuisine, or location..." />
           </div>
         </div>
 
@@ -154,6 +187,7 @@ export default function HomePage() {
           searchQuery={searchQuery}
           cityFilter={selectedCity === 'all' ? undefined : selectedCity}
           cuisineFilter={selectedCuisine === 'all' ? undefined : selectedCuisine}
+          priceFilter={selectedPriceRange === 'all' ? undefined : selectedPriceRange}
         />
       </main>
 
