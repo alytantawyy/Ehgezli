@@ -28,7 +28,7 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
     queryKey: ['/api/saved-restaurants', restaurant.id, branchIndex],
     queryFn: async () => {
       const response = await fetch(`/api/saved-restaurants/${restaurant.id}/${branchIndex}`, {
-        credentials: 'include'  // Add credentials to ensure cookies are sent
+        credentials: 'include'
       });
       if (!response.ok) return false;
       return response.json();
@@ -37,7 +37,6 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      console.log('Saving restaurant:', { restaurantId: restaurant.id, branchIndex });
       const response = await fetch('/api/saved-restaurants', {
         method: 'POST',
         headers: {
@@ -137,7 +136,6 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
         </div>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground mb-4">{restaurant.description}</p>
         <div className="space-y-2">
           <div className="flex items-center text-sm text-muted-foreground">
             <MapPin className="h-4 w-4 mr-1" />
