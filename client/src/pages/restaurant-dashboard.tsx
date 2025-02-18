@@ -209,7 +209,8 @@ export default function RestaurantDashboard() {
 
   const filteredBookings = bookings?.filter(booking => {
     const bookingDate = new Date(booking.date);
-    if (bookingDate < now) {
+    // Only include future bookings
+    if (isBefore(bookingDate, now)) {
       return false;
     }
 
