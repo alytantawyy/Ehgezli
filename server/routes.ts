@@ -479,63 +479,67 @@ export function registerRoutes(app: Express): Server {
       const userId = req.user.id;
       console.log('Fetching saved restaurants for user:', userId);
 
-      // Get saved restaurants with complete restaurant data and branch information
-      const savedRestaurants = await db
-        .select({
-          id: savedRestaurants.id,
-          restaurantId: savedRestaurants.restaurantId,
-          branchIndex: savedRestaurants.branchIndex,
-          createdAt: savedRestaurants.createdAt,
-          restaurant: {
-            id: restaurantAuth.id,
-            authId: restaurantAuth.id,
-            name: restaurantAuth.name,
-            description: restaurantProfiles.about,
-            about: restaurantProfiles.about,
-            logo: restaurantProfiles.logo,
-            cuisine: restaurantProfiles.cuisine,
-            priceRange: restaurantProfiles.priceRange,
-          }
-        })
+      // First get the saved restaurant records
+      const savedRecords = await db
+        .select()
         .from(savedRestaurants)
-        .innerJoin(restaurantAuth, eq(savedRestaurants.restaurantId, restaurantAuth.id))
-        .innerJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId))
         .where(eq(savedRestaurants.userId, userId));
 
-      // Fetch branches separately for each restaurant
-      const restaurantBranchesMap = new Map();
+      console.log('Found saved records:', savedRecords);
 
-      for (const saved of savedRestaurants) {
-        const branches = await db
-          .select()
-          .from(restaurantBranches)
-          .where(eq(restaurantBranches.restaurantId, saved.restaurant.id));
+      // Then fetch complete restaurant data for each saved record
+      const results = await Promise.all(
+        savedRecords.map(async (saved) => {
+          // Get restaurant auth and profile data
+          const [restaurantData] = await db
+            .select({
+              id: restaurantAuth.id,
+              name: restaurantAuth.name,
+              description: restaurantProfiles.about,
+              about: restaurantProfiles.about,
+              logo: restaurantProfiles.logo,
+              cuisine: restaurantProfiles.cuisine,
+              priceRange: restaurantProfiles.priceRange,
+            })
+            .from(restaurantAuth)
+            .innerJoin(
+              restaurantProfiles,
+              eq(restaurantAuth.id, restaurantProfiles.restaurantId)
+            )
+            .where(eq(restaurantAuth.id, saved.restaurantId));
 
-        restaurantBranchesMap.set(saved.restaurant.id, branches.map(branch => ({
-          id: branch.id,
-          address: branch.address,
-          tablesCount: branch.tablesCount,
-          seatsCount: branch.seatsCount,
-          openingTime: branch.openingTime,
-          closingTime: branch.closingTime,
-          city: branch.city
-        })));
-      }
+          // Get branches data
+          const branches = await db
+            .select()
+            .from(restaurantBranches)
+            .where(eq(restaurantBranches.restaurantId, saved.restaurantId));
 
-      // Map the results to include the correct branch data
-      const mappedResults = savedRestaurants.map(saved => ({
-        id: saved.id,
-        restaurantId: saved.restaurantId,
-        branchIndex: saved.branchIndex,
-        createdAt: saved.createdAt,
-        restaurant: {
-          ...saved.restaurant,
-          locations: restaurantBranchesMap.get(saved.restaurant.id) || []
-        }
-      }));
+          // Map branches to locations format
+          const locations = branches.map(branch => ({
+            id: branch.id,
+            address: branch.address,
+            tablesCount: branch.tablesCount,
+            seatsCount: branch.seatsCount,
+            openingTime: branch.openingTime,
+            closingTime: branch.closingTime,
+            city: branch.city as "Alexandria" | "Cairo"
+          }));
 
-      console.log('Found saved restaurants:', mappedResults);
-      res.json(mappedResults);
+          return {
+            id: saved.id,
+            restaurantId: saved.restaurantId,
+            branchIndex: saved.branchIndex,
+            createdAt: saved.createdAt,
+            restaurant: {
+              ...restaurantData,
+              locations
+            }
+          };
+        })
+      );
+
+      console.log('Mapped saved restaurants results:', results);
+      res.json(results);
     } catch (error) {
       console.error('Error fetching saved restaurants:', error);
       next(error);
