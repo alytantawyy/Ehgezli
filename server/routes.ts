@@ -468,6 +468,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Update the saved restaurants GET endpoint
   app.get("/api/saved-restaurants", async (req, res, next) => {
     try {
       if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
@@ -482,22 +483,13 @@ export function registerRoutes(app: Express): Server {
       const userId = req.user.id;
       console.log('Fetching saved restaurants for user:', userId);
 
-      // Update the select to include all restaurant fields
+      // Get saved restaurants with complete restaurant data
       const saved = await db
         .select({
+          id: savedRestaurants.id,
           restaurantId: savedRestaurants.restaurantId,
           branchIndex: savedRestaurants.branchIndex,
-          restaurant: {
-            id: restaurants.id,
-            authId: restaurants.authId,
-            name: restaurants.name,
-            description: restaurants.description,
-            about: restaurants.about,
-            logo: restaurants.logo,
-            cuisine: restaurants.cuisine,
-            locations: restaurants.locations,
-            priceRange: restaurants.priceRange
-          }
+          restaurant: restaurants
         })
         .from(savedRestaurants)
         .innerJoin(restaurants, eq(savedRestaurants.restaurantId, restaurants.id))

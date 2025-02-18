@@ -7,6 +7,7 @@ import { RestaurantCard } from "@/components/restaurant-card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface SavedRestaurant {
+  id: number;
   restaurantId: number;
   branchIndex: number;
   restaurant: Restaurant;
@@ -17,7 +18,7 @@ export default function SavedRestaurantsPage() {
     queryKey: ["/api/saved-restaurants"],
     queryFn: async () => {
       const response = await fetch("/api/saved-restaurants", {
-        credentials: 'include' // Add this to ensure cookies are sent
+        credentials: 'include'
       });
       if (!response.ok) {
         const error = await response.json();
