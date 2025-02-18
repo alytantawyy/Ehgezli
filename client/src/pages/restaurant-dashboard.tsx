@@ -285,10 +285,10 @@ export default function RestaurantDashboard() {
                     </Button>
                   </div>
                   <Button
-                    variant="destructive"
+                    variant="ghost"
                     onClick={() => logoutMutation.mutate()}
                     disabled={logoutMutation.isPending}
-                    className="w-full justify-start"
+                    className="w-full justify-start text-destructive"
                   >
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
@@ -296,7 +296,7 @@ export default function RestaurantDashboard() {
                 </div>
               </SheetContent>
             </Sheet>
-            <h1 className="text-3xl font-bold text-destructive">Restaurant Dashboard</h1>
+            <h1 className="text-3xl font-bold text-primary">Restaurant Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
@@ -322,9 +322,10 @@ export default function RestaurantDashboard() {
                 </Link>
               </Button>
               <Button
-                variant="destructive"
+                variant="ghost"
                 onClick={() => logoutMutation.mutate()}
                 disabled={logoutMutation.isPending}
+                className="text-destructive"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
