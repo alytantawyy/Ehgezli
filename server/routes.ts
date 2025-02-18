@@ -80,13 +80,15 @@ export function registerRoutes(app: Express): Server {
         return;
       }
 
-      // Clean the session ID (remove 's:' prefix and decode)
+      // Clean the session ID (remove 's:' prefix and signature)
       const cleanSessionId = decodeURIComponent(
-        sessionID.startsWith('s:') ? sessionID.slice(2).split('.')[0] : sessionID
+        sessionID.split('.')[0].replace(/^s:/, '')
       );
 
-      // Verify session
-      storage.sessionStore.get(cleanSessionId, (err, session) => {
+      console.log('Cleaned session ID:', cleanSessionId);
+
+      // Verify session using the storage's session store
+      storage.sessionStore.get(cleanSessionId, async (err, session) => {
         if (err) {
           console.error('Session store error:', err);
           ws.close(1008, 'Session store error');
@@ -153,16 +155,6 @@ export function registerRoutes(app: Express): Server {
       ws.close(1008, 'Connection setup failed');
     }
   });
-
-  // Clean up on server close
-  httpServer.on('close', () => {
-    clearInterval(heartbeatInterval);
-    for (const ws of clients.keys()) {
-      ws.terminate();
-    }
-    clients.clear();
-  });
-
 
   // Get restaurant bookings endpoint
   app.get("/api/restaurant/bookings/:restaurantId", async (req, res) => {

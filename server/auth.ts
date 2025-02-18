@@ -6,6 +6,8 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, RestaurantAuth as SelectRestaurantAuth } from "@shared/schema";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 
 declare global {
   namespace Express {
@@ -33,13 +35,22 @@ async function comparePasswords(supplied: string, stored: string) {
 export function setupAuth(app: Express) {
   app.set("trust proxy", 1);
 
+  // Initialize PostgreSQL session store
+  const pgStore = connectPg(session);
+  const sessionStore = new pgStore({
+    pool,
+    tableName: 'session',
+    createTableIfMissing: true,
+    pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
+  });
+
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID!,
     resave: false,
     saveUninitialized: false,
-    store: storage.sessionStore,
+    store: sessionStore,
     cookie: {
-      secure: false, // Since we're in dev environment
+      secure: false, // Set to false for development
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       sameSite: 'lax',
       path: '/',
@@ -52,7 +63,7 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Add more detailed logging for authentication state
+  // Debug middleware for tracking authentication state
   app.use((req, res, next) => {
     console.log('Request authentication state:', {
       path: req.path,
@@ -60,7 +71,11 @@ export function setupAuth(app: Express) {
       isAuthenticated: req.isAuthenticated(),
       sessionID: req.sessionID,
       userType: req.user?.type,
-      userId: req.user?.id
+      userId: req.user?.id,
+      headers: {
+        cookie: req.headers.cookie,
+        authorization: req.headers.authorization
+      }
     });
     next();
   });
@@ -100,6 +115,34 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // User authentication strategy
+  passport.use('local', new LocalStrategy({
+    usernameField: 'email',
+    passwordField: 'password'
+  }, async (email, password, done) => {
+    try {
+      console.log('Attempting user login:', email);
+      const user = await storage.getUserByEmail(email);
+
+      if (!user) {
+        console.log('User not found:', email);
+        return done(null, false, { message: 'User not found' });
+      }
+
+      const isPasswordValid = await comparePasswords(password, user.password);
+      if (!isPasswordValid) {
+        console.log('Invalid password for user:', email);
+        return done(null, false, { message: 'Invalid password' });
+      }
+
+      console.log('User authenticated successfully:', user.id);
+      return done(null, { ...user, type: 'user' });
+    } catch (err) {
+      console.error('User authentication error:', err);
+      return done(err);
+    }
+  }));
+
   // Restaurant authentication strategy
   passport.use('restaurant-local', new LocalStrategy({
     usernameField: 'email',
@@ -127,6 +170,89 @@ export function setupAuth(app: Express) {
       return done(err);
     }
   }));
+
+  // Unified login endpoint
+  app.post("/api/login", (req, res, next) => {
+    console.log('Login attempt:', {
+      email: req.body.email,
+      sessionID: req.sessionID,
+      headers: req.headers
+    });
+
+    passport.authenticate('local', (err: any, user: any, info: any) => {
+      if (err) {
+        console.error('Authentication error:', err);
+        return res.status(500).json({ message: "Authentication error occurred" });
+      }
+      if (!user) {
+        console.log('Authentication failed:', info?.message);
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      }
+
+      req.login(user, (err) => {
+        if (err) {
+          console.error('Login error:', err);
+          return res.status(500).json({ message: "Login error occurred" });
+        }
+        console.log('User logged in successfully:', {
+          id: user.id,
+          type: user.type,
+          sessionID: req.sessionID
+        });
+        res.status(200).json(user);
+      });
+    })(req, res, next);
+  });
+
+  // Unified logout endpoint
+  app.post("/api/logout", (req, res, next) => {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    console.log('Logout attempt:', { id: userId, type: userType });
+
+    if (!req.isAuthenticated()) {
+      console.log('Logout requested for unauthenticated session');
+      return res.sendStatus(200);
+    }
+
+    req.logout((err) => {
+      if (err) {
+        console.error('Logout error:', err);
+        return res.status(500).json({ message: "Logout failed" });
+      }
+
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Session destruction error:', err);
+          return res.status(500).json({ message: "Session cleanup failed" });
+        }
+        console.log('User logged out successfully:', { id: userId, type: userType });
+        res.sendStatus(200);
+      });
+    });
+  });
+
+  // Current user route
+  app.get("/api/user", (req, res) => {
+    console.log('User data request:', {
+      isAuthenticated: req.isAuthenticated(),
+      userType: req.user?.type,
+      userId: req.user?.id,
+      sessionID: req.sessionID,
+      headers: {
+        cookie: req.headers.cookie,
+        authorization: req.headers.authorization
+      }
+    });
+
+    if (!req.isAuthenticated()) {
+      console.log('User not authenticated');
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    console.log('Sending user data:', req.user);
+    res.json(req.user);
+  });
 
   // Restaurant registration endpoint with improved error handling
   app.post("/api/restaurant/register", async (req, res) => {
@@ -174,36 +300,6 @@ export function setupAuth(app: Express) {
         message: error.message || "Registration failed. Please try again."
       });
     }
-  });
-
-  // Restaurant login endpoint
-  app.post("/api/restaurant/login", (req, res, next) => {
-    console.log('Restaurant login attempt:', req.body.email);
-    passport.authenticate("restaurant-local", (err: any, user: any, info: any) => {
-      if (err) {
-        console.error('Restaurant authentication error:', err);
-        return res.status(500).json({ message: "Authentication error occurred" });
-      }
-      if (!user) {
-        console.log('Restaurant authentication failed:', info?.message);
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-
-      req.login(user, (err) => {
-        if (err) {
-          console.error('Restaurant login error:', err);
-          return res.status(500).json({ message: "Login error occurred" });
-        }
-
-        console.log('Restaurant logged in successfully:', {
-          id: user.id,
-          sessionID: req.sessionID,
-          cookie: req.session.cookie
-        });
-
-        res.status(200).json(user);
-      });
-    })(req, res, next);
   });
 
   // Add user registration endpoint with proper error handling
@@ -261,7 +357,11 @@ export function setupAuth(app: Express) {
       isAuthenticated: req.isAuthenticated(),
       userType: req.user?.type,
       userId: req.user?.id,
-      sessionID: req.sessionID
+      sessionID: req.sessionID,
+      headers: {
+        cookie: req.headers.cookie,
+        authorization: req.headers.authorization
+      }
     });
 
     if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
@@ -273,107 +373,6 @@ export function setupAuth(app: Express) {
       return res.status(401).json({ message: "Not authenticated as restaurant" });
     }
     console.log('Restaurant data accessed:', req.user.id);
-    res.json(req.user);
-  });
-
-  // Improved logout endpoint with enhanced session cleanup
-  app.post("/api/logout", (req, res, next) => {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
-    console.log('Logout attempt:', { id: userId, type: userType });
-
-    if (!req.isAuthenticated()) {
-      console.log('Logout requested for unauthenticated session');
-      return res.sendStatus(200);
-    }
-
-    req.logout((err) => {
-      if (err) {
-        console.error('Logout error:', err);
-        return res.status(500).json({ message: "Logout failed" });
-      }
-
-      // Destroy the session completely
-      req.session.destroy((err) => {
-        if (err) {
-          console.error('Session destruction error:', err);
-          return res.status(500).json({ message: "Session cleanup failed" });
-        }
-        console.log('User logged out successfully:', { id: userId, type: userType });
-        res.sendStatus(200);
-      });
-    });
-  });
-  // User authentication strategy
-  passport.use('local', new LocalStrategy({
-    usernameField: 'email',
-    passwordField: 'password'
-  }, async (email, password, done) => {
-    try {
-      console.log('Attempting user login:', email);
-      const user = await storage.getUserByEmail(email);
-
-      if (!user) {
-        console.log('User not found:', email);
-        return done(null, false, { message: 'User not found' });
-      }
-
-      const isPasswordValid = await comparePasswords(password, user.password);
-      if (!isPasswordValid) {
-        console.log('Invalid password for user:', email);
-        return done(null, false, { message: 'Invalid password' });
-      }
-
-      console.log('User authenticated successfully:', user.id);
-      return done(null, { ...user, type: 'user' });
-    } catch (err) {
-      console.error('User authentication error:', err);
-      return done(err);
-    }
-  }));
-
-  // User login endpoint
-  app.post("/api/login", (req, res, next) => {
-    console.log('User login attempt:', req.body.email);
-    passport.authenticate("local", (err: any, user: any, info: any) => {
-      if (err) {
-        console.error('User authentication error:', err);
-        return res.status(500).json({ message: "Authentication error occurred" });
-      }
-      if (!user) {
-        console.log('User authentication failed:', info?.message);
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-      req.login(user, (err) => {
-        if (err) {
-          console.error('User login error:', err);
-          return res.status(500).json({ message: "Login error occurred" });
-        }
-        console.log('User logged in successfully:', user.id);
-        res.status(200).json(user);
-      });
-    })(req, res, next);
-  });
-
-
-  // Current user route
-  app.get("/api/user", (req, res) => {
-    console.log('User data request:', {
-      isAuthenticated: req.isAuthenticated(),
-      userType: req.user?.type,
-      userId: req.user?.id,
-      sessionID: req.sessionID
-    });
-
-    if (!req.isAuthenticated() || req.user?.type !== 'user') {
-      console.log('Unauthorized user access:', {
-        isAuthenticated: req.isAuthenticated(),
-        userType: req.user?.type,
-        sessionID: req.sessionID
-      });
-      return res.status(401).json({ message: "Not authenticated as user" });
-    }
-    console.log('User data accessed:', req.user.id);
     res.json(req.user);
   });
 
