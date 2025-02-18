@@ -285,7 +285,7 @@ export default function RestaurantDashboard() {
                     </Button>
                   </div>
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     onClick={() => logoutMutation.mutate()}
                     disabled={logoutMutation.isPending}
                     className="w-full justify-start"
@@ -296,7 +296,7 @@ export default function RestaurantDashboard() {
                 </div>
               </SheetContent>
             </Sheet>
-            <h1 className="text-3xl font-bold">Restaurant Dashboard</h1>
+            <h1 className="text-3xl font-bold text-destructive">Restaurant Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
@@ -322,7 +322,7 @@ export default function RestaurantDashboard() {
                 </Link>
               </Button>
               <Button
-                variant="outline"
+                variant="destructive"
                 onClick={() => logoutMutation.mutate()}
                 disabled={logoutMutation.isPending}
               >
