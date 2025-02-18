@@ -37,10 +37,10 @@ const CUISINES = [
 ];
 
 const PRICE_RANGES = [
-  { value: "low", label: "$", description: "Under $15" },
-  { value: "medium", label: "$$", description: "$15-$30" },
-  { value: "high", label: "$$$", description: "$31-$60" },
-  { value: "luxury", label: "$$$$", description: "Above $60" }
+  { value: "low", label: "$" },
+  { value: "medium", label: "$$" },
+  { value: "high", label: "$$$" },
+  { value: "luxury", label: "$$$$" }
 ];
 
 export default function HomePage() {
@@ -146,12 +146,7 @@ export default function HomePage() {
                           <SelectItem value="all">All Prices</SelectItem>
                           {PRICE_RANGES.map((range) => (
                             <SelectItem key={range.value} value={range.value}>
-                              <div className="flex items-center justify-between w-full">
-                                <span>{range.label}</span>
-                                <span className="text-sm text-muted-foreground">
-                                  {range.description}
-                                </span>
-                              </div>
+                              {range.label}
                             </SelectItem>
                           ))}
                         </SelectContent>

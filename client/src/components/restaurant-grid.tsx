@@ -7,16 +7,18 @@ interface RestaurantGridProps {
   searchQuery?: string;
   cityFilter?: string;
   cuisineFilter?: string;
+  priceFilter?: string;
 }
 
-export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter }: RestaurantGridProps) {
+export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter, priceFilter }: RestaurantGridProps) {
   const { data: restaurants, isLoading } = useQuery<Restaurant[]>({
-    queryKey: ["/api/restaurants", searchQuery, cityFilter, cuisineFilter],
+    queryKey: ["/api/restaurants", searchQuery, cityFilter, cuisineFilter, priceFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchQuery) params.append("q", searchQuery);
       if (cityFilter && cityFilter !== 'all') params.append("city", cityFilter);
       if (cuisineFilter && cuisineFilter !== 'all') params.append("cuisine", cuisineFilter);
+      if (priceFilter && priceFilter !== 'all') params.append("priceRange", priceFilter);
 
       const url = `/api/restaurants${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await fetch(url);
@@ -72,6 +74,13 @@ export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter }: Resta
       }
     }
 
+    // Apply price range filter
+    if (priceFilter && priceFilter !== 'all') {
+      if (branch.restaurant.priceRange !== priceFilter) {
+        return false;
+      }
+    }
+
     return true;
   }) || [];
 
@@ -83,6 +92,7 @@ export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter }: Resta
           {searchQuery ? " matching your search" : ""}
           {cityFilter && cityFilter !== 'all' ? ` in ${cityFilter}` : ""}
           {cuisineFilter && cuisineFilter !== 'all' ? ` serving ${cuisineFilter} cuisine` : ""}
+          {priceFilter && priceFilter !== 'all' ? ` in ${priceFilter} price range` : ""}
         </p>
       </div>
     );
