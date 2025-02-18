@@ -185,7 +185,7 @@ export default function RestaurantDashboard() {
 
   useEffect(() => {
     if (selectedBranchId === "all") {
-      setTimeSlots([]); 
+      setTimeSlots([]);
       return;
     }
 
@@ -317,208 +317,213 @@ export default function RestaurantDashboard() {
           </div>
         </div>
 
-        <div className="flex justify-end gap-4 mb-4">
-          <AddReservationModal
-            branches={branches || []}
-            selectedBranchId={selectedBranchId === "all" ? undefined : parseInt(selectedBranchId)}
-          />
-          <Select
-            value={selectedBranchId}
-            onValueChange={setSelectedBranchId}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select Branch" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Branches</SelectItem>
-              {restaurant?.locations?.map((location) => (
-                <SelectItem key={location.id} value={location.id.toString()}>
-                  {location.address}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-6">
+          <div className="flex justify-end">
+            <AddReservationModal
+              branches={branches || []}
+              selectedBranchId={selectedBranchId === "all" ? undefined : parseInt(selectedBranchId)}
+            />
+          </div>
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-[200px] justify-start text-left font-normal">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-
-          <Select
-            value={selectedTime}
-            onValueChange={setSelectedTime}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select Time">
-                <div className="flex items-center">
-                  <Clock className="mr-2 h-4 w-4" />
-                  {selectedTime === "all" ? "Select Time" : selectedTime}
-                </div>
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Times</SelectItem>
-              {selectedBranchId === "all" ? (
-                <SelectItem value="select-branch" disabled>
-                  Select a branch first
-                </SelectItem>
-              ) : timeSlots.length > 0 ? (
-                timeSlots.map((time) => (
-                  <SelectItem key={time} value={time}>
-                    {time}
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="no-slots" disabled>
-                  No available time slots
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-
-          {(selectedDate || selectedTime !== "all") && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setSelectedDate(undefined);
-                setSelectedTime("all");
-              }}
-              className="px-3"
+          <div className="flex flex-wrap gap-4">
+            <Select
+              value={selectedBranchId}
+              onValueChange={setSelectedBranchId}
             >
-              Clear filters
-            </Button>
-          )}
-        </div>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Select Branch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Branches</SelectItem>
+                {restaurant?.locations?.map((location) => (
+                  <SelectItem key={location.id} value={location.id.toString()}>
+                    {location.address}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Bookings</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {selectedBranchId === "all" && !selectedDate && selectedTime === "all" && "Total bookings"}
-                {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
-                {selectedDate && selectedBranchId === "all" && selectedTime === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
-                {selectedDate && selectedBranchId !== "all" && selectedTime === "all" &&
-                  `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")}`}
-                {selectedTime !== "all" && `Bookings at ${selectedTime}${selectedDate ? ` on ${format(selectedDate, "MMMM d, yyyy")}` : ''}`}
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">
-                {filteredBookings.length}
-              </div>
-            </CardContent>
-          </Card>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-[200px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Total Seats</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {selectedBranchId === "all" ? "Across all branches" : `At ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">
-                {getTotalSeats()}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Available Seats</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {selectedBranchId === "all" || !selectedDate || selectedTime === "all"
-                  ? "Select branch, date, and time to view availability"
-                  : `At ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">
-                {isAvailableSeatsLoading ? (
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                ) : availableSeats ? (
-                  availableSeats.availableSeats
+            <Select
+              value={selectedTime}
+              onValueChange={setSelectedTime}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Select Time">
+                  <div className="flex items-center">
+                    <Clock className="mr-2 h-4 w-4" />
+                    {selectedTime === "all" ? "Select Time" : selectedTime}
+                  </div>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Times</SelectItem>
+                {selectedBranchId === "all" ? (
+                  <SelectItem value="select-branch" disabled>
+                    Select a branch first
+                  </SelectItem>
+                ) : timeSlots.length > 0 ? (
+                  timeSlots.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))
                 ) : (
-                  "—"
+                  <SelectItem value="no-slots" disabled>
+                    No available time slots
+                  </SelectItem>
                 )}
-              </div>
-              {availableSeats && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  {availableSeats.existingBookings} current {availableSeats.existingBookings === 1 ? 'booking' : 'bookings'} in this time slot
+              </SelectContent>
+            </Select>
+
+            {(selectedDate || selectedTime !== "all") && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setSelectedDate(undefined);
+                  setSelectedTime("all");
+                }}
+                className="px-3"
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>Bookings</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {selectedBranchId === "all" && !selectedDate && selectedTime === "all" && "Total bookings"}
+                  {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
+                  {selectedDate && selectedBranchId === "all" && selectedTime === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
+                  {selectedDate && selectedBranchId !== "all" && selectedTime === "all" &&
+                    `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")}`}
+                  {selectedTime !== "all" && `Bookings at ${selectedTime}${selectedDate ? ` on ${format(selectedDate, "MMMM d, yyyy")}` : ''}`}
                 </p>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {filteredBookings.length}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Total Seats</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {selectedBranchId === "all" ? "Across all branches" : `At ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {getTotalSeats()}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Seats</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {selectedBranchId === "all" || !selectedDate || selectedTime === "all"
+                    ? "Select branch, date, and time to view availability"
+                    : `At ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {isAvailableSeatsLoading ? (
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  ) : availableSeats ? (
+                    availableSeats.availableSeats
+                  ) : (
+                    "—"
+                  )}
+                </div>
+                {availableSeats && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {availableSeats.existingBookings} current {availableSeats.existingBookings === 1 ? 'booking' : 'bookings'} in this time slot
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle>Latest Bookings</CardTitle>
+              {selectedDate && (
+                <span className="text-sm text-muted-foreground">
+                  Showing bookings for {format(selectedDate, "MMMM d, yyyy")}
+                </span>
+              )}
+            </CardHeader>
+            <CardContent>
+              {upcomingBookings && upcomingBookings.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingBookings.map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div>
+                        <div className="font-medium">
+                          {booking.user ?
+                            `${booking.user.firstName} ${booking.user.lastName}` :
+                            `Guest Booking #${booking.id}`
+                          }
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {format(new Date(booking.date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
+                        </div>
+                        <div className="text-sm">
+                          Party size: {booking.partySize}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Branch: {booking.branch.address}, {booking.branch.city}
+                        </div>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to cancel this booking?')) {
+                            cancelBookingMutation.mutate(booking.id);
+                          }
+                        }}
+                        disabled={!booking.confirmed || cancelBookingMutation.isPending}
+                      >
+                        {booking.confirmed ? "Cancel Booking" : "Cancelled"}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  {selectedDate ? "No bookings for this date" : "No upcoming bookings"}
+                </div>
               )}
             </CardContent>
           </Card>
         </div>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle>Latest Bookings</CardTitle>
-            {selectedDate && (
-              <span className="text-sm text-muted-foreground">
-                Showing bookings for {format(selectedDate, "MMMM d, yyyy")}
-              </span>
-            )}
-          </CardHeader>
-          <CardContent>
-            {upcomingBookings && upcomingBookings.length > 0 ? (
-              <div className="space-y-4">
-                {upcomingBookings.map((booking) => (
-                  <div
-                    key={booking.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div>
-                      <div className="font-medium">
-                        {booking.user ?
-                          `${booking.user.firstName} ${booking.user.lastName}` :
-                          `Guest Booking #${booking.id}`
-                        }
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {format(new Date(booking.date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-                      </div>
-                      <div className="text-sm">
-                        Party size: {booking.partySize}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Branch: {booking.branch.address}, {booking.branch.city}
-                      </div>
-                    </div>
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        if (window.confirm('Are you sure you want to cancel this booking?')) {
-                          cancelBookingMutation.mutate(booking.id);
-                        }
-                      }}
-                      disabled={!booking.confirmed || cancelBookingMutation.isPending}
-                    >
-                      {booking.confirmed ? "Cancel Booking" : "Cancelled"}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                {selectedDate ? "No bookings for this date" : "No upcoming bookings"}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
