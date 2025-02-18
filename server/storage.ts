@@ -309,9 +309,10 @@ export class DatabaseStorage implements IStorage {
             eq(restaurantBranches.restaurantId, restaurantId)
           )
         )
-        .leftJoin(users, eq(bookings.userId, users.id));
+        .leftJoin(users, eq(bookings.userId, users.id))
+        .where(eq(bookings.confirmed, true)); // Only get confirmed bookings
 
-      console.log(`Found ${bookingsWithDetails.length} bookings with details for restaurant ${restaurantId}:`, bookingsWithDetails);
+      console.log(`Found ${bookingsWithDetails.length} confirmed bookings for restaurant ${restaurantId}:`, bookingsWithDetails);
       return bookingsWithDetails;
     } catch (error) {
       console.error('Error fetching restaurant bookings:', error);

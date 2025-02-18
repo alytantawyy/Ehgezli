@@ -292,11 +292,11 @@ export function registerRoutes(app: Express): Server {
         .where(eq(bookings.id, bookingId));
 
       // Notify connected clients about the cancelled booking
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
+      clients.forEach((client, ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
             type: 'booking_cancelled',
-            data: { bookingId }
+            data: { bookingId, restaurantId }
           }));
         }
       });
