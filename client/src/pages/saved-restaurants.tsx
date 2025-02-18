@@ -16,10 +16,15 @@ export default function SavedRestaurantsPage() {
   const { data: savedRestaurants, isLoading } = useQuery<SavedRestaurant[]>({
     queryKey: ["/api/saved-restaurants"],
     queryFn: async () => {
-      const response = await fetch("/api/saved-restaurants");
-      if (!response.ok) throw new Error("Failed to fetch saved restaurants");
+      const response = await fetch("/api/saved-restaurants", {
+        credentials: 'include' // Add this to ensure cookies are sent
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to fetch saved restaurants");
+      }
       return response.json();
-    },
+    }
   });
 
   if (isLoading) {

@@ -427,17 +427,27 @@ export function registerRoutes(app: Express): Server {
   });
 
 
-  // Add these endpoints before the error handling middleware
-
   // Add saved restaurants endpoints
   app.post("/api/saved-restaurants", async (req, res, next) => {
     try {
       if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
+        console.log('Authentication failed:', {
+          isAuthenticated: req.isAuthenticated(),
+          userType: req.user?.type,
+          userId: req.user?.id
+        });
         return res.status(401).json({ message: "Not authenticated as user" });
       }
 
       const { restaurantId, branchIndex } = req.body;
+      console.log('Saving restaurant:', {
+        userId: req.user.id,
+        restaurantId,
+        branchIndex
+      });
+
       if (typeof restaurantId !== 'number' || typeof branchIndex !== 'number') {
+        console.log('Invalid request body:', req.body);
         return res.status(400).json({ message: "Invalid request body" });
       }
 
@@ -450,8 +460,10 @@ export function registerRoutes(app: Express): Server {
         })
         .returning();
 
+      console.log('Restaurant saved successfully:', saved);
       res.status(201).json(saved);
     } catch (error) {
+      console.error('Error saving restaurant:', error);
       next(error);
     }
   });
@@ -459,22 +471,42 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/saved-restaurants", async (req, res, next) => {
     try {
       if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
+        console.log('Authentication failed for get saved restaurants:', {
+          isAuthenticated: req.isAuthenticated(),
+          userType: req.user?.type,
+          userId: req.user?.id
+        });
         return res.status(401).json({ message: "Not authenticated as user" });
       }
 
       const userId = req.user.id;
+      console.log('Fetching saved restaurants for user:', userId);
+
+      // Update the select to include all restaurant fields
       const saved = await db
         .select({
           restaurantId: savedRestaurants.restaurantId,
           branchIndex: savedRestaurants.branchIndex,
-          restaurant: restaurants
+          restaurant: {
+            id: restaurants.id,
+            authId: restaurants.authId,
+            name: restaurants.name,
+            description: restaurants.description,
+            about: restaurants.about,
+            logo: restaurants.logo,
+            cuisine: restaurants.cuisine,
+            locations: restaurants.locations,
+            priceRange: restaurants.priceRange
+          }
         })
         .from(savedRestaurants)
         .innerJoin(restaurants, eq(savedRestaurants.restaurantId, restaurants.id))
         .where(eq(savedRestaurants.userId, userId));
 
+      console.log('Found saved restaurants:', saved);
       res.json(saved);
     } catch (error) {
+      console.error('Error fetching saved restaurants:', error);
       next(error);
     }
   });

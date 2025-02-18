@@ -35,14 +35,19 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      console.log('Saving restaurant:', { restaurantId: restaurant.id, branchIndex });
       const response = await fetch('/api/saved-restaurants', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ restaurantId: restaurant.id, branchIndex }),
+        credentials: 'include' // Add this to ensure cookies are sent
       });
-      if (!response.ok) throw new Error('Failed to save restaurant');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to save restaurant');
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -52,10 +57,11 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
         description: "This restaurant has been added to your saved list.",
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
+      console.error('Save mutation error:', error);
       toast({
         title: "Error",
-        description: "Failed to save restaurant. Please try again.",
+        description: error.message || "Failed to save restaurant. Please try again.",
         variant: "destructive",
       });
     },
@@ -65,6 +71,7 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
     mutationFn: async () => {
       const response = await fetch(`/api/saved-restaurants/${restaurant.id}/${branchIndex}`, {
         method: 'DELETE',
+        credentials: 'include' // Add this to ensure cookies are sent
       });
       if (!response.ok) throw new Error('Failed to unsave restaurant');
     },
@@ -75,7 +82,8 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
         description: "This restaurant has been removed from your saved list.",
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
+      console.error('Unsave mutation error:', error);
       toast({
         title: "Error",
         description: "Failed to remove restaurant. Please try again.",
