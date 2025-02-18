@@ -42,7 +42,7 @@ export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter, priceFi
   }
 
   // Create an array of all branches and filter by city if needed
-  const branches = restaurants?.flatMap((restaurant) => 
+  const branches = restaurants?.flatMap((restaurant) =>
     restaurant.locations.map((location, index) => ({
       restaurant,
       branchIndex: index,
@@ -74,7 +74,7 @@ export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter, priceFi
       }
     }
 
-    // Apply price range filter
+    // Apply price range filter - exact match with the symbol
     if (priceFilter && priceFilter !== 'all') {
       if (branch.restaurant.priceRange !== priceFilter) {
         return false;
@@ -101,7 +101,7 @@ export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter, priceFi
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {branches.map(({ restaurant, branchIndex }) => (
-        <RestaurantCard 
+        <RestaurantCard
           key={`${restaurant.id}-${branchIndex}`}
           restaurant={restaurant}
           branchIndex={branchIndex}

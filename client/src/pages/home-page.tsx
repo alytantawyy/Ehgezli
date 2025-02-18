@@ -37,10 +37,10 @@ const CUISINES = [
 ];
 
 const PRICE_RANGES = [
-  { value: "low", label: "$" },
-  { value: "medium", label: "$$" },
-  { value: "high", label: "$$$" },
-  { value: "luxury", label: "$$$$" }
+  { value: "$", label: "$" },
+  { value: "$$", label: "$$" },
+  { value: "$$$", label: "$$$" },
+  { value: "$$$$", label: "$$$$" }
 ];
 
 export default function HomePage() {
