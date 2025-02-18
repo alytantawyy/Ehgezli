@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
+import { Menu, BookmarkIcon } from "lucide-react";
 import {
   Drawer,
   DrawerClose,
@@ -32,6 +32,12 @@ export function UserNav() {
             <div className="space-y-2">
               <Button asChild variant="ghost" className="w-full justify-start">
                 <Link href="/">Home</Link>
+              </Button>
+              <Button asChild variant="ghost" className="w-full justify-start">
+                <Link href="/saved-restaurants">
+                  <BookmarkIcon className="mr-2 h-4 w-4" />
+                  Saved Restaurants
+                </Link>
               </Button>
               <Button asChild variant="ghost" className="w-full justify-start">
                 <Link href="/bookings">My Bookings</Link>

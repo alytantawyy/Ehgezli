@@ -6,7 +6,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { and, eq } from "drizzle-orm";
-import { bookings, restaurantBranches, users } from "@shared/schema";
+import { bookings, restaurantBranches, users, savedRestaurants, restaurants } from "@shared/schema";
 import { parse as parseCookie } from 'cookie';
 
 // Define WebSocket message types
@@ -358,8 +358,8 @@ export function registerRoutes(app: Express): Server {
       // Check availability before creating booking
       const isAvailable = await storage.isTimeSlotAvailable(branchId, new Date(date), partySize);
       if (!isAvailable) {
-        return res.status(400).json({ 
-          message: "Selected time slot is not available for the requested party size" 
+        return res.status(400).json({
+          message: "Selected time slot is not available for the requested party size"
         });
       }
 
@@ -384,8 +384,8 @@ export function registerRoutes(app: Express): Server {
       return res.status(201).json(booking);
     } catch (error) {
       console.error('Error creating booking:', error);
-      return res.status(500).json({ 
-        message: error instanceof Error ? error.message : "Failed to create booking" 
+      return res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to create booking"
       });
     }
   });
@@ -426,6 +426,100 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+
+  // Add these endpoints before the error handling middleware
+
+  // Add saved restaurants endpoints
+  app.post("/api/saved-restaurants", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+        return res.status(401).json({ message: "Not authenticated as user" });
+      }
+
+      const { restaurantId, branchIndex } = req.body;
+      if (typeof restaurantId !== 'number' || typeof branchIndex !== 'number') {
+        return res.status(400).json({ message: "Invalid request body" });
+      }
+
+      await db.insert(savedRestaurants).values({
+        userId: req.user.id,
+        restaurantId: restaurantId,
+        branchIndex: branchIndex,
+        createdAt: new Date()
+      });
+
+      res.status(201).json({ message: "Restaurant saved successfully" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/saved-restaurants", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+        return res.status(401).json({ message: "Not authenticated as user" });
+      }
+
+      const saved = await db
+        .select({
+          restaurantId: savedRestaurants.restaurantId,
+          branchIndex: savedRestaurants.branchIndex,
+          restaurant: restaurants,
+        })
+        .from(savedRestaurants)
+        .innerJoin(restaurants, eq(savedRestaurants.restaurantId, restaurants.id))
+        .where(eq(savedRestaurants.userId, req.user.id));
+
+      res.json(saved);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/saved-restaurants/:restaurantId/:branchIndex", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+        return res.status(401).json({ message: "Not authenticated as user" });
+      }
+
+      const [saved] = await db
+        .select()
+        .from(savedRestaurants)
+        .where(
+          and(
+            eq(savedRestaurants.userId, req.user.id),
+            eq(savedRestaurants.restaurantId, parseInt(req.params.restaurantId)),
+            eq(savedRestaurants.branchIndex, parseInt(req.params.branchIndex))
+          )
+        );
+
+      res.json(Boolean(saved));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/saved-restaurants/:restaurantId/:branchIndex", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+        return res.status(401).json({ message: "Not authenticated as user" });
+      }
+
+      await db
+        .delete(savedRestaurants)
+        .where(
+          and(
+            eq(savedRestaurants.userId, req.user.id),
+            eq(savedRestaurants.restaurantId, parseInt(req.params.restaurantId)),
+            eq(savedRestaurants.branchIndex, parseInt(req.params.branchIndex))
+          )
+        );
+
+      res.status(200).json({ message: "Restaurant removed from saved list" });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   // Error handling middleware should be last
   app.use((err: any, req: any, res: any, next: any) => {

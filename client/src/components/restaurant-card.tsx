@@ -8,7 +8,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Restaurant } from "@shared/schema";
 import { Link } from "wouter";
-import { MapPin } from "lucide-react";
+import { MapPin, Bookmark } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface RestaurantBranchCardProps {
   restaurant: Restaurant;
@@ -17,7 +20,77 @@ interface RestaurantBranchCardProps {
 
 export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCardProps) {
   const branch = restaurant.locations?.[branchIndex];
+  const { toast } = useToast();
+
   if (!branch) return null;
+
+  const { data: savedStatus } = useQuery({
+    queryKey: ['/api/saved-restaurants', restaurant.id, branchIndex],
+    queryFn: async () => {
+      const response = await fetch(`/api/saved-restaurants/${restaurant.id}/${branchIndex}`);
+      if (!response.ok) return false;
+      return response.json();
+    }
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/saved-restaurants', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ restaurantId: restaurant.id, branchIndex }),
+      });
+      if (!response.ok) throw new Error('Failed to save restaurant');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/saved-restaurants'] });
+      toast({
+        title: "Restaurant Saved",
+        description: "This restaurant has been added to your saved list.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to save restaurant. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const unsaveMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/saved-restaurants/${restaurant.id}/${branchIndex}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to unsave restaurant');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/saved-restaurants'] });
+      toast({
+        title: "Restaurant Removed",
+        description: "This restaurant has been removed from your saved list.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to remove restaurant. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveToggle = () => {
+    if (savedStatus) {
+      unsaveMutation.mutate();
+    } else {
+      saveMutation.mutate();
+    }
+  };
 
   return (
     <Card className="overflow-hidden">
@@ -35,6 +108,15 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>{restaurant.name}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleSaveToggle}
+            disabled={saveMutation.isPending || unsaveMutation.isPending}
+            className={savedStatus ? "text-primary" : ""}
+          >
+            <Bookmark className="h-5 w-5" fill={savedStatus ? "currentColor" : "none"} />
+          </Button>
         </CardTitle>
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">{restaurant.cuisine} Cuisine</p>

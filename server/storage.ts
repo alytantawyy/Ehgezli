@@ -83,7 +83,6 @@ export class DatabaseStorage implements IStorage {
       if (!restaurant_auth || !restaurant_profiles) continue;
 
       if (!restaurantMap.has(restaurant_auth.id)) {
-        console.log("Creating restaurant entry:", restaurant_auth.id); 
         restaurantMap.set(restaurant_auth.id, {
           id: restaurant_auth.id,
           authId: restaurant_auth.id,
@@ -100,7 +99,6 @@ export class DatabaseStorage implements IStorage {
       const restaurant = restaurantMap.get(restaurant_auth.id)!;
 
       if (restaurant_branches) {
-        console.log("Adding branch for restaurant:", restaurant_auth.id, restaurant_branches); 
         restaurant.locations.push({
           id: restaurant_branches.id,
           address: restaurant_branches.address,

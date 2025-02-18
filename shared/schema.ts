@@ -111,6 +111,26 @@ export const bookingRelations = relations(bookings, ({ one }) => ({
   }),
 }));
 
+export const savedRestaurants = pgTable("saved_restaurants", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  restaurantId: integer("restaurant_id").notNull(),
+  branchIndex: integer("branch_index").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Add relations for saved restaurants
+export const savedRestaurantsRelations = relations(savedRestaurants, ({ one }) => ({
+  user: one(users, {
+    fields: [savedRestaurants.userId],
+    references: [users.id],
+  }),
+  restaurant: one(restaurants, {
+    fields: [savedRestaurants.restaurantId],
+    references: [restaurants.id],
+  }),
+}));
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
 }).extend({

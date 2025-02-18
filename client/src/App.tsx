@@ -11,6 +11,7 @@ import RestaurantPage from "@/pages/restaurant-page";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
 import RestaurantProfileSetup from "@/pages/restaurant-profile-setup";
 import UserBookings from "@/pages/user-bookings";
+import SavedRestaurants from "@/pages/saved-restaurants";
 import { ProtectedRoute } from "./lib/protected-route";
 import { ProtectedRestaurantRoute } from "./lib/protected-restaurant-route";
 
@@ -34,6 +35,7 @@ function Router() {
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/restaurant/:id" component={RestaurantPage} />
       <ProtectedRoute path="/bookings" component={UserBookings} />
+      <ProtectedRoute path="/saved-restaurants" component={SavedRestaurants} />
       <Route component={NotFound} />
     </Switch>
   );
