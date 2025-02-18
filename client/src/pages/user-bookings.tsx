@@ -41,12 +41,49 @@ export default function UserBookings() {
     );
   }
 
-  // Sort bookings by date (chronologically)
-  const sortedBookings = bookings?.slice().sort((a, b) => {
-    const dateA = new Date(a.date);
-    const dateB = new Date(b.date);
-    return dateA.getTime() - dateB.getTime();
-  });
+  const now = new Date();
+
+  // Separate and sort bookings
+  const upcomingBookings = bookings
+    ?.filter(booking => new Date(booking.date) > now)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
+
+  const previousBookings = bookings
+    ?.filter(booking => new Date(booking.date) <= now)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) || [];
+
+  const BookingTable = ({ bookings }: { bookings: BookingWithRestaurant[] }) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Restaurant</TableHead>
+          <TableHead>Date</TableHead>
+          <TableHead>Time</TableHead>
+          <TableHead>Party Size</TableHead>
+          <TableHead>Status</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {bookings.map((booking) => (
+          <TableRow key={booking.id}>
+            <TableCell>{booking.restaurantName}</TableCell>
+            <TableCell>{format(new Date(booking.date), "PPP")}</TableCell>
+            <TableCell>{format(new Date(booking.date), "p")}</TableCell>
+            <TableCell>{booking.partySize}</TableCell>
+            <TableCell>
+              <span className={`px-2 py-1 rounded-full text-sm ${
+                booking.confirmed 
+                  ? "bg-green-100 text-green-800" 
+                  : "bg-yellow-100 text-yellow-800"
+              }`}>
+                {booking.confirmed ? "Confirmed" : "Pending"}
+              </span>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
 
   return (
     <div className="container mx-auto py-8">
@@ -58,42 +95,30 @@ export default function UserBookings() {
       </Button>
 
       <h1 className="text-2xl font-bold mb-6">My Bookings</h1>
-      {sortedBookings && sortedBookings.length > 0 ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Restaurant</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Time</TableHead>
-              <TableHead>Party Size</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sortedBookings.map((booking) => (
-              <TableRow key={booking.id}>
-                <TableCell>{booking.restaurantName}</TableCell>
-                <TableCell>{format(new Date(booking.date), "PPP")}</TableCell>
-                <TableCell>{format(new Date(booking.date), "p")}</TableCell>
-                <TableCell>{booking.partySize}</TableCell>
-                <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-sm ${
-                    booking.confirmed 
-                      ? "bg-green-100 text-green-800" 
-                      : "bg-yellow-100 text-yellow-800"
-                  }`}>
-                    {booking.confirmed ? "Confirmed" : "Pending"}
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <div className="text-center py-8">
-          <p className="text-lg text-muted-foreground">No bookings found</p>
-        </div>
-      )}
+
+      <div className="space-y-8">
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Upcoming Bookings</h2>
+          {upcomingBookings.length > 0 ? (
+            <BookingTable bookings={upcomingBookings} />
+          ) : (
+            <div className="text-center py-8 bg-gray-50 rounded-lg">
+              <p className="text-lg text-muted-foreground">No upcoming bookings</p>
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Previous Bookings</h2>
+          {previousBookings.length > 0 ? (
+            <BookingTable bookings={previousBookings} />
+          ) : (
+            <div className="text-center py-8 bg-gray-50 rounded-lg">
+              <p className="text-lg text-muted-foreground">No previous bookings</p>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
