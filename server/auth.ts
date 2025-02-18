@@ -35,13 +35,23 @@ async function comparePasswords(supplied: string, stored: string) {
 export function setupAuth(app: Express) {
   app.set("trust proxy", 1);
 
-  // Initialize PostgreSQL session store
+  // Initialize PostgreSQL session store with debug logs
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     pool,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
+    pruneSessionInterval: 60 * 15,
+    errorLog: (err) => console.error('Session store error:', err)
+  });
+
+  // Verify session store is working
+  sessionStore.on('connect', () => {
+    console.log('Session store connected successfully');
+  });
+
+  sessionStore.on('disconnect', () => {
+    console.error('Session store disconnected');
   });
 
   const sessionSettings: session.SessionOptions = {
@@ -50,8 +60,8 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     store: sessionStore,
     cookie: {
-      secure: false, // Set to false for development
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000,
       sameSite: 'lax',
       path: '/',
       httpOnly: true
@@ -65,7 +75,7 @@ export function setupAuth(app: Express) {
 
   // Debug middleware for tracking authentication state
   app.use((req, res, next) => {
-    console.log('Request authentication state:', {
+    console.log('Auth Debug -', {
       path: req.path,
       method: req.method,
       isAuthenticated: req.isAuthenticated(),
@@ -115,13 +125,13 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // User authentication strategy
+  // User authentication strategy with detailed logging
   passport.use('local', new LocalStrategy({
     usernameField: 'email',
     passwordField: 'password'
   }, async (email, password, done) => {
     try {
-      console.log('Attempting user login:', email);
+      console.log('User auth attempt:', email);
       const user = await storage.getUserByEmail(email);
 
       if (!user) {
@@ -143,13 +153,13 @@ export function setupAuth(app: Express) {
     }
   }));
 
-  // Restaurant authentication strategy
+  // Restaurant authentication strategy with detailed logging
   passport.use('restaurant-local', new LocalStrategy({
     usernameField: 'email',
     passwordField: 'password'
   }, async (email, password, done) => {
     try {
-      console.log('Attempting restaurant login:', email);
+      console.log('Restaurant auth attempt:', email);
       const restaurant = await storage.getRestaurantAuthByEmail(email);
 
       if (!restaurant) {
@@ -171,7 +181,7 @@ export function setupAuth(app: Express) {
     }
   }));
 
-  // Unified login endpoint
+  // Unified login endpoint with better error handling
   app.post("/api/login", (req, res, next) => {
     console.log('Login attempt:', {
       email: req.body.email,
@@ -179,7 +189,7 @@ export function setupAuth(app: Express) {
       headers: req.headers
     });
 
-    passport.authenticate('local', (err: any, user: any, info: any) => {
+    passport.authenticate(['local', 'restaurant-local'], (err: any, user: any, info: any) => {
       if (err) {
         console.error('Authentication error:', err);
         return res.status(500).json({ message: "Authentication error occurred" });
@@ -194,17 +204,27 @@ export function setupAuth(app: Express) {
           console.error('Login error:', err);
           return res.status(500).json({ message: "Login error occurred" });
         }
-        console.log('User logged in successfully:', {
+
+        console.log('Login successful:', {
           id: user.id,
           type: user.type,
           sessionID: req.sessionID
         });
+
+        // Set session cookie explicitly
+        res.cookie('connect.sid', req.sessionID, {
+          maxAge: 24 * 60 * 60 * 1000,
+          httpOnly: true,
+          secure: false,
+          sameSite: 'lax'
+        });
+
         res.status(200).json(user);
       });
     })(req, res, next);
   });
 
-  // Unified logout endpoint
+  // Logout endpoint with session cleanup
   app.post("/api/logout", (req, res, next) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
@@ -226,23 +246,21 @@ export function setupAuth(app: Express) {
           console.error('Session destruction error:', err);
           return res.status(500).json({ message: "Session cleanup failed" });
         }
-        console.log('User logged out successfully:', { id: userId, type: userType });
+        console.log('Logout successful:', { id: userId, type: userType });
+        res.clearCookie('connect.sid');
         res.sendStatus(200);
       });
     });
   });
 
-  // Current user route
+  // User verification endpoint with session checks
   app.get("/api/user", (req, res) => {
-    console.log('User data request:', {
+    console.log('User verification request:', {
       isAuthenticated: req.isAuthenticated(),
       userType: req.user?.type,
       userId: req.user?.id,
       sessionID: req.sessionID,
-      headers: {
-        cookie: req.headers.cookie,
-        authorization: req.headers.authorization
-      }
+      cookie: req.headers.cookie
     });
 
     if (!req.isAuthenticated()) {
@@ -250,7 +268,7 @@ export function setupAuth(app: Express) {
       return res.status(401).json({ message: "Not authenticated" });
     }
 
-    console.log('Sending user data:', req.user);
+    console.log('User verified:', req.user);
     res.json(req.user);
   });
 
