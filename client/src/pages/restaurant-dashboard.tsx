@@ -4,9 +4,9 @@ import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History } from "lucide-react";
-import { format, isSameDay, parseISO } from "date-fns";
+import { format, isBefore, isSameDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Sheet,
   SheetContent,
@@ -71,6 +71,7 @@ const generateTimeSlots = (openingTime: string | undefined, closingTime: string 
   let lastSlotHour = closeHour;
   let lastSlotMinute = closeMinute;
 
+  // Don't allow bookings in the last hour
   lastSlotHour = lastSlotHour - 1;
 
   for (let hour = startHour; hour <= lastSlotHour; hour++) {
@@ -88,18 +89,30 @@ const generateTimeSlots = (openingTime: string | undefined, closingTime: string 
 
 export default function RestaurantDashboard() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { restaurant: auth, logoutMutation } = useRestaurantAuth();
   const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>("all");
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const now = new Date();
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!auth) {
+      setLocation('/auth');
+      return;
+    }
+  }, [auth, setLocation]);
 
   const { data: restaurant, isLoading: isRestaurantLoading } = useQuery<Restaurant>({
     queryKey: ["/api/restaurants", auth?.id],
     queryFn: async () => {
       if (!auth?.id) throw new Error("No restaurant ID");
-      const response = await fetch(`/api/restaurants/${auth.id}`);
+      const response = await fetch(`/api/restaurants/${auth.id}`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to fetch restaurant');
       return response.json();
     },
@@ -110,7 +123,9 @@ export default function RestaurantDashboard() {
     queryKey: ["/api/restaurants", auth?.id, "branches"],
     queryFn: async () => {
       if (!auth?.id) throw new Error("No restaurant ID");
-      const response = await fetch(`/api/restaurants/${auth.id}/branches`);
+      const response = await fetch(`/api/restaurants/${auth.id}/branches`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to fetch branches');
       return response.json();
     },
@@ -121,7 +136,9 @@ export default function RestaurantDashboard() {
     queryKey: ["/api/restaurant/bookings", auth?.id],
     queryFn: async () => {
       if (!auth?.id) throw new Error("No restaurant ID");
-      const response = await fetch(`/api/restaurant/bookings/${auth.id}`);
+      const response = await fetch(`/api/restaurant/bookings/${auth.id}`, {
+        credentials: 'include'
+      });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Failed to fetch bookings');
@@ -135,6 +152,7 @@ export default function RestaurantDashboard() {
     mutationFn: async (bookingId: number) => {
       const response = await fetch(`/api/restaurant/bookings/${bookingId}/cancel`, {
         method: 'POST',
+        credentials: 'include'
       });
       if (!response.ok) {
         const error = await response.json();
@@ -158,31 +176,6 @@ export default function RestaurantDashboard() {
     },
   });
 
-  const { data: availableSeats, isLoading: isAvailableSeatsLoading } = useQuery({
-    queryKey: ["/api/restaurant/available-seats", selectedBranchId, selectedDate, selectedTime],
-    queryFn: async () => {
-      if (selectedBranchId === "all" || !selectedDate || selectedTime === "all") {
-        return null;
-      }
-
-      const branch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
-      if (!branch) return null;
-
-      const [hours, minutes] = selectedTime.split(':').map(Number);
-      const dateTime = new Date(selectedDate);
-      dateTime.setHours(hours, minutes);
-
-      const response = await fetch(`/api/restaurants/availability/${branch.id}?date=${dateTime.toISOString()}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch available seats');
-      }
-      return response.json();
-    },
-    enabled: !!restaurant?.id && selectedBranchId !== "all" && !!selectedDate && selectedTime !== "all",
-  });
-
-  const isLoading = isRestaurantLoading || isBookingsLoading || isBranchesLoading || isAvailableSeatsLoading;
-
   useEffect(() => {
     if (selectedBranchId === "all") {
       setTimeSlots([]);
@@ -197,8 +190,14 @@ export default function RestaurantDashboard() {
         setSelectedTime("all");
       }
     }
-  }, [selectedBranchId, selectedDate, restaurant?.locations]);
+  }, [selectedBranchId, selectedDate, restaurant?.locations, selectedTime]);
 
+  const isLoading = isRestaurantLoading || isBookingsLoading || isBranchesLoading;
+
+  // Early return if not authenticated
+  if (!auth) {
+    return null;
+  }
 
   if (isLoading) {
     return (
@@ -236,7 +235,6 @@ export default function RestaurantDashboard() {
     return true;
   }) || [];
 
-  const now = new Date();
   const upcomingBookings = filteredBookings
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -246,11 +244,6 @@ export default function RestaurantDashboard() {
     }
     const branch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
     return branch?.seatsCount || 0;
-  };
-
-  const getActualBranchId = (address: string) => {
-    const branch = restaurant?.locations?.find(loc => loc.address === address);
-    return branch ? branch.id : undefined;
   };
 
   return (
@@ -440,8 +433,8 @@ export default function RestaurantDashboard() {
               <CardHeader>
                 <CardTitle>Bookings</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {selectedBranchId === "all" && !selectedDate && selectedTime === "all" && "Total bookings"}
-                  {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
+                  {selectedBranchId === "all" && !selectedDate && selectedTime === "all" && "Total upcoming bookings"}
+                  {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Upcoming bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
                   {selectedDate && selectedBranchId === "all" && selectedTime === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
                   {selectedDate && selectedBranchId !== "all" && selectedTime === "all" &&
                     `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")}`}
@@ -480,19 +473,11 @@ export default function RestaurantDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  {isAvailableSeatsLoading ? (
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                  ) : availableSeats ? (
-                    availableSeats.availableSeats
-                  ) : (
-                    "—"
-                  )}
+                  {getTotalSeats() - (filteredBookings.reduce((sum, booking) => sum + booking.partySize, 0))}
                 </div>
-                {availableSeats && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {availableSeats.existingBookings} current {availableSeats.existingBookings === 1 ? 'booking' : 'bookings'} in this time slot
-                  </p>
-                )}
+                <p className="text-sm text-muted-foreground mt-2">
+                  {filteredBookings.length} current {filteredBookings.length === 1 ? 'booking' : 'bookings'} in this time slot
+                </p>
               </CardContent>
             </Card>
           </div>
