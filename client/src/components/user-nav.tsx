@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Menu, BookmarkIcon, HomeIcon, CalendarDaysIcon } from "lucide-react";
+import { Menu, BookmarkIcon, HomeIcon, CalendarDaysIcon, LogOut } from "lucide-react";
 import {
   Drawer,
   DrawerClose,
@@ -57,6 +57,7 @@ export function UserNav() {
               disabled={logoutMutation.isPending}
               className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
             >
+              <LogOut className="mr-2 h-4 w-4" />
               {logoutMutation.isPending ? "Logging out..." : "Logout"}
             </Button>
           </div>
