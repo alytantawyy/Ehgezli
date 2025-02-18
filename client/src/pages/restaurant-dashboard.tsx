@@ -318,14 +318,14 @@ export default function RestaurantDashboard() {
         </div>
 
         <div className="space-y-6">
-          <div className="flex justify-end">
+          <div className="flex">
             <AddReservationModal
               branches={branches || []}
               selectedBranchId={selectedBranchId === "all" ? undefined : parseInt(selectedBranchId)}
             />
           </div>
 
-          <div className="flex flex-wrap gap-4">
+          <div className="flex justify-between items-center">
             <Select
               value={selectedBranchId}
               onValueChange={setSelectedBranchId}
@@ -360,50 +360,52 @@ export default function RestaurantDashboard() {
               </PopoverContent>
             </Popover>
 
-            <Select
-              value={selectedTime}
-              onValueChange={setSelectedTime}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select Time">
-                  <div className="flex items-center">
-                    <Clock className="mr-2 h-4 w-4" />
-                    {selectedTime === "all" ? "Select Time" : selectedTime}
-                  </div>
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Times</SelectItem>
-                {selectedBranchId === "all" ? (
-                  <SelectItem value="select-branch" disabled>
-                    Select a branch first
-                  </SelectItem>
-                ) : timeSlots.length > 0 ? (
-                  timeSlots.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-slots" disabled>
-                    No available time slots
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-
-            {(selectedDate || selectedTime !== "all") && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setSelectedDate(undefined);
-                  setSelectedTime("all");
-                }}
-                className="px-3"
+            <div className="flex items-center gap-4">
+              <Select
+                value={selectedTime}
+                onValueChange={setSelectedTime}
               >
-                Clear filters
-              </Button>
-            )}
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select Time">
+                    <div className="flex items-center">
+                      <Clock className="mr-2 h-4 w-4" />
+                      {selectedTime === "all" ? "Select Time" : selectedTime}
+                    </div>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Times</SelectItem>
+                  {selectedBranchId === "all" ? (
+                    <SelectItem value="select-branch" disabled>
+                      Select a branch first
+                    </SelectItem>
+                  ) : timeSlots.length > 0 ? (
+                    timeSlots.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-slots" disabled>
+                      No available time slots
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+
+              {(selectedDate || selectedTime !== "all") && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedDate(undefined);
+                    setSelectedTime("all");
+                  }}
+                  className="px-3"
+                >
+                  Clear filters
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
