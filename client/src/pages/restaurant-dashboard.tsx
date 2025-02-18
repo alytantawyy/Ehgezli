@@ -3,10 +3,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut, Settings, CalendarIcon, Clock } from "lucide-react";
-import { format, isSameDay, parseISO, setHours, setMinutes } from "date-fns";
+import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu } from "lucide-react";
+import { format, isSameDay, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -40,16 +47,14 @@ const generateTimeSlots = (openingTime: string | undefined, closingTime: string 
   let startHour = openHour;
   let startMinute = openMinute;
 
-  // If booking is for today, start from current time
   const now = new Date();
   if (bookingDate &&
-      bookingDate.getDate() === now.getDate() &&
-      bookingDate.getMonth() === now.getMonth() &&
-      bookingDate.getFullYear() === now.getFullYear()) {
+    bookingDate.getDate() === now.getDate() &&
+    bookingDate.getMonth() === now.getMonth() &&
+    bookingDate.getFullYear() === now.getFullYear()) {
     startHour = now.getHours();
     startMinute = now.getMinutes();
 
-    // Round up to the next 30-minute slot
     if (startMinute > 30) {
       startHour += 1;
       startMinute = 0;
@@ -57,7 +62,6 @@ const generateTimeSlots = (openingTime: string | undefined, closingTime: string 
       startMinute = 30;
     }
 
-    // If current time is after opening time, use current time
     if (startHour < openHour || (startHour === openHour && startMinute < openMinute)) {
       startHour = openHour;
       startMinute = openMinute;
@@ -67,16 +71,12 @@ const generateTimeSlots = (openingTime: string | undefined, closingTime: string 
   let lastSlotHour = closeHour;
   let lastSlotMinute = closeMinute;
 
-  // Ensure we don't allow bookings in the last hour of operation
   lastSlotHour = lastSlotHour - 1;
 
   for (let hour = startHour; hour <= lastSlotHour; hour++) {
     for (let minute of [0, 30]) {
-      // Skip slots before opening time
       if (hour === openHour && minute < openMinute) continue;
-      // Skip slots after closing time
       if (hour === lastSlotHour && minute > lastSlotMinute) continue;
-      // Skip slots before current time for today's bookings
       if (hour === startHour && minute < startMinute) continue;
 
       const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
@@ -185,7 +185,7 @@ export default function RestaurantDashboard() {
 
   useEffect(() => {
     if (selectedBranchId === "all") {
-      setTimeSlots([]); // Clear time slots when no specific branch is selected
+      setTimeSlots([]); 
       return;
     }
 
@@ -193,7 +193,6 @@ export default function RestaurantDashboard() {
     if (selectedBranch) {
       const slots = generateTimeSlots(selectedBranch.openingTime, selectedBranch.closingTime, selectedDate);
       setTimeSlots(slots);
-      // Reset selected time if it's not in the new slots
       if (selectedTime !== "all" && !slots.includes(selectedTime)) {
         setSelectedTime("all");
       }
@@ -254,33 +253,72 @@ export default function RestaurantDashboard() {
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Restaurant Dashboard</h1>
+          <div className="flex items-center gap-4">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                <SheetHeader>
+                  <SheetTitle>Menu</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col justify-between h-[calc(100vh-120px)] py-4">
+                  <div>
+                    <Button
+                      variant="ghost"
+                      asChild
+                      className="w-full justify-start mb-2"
+                    >
+                      <Link to="/restaurant/profile">
+                        <Settings className="h-4 w-4 mr-2" />
+                        My Restaurant
+                      </Link>
+                    </Button>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => logoutMutation.mutate()}
+                    disabled={logoutMutation.isPending}
+                    className="w-full justify-start"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <h1 className="text-3xl font-bold">Restaurant Dashboard</h1>
+          </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
               Welcome back, {auth?.name}
             </div>
-            <Button
-              variant="outline"
-              asChild
-            >
-              <Link to="/restaurant/profile">
-                <Settings className="h-4 w-4 mr-2" />
-                My Restaurant
-              </Link>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => logoutMutation.mutate()}
-              disabled={logoutMutation.isPending}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+            <div className="hidden lg:flex gap-4">
+              <Button
+                variant="outline"
+                asChild
+              >
+                <Link to="/restaurant/profile">
+                  <Settings className="h-4 w-4 mr-2" />
+                  My Restaurant
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => logoutMutation.mutate()}
+                disabled={logoutMutation.isPending}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
 
         <div className="flex justify-end gap-4 mb-4">
-          <AddReservationModal 
+          <AddReservationModal
             branches={branches || []}
             selectedBranchId={selectedBranchId === "all" ? undefined : parseInt(selectedBranchId)}
           />
@@ -351,8 +389,8 @@ export default function RestaurantDashboard() {
           </Select>
 
           {(selectedDate || selectedTime !== "all") && (
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={() => {
                 setSelectedDate(undefined);
                 setSelectedTime("all");
@@ -372,7 +410,7 @@ export default function RestaurantDashboard() {
                 {selectedBranchId === "all" && !selectedDate && selectedTime === "all" && "Total bookings"}
                 {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
                 {selectedDate && selectedBranchId === "all" && selectedTime === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
-                {selectedDate && selectedBranchId !== "all" && selectedTime === "all" && 
+                {selectedDate && selectedBranchId !== "all" && selectedTime === "all" &&
                   `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")}`}
                 {selectedTime !== "all" && `Bookings at ${selectedTime}${selectedDate ? ` on ${format(selectedDate, "MMMM d, yyyy")}` : ''}`}
               </p>
@@ -402,7 +440,7 @@ export default function RestaurantDashboard() {
             <CardHeader>
               <CardTitle>Available Seats</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {selectedBranchId === "all" || !selectedDate || selectedTime === "all" 
+                {selectedBranchId === "all" || !selectedDate || selectedTime === "all"
                   ? "Select branch, date, and time to view availability"
                   : `At ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
               </p>
