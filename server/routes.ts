@@ -432,7 +432,7 @@ export function registerRoutes(app: Express): Server {
   // Add saved restaurants endpoints
   app.post("/api/saved-restaurants", async (req, res, next) => {
     try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
         return res.status(401).json({ message: "Not authenticated as user" });
       }
 
@@ -441,14 +441,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid request body" });
       }
 
-      await db.insert(savedRestaurants).values({
-        userId: req.user.id,
-        restaurantId: restaurantId,
-        branchIndex: branchIndex,
-        createdAt: new Date()
-      });
+      const [saved] = await db.insert(savedRestaurants)
+        .values({
+          userId: req.user.id,
+          restaurantId,
+          branchIndex,
+          createdAt: new Date()
+        })
+        .returning();
 
-      res.status(201).json({ message: "Restaurant saved successfully" });
+      res.status(201).json(saved);
     } catch (error) {
       next(error);
     }
@@ -456,19 +458,20 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/saved-restaurants", async (req, res, next) => {
     try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
         return res.status(401).json({ message: "Not authenticated as user" });
       }
 
+      const userId = req.user.id;
       const saved = await db
         .select({
           restaurantId: savedRestaurants.restaurantId,
           branchIndex: savedRestaurants.branchIndex,
-          restaurant: restaurants,
+          restaurant: restaurants
         })
         .from(savedRestaurants)
         .innerJoin(restaurants, eq(savedRestaurants.restaurantId, restaurants.id))
-        .where(eq(savedRestaurants.userId, req.user.id));
+        .where(eq(savedRestaurants.userId, userId));
 
       res.json(saved);
     } catch (error) {
@@ -478,18 +481,22 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/saved-restaurants/:restaurantId/:branchIndex", async (req, res, next) => {
     try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
         return res.status(401).json({ message: "Not authenticated as user" });
       }
+
+      const userId = req.user.id;
+      const restaurantId = parseInt(req.params.restaurantId);
+      const branchIndex = parseInt(req.params.branchIndex);
 
       const [saved] = await db
         .select()
         .from(savedRestaurants)
         .where(
           and(
-            eq(savedRestaurants.userId, req.user.id),
-            eq(savedRestaurants.restaurantId, parseInt(req.params.restaurantId)),
-            eq(savedRestaurants.branchIndex, parseInt(req.params.branchIndex))
+            eq(savedRestaurants.userId, userId),
+            eq(savedRestaurants.restaurantId, restaurantId),
+            eq(savedRestaurants.branchIndex, branchIndex)
           )
         );
 
@@ -501,17 +508,21 @@ export function registerRoutes(app: Express): Server {
 
   app.delete("/api/saved-restaurants/:restaurantId/:branchIndex", async (req, res, next) => {
     try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user') {
+      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
         return res.status(401).json({ message: "Not authenticated as user" });
       }
+
+      const userId = req.user.id;
+      const restaurantId = parseInt(req.params.restaurantId);
+      const branchIndex = parseInt(req.params.branchIndex);
 
       await db
         .delete(savedRestaurants)
         .where(
           and(
-            eq(savedRestaurants.userId, req.user.id),
-            eq(savedRestaurants.restaurantId, parseInt(req.params.restaurantId)),
-            eq(savedRestaurants.branchIndex, parseInt(req.params.branchIndex))
+            eq(savedRestaurants.userId, userId),
+            eq(savedRestaurants.restaurantId, restaurantId),
+            eq(savedRestaurants.branchIndex, branchIndex)
           )
         );
 
