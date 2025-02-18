@@ -123,9 +123,9 @@ export default function RestaurantPage() {
               </div>
             </div>
 
-            <p className="text-muted-foreground mb-6">
-              <span className="font-medium text-foreground">About: </span>
-              {restaurant.about || restaurant.description}
+            <p className="mb-6">
+              <span className="font-bold text-foreground">About: </span>
+              <span className="text-foreground">{restaurant.about || restaurant.description}</span>
             </p>
           </div>
 
