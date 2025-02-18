@@ -78,6 +78,43 @@ export function setupAuth(app: Express) {
 
   // Set up session middleware before passport
   app.use(session(sessionSettings));
+  passport.serializeUser((user, done) => {
+    console.log('Serializing user:', user);
+    // Store only the minimal necessary data in the session
+    done(null, {
+      id: user.id,
+      type: user.type
+    });
+  });
+
+  passport.deserializeUser(async (serialized: { id: number; type: string }, done) => {
+    console.log('Deserializing user:', serialized);
+    try {
+      if (!serialized || !serialized.id || !serialized.type) {
+        console.log('Invalid serialized user data:', serialized);
+        return done(new Error('Invalid session data'));
+      }
+
+      if (serialized.type === 'restaurant') {
+        const restaurant = await storage.getRestaurantAuth(serialized.id);
+        if (!restaurant) {
+          console.log('Restaurant not found:', serialized.id);
+          return done(new Error('Restaurant not found'));
+        }
+        return done(null, { ...restaurant, type: 'restaurant' });
+      } else {
+        const user = await storage.getUser(serialized.id);
+        if (!user) {
+          console.log('User not found:', serialized.id);
+          return done(new Error('User not found'));
+        }
+        return done(null, { ...user, type: 'user' });
+      }
+    } catch (error) {
+      console.error('Error deserializing user:', error);
+      done(error);
+    }
+  });
   app.use(passport.initialize());
   app.use(passport.session());
 
