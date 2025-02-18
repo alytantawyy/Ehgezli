@@ -142,7 +142,6 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
             <span>{branch.address}</span>
           </div>
           <p className="text-sm font-medium">City: {branch.city}</p>
-          <p className="text-sm">Opening Hours: {branch.openingTime} - {branch.closingTime}</p>
         </div>
       </CardContent>
       <CardFooter>
