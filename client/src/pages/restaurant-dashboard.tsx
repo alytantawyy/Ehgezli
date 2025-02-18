@@ -473,11 +473,10 @@ export default function RestaurantDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  {getTotalSeats() - (filteredBookings.reduce((sum, booking) => sum + booking.partySize, 0))}
+                  {selectedBranchId === "all" || !selectedDate || selectedTime === "all"
+                    ? "-"
+                    : getTotalSeats() - (filteredBookings.reduce((sum, booking) => sum + booking.partySize, 0))}
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {filteredBookings.length} current {filteredBookings.length === 1 ? 'booking' : 'bookings'} in this time slot
-                </p>
               </CardContent>
             </Card>
           </div>
