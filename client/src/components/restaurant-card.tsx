@@ -27,7 +27,9 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
   const { data: savedStatus } = useQuery({
     queryKey: ['/api/saved-restaurants', restaurant.id, branchIndex],
     queryFn: async () => {
-      const response = await fetch(`/api/saved-restaurants/${restaurant.id}/${branchIndex}`);
+      const response = await fetch(`/api/saved-restaurants/${restaurant.id}/${branchIndex}`, {
+        credentials: 'include'  // Add credentials to ensure cookies are sent
+      });
       if (!response.ok) return false;
       return response.json();
     }
@@ -42,7 +44,7 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ restaurantId: restaurant.id, branchIndex }),
-        credentials: 'include' // Add this to ensure cookies are sent
+        credentials: 'include'
       });
       if (!response.ok) {
         const error = await response.json();
@@ -71,9 +73,12 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
     mutationFn: async () => {
       const response = await fetch(`/api/saved-restaurants/${restaurant.id}/${branchIndex}`, {
         method: 'DELETE',
-        credentials: 'include' // Add this to ensure cookies are sent
+        credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to unsave restaurant');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to unsave restaurant');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/saved-restaurants'] });
@@ -86,7 +91,7 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
       console.error('Unsave mutation error:', error);
       toast({
         title: "Error",
-        description: "Failed to remove restaurant. Please try again.",
+        description: error.message || "Failed to remove restaurant. Please try again.",
         variant: "destructive",
       });
     },

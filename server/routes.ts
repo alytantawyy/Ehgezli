@@ -6,7 +6,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { and, eq } from "drizzle-orm";
-import { bookings, restaurantBranches, users, savedRestaurants, restaurants } from "@shared/schema";
+import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles } from "@shared/schema";
 import { parse as parseCookie } from 'cookie';
 
 // Define WebSocket message types
@@ -451,6 +451,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid request body" });
       }
 
+      // Verify that the restaurant exists before saving
+      const [restaurant] = await db
+        .select()
+        .from(restaurantAuth)
+        .where(eq(restaurantAuth.id, restaurantId));
+
+      if (!restaurant) {
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+
       const [saved] = await db.insert(savedRestaurants)
         .values({
           userId: req.user.id,
@@ -468,35 +478,72 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update the saved restaurants GET endpoint
   app.get("/api/saved-restaurants", async (req, res, next) => {
     try {
       if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
-        console.log('Authentication failed for get saved restaurants:', {
-          isAuthenticated: req.isAuthenticated(),
-          userType: req.user?.type,
-          userId: req.user?.id
-        });
         return res.status(401).json({ message: "Not authenticated as user" });
       }
 
       const userId = req.user.id;
       console.log('Fetching saved restaurants for user:', userId);
 
-      // Get saved restaurants with complete restaurant data
-      const saved = await db
+      // Get saved restaurants with complete restaurant data and branch information
+      const savedRestaurants = await db
         .select({
           id: savedRestaurants.id,
           restaurantId: savedRestaurants.restaurantId,
           branchIndex: savedRestaurants.branchIndex,
-          restaurant: restaurants
+          createdAt: savedRestaurants.createdAt,
+          restaurant: {
+            id: restaurantAuth.id,
+            authId: restaurantAuth.id,
+            name: restaurantAuth.name,
+            description: restaurantProfiles.about,
+            about: restaurantProfiles.about,
+            logo: restaurantProfiles.logo,
+            cuisine: restaurantProfiles.cuisine,
+            priceRange: restaurantProfiles.priceRange,
+          }
         })
         .from(savedRestaurants)
-        .innerJoin(restaurants, eq(savedRestaurants.restaurantId, restaurants.id))
+        .innerJoin(restaurantAuth, eq(savedRestaurants.restaurantId, restaurantAuth.id))
+        .innerJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId))
         .where(eq(savedRestaurants.userId, userId));
 
-      console.log('Found saved restaurants:', saved);
-      res.json(saved);
+      // Fetch branches separately for each restaurant
+      const restaurantBranchesMap = new Map();
+
+      for (const saved of savedRestaurants) {
+        const branches = await db
+          .select()
+          .from(restaurantBranches)
+          .where(eq(restaurantBranches.restaurantId, saved.restaurant.id));
+
+        restaurantBranchesMap.set(saved.restaurant.id, branches.map(branch => ({
+          id: branch.id,
+          address: branch.address,
+          tablesCount: branch.tablesCount,
+          seatsCount: branch.seatsCount,
+          openingTime: branch.openingTime,
+          closingTime: branch.closingTime,
+          city: branch.city
+        })));
+      }
+
+      // Map the results to include the correct branch data
+      const mappedResults = savedRestaurants.map(saved => ({
+        id: saved.id,
+        restaurantId: saved.restaurantId,
+        branchIndex: saved.branchIndex,
+        createdAt: saved.createdAt,
+        restaurant: {
+          ...saved.restaurant,
+          locations: restaurantBranchesMap.get(saved.restaurant.id) || []
+        }
+      }));
+
+      console.log('Found saved restaurants:', mappedResults);
+      res.json(mappedResults);
     } catch (error) {
       console.error('Error fetching saved restaurants:', error);
       next(error);
