@@ -41,6 +41,13 @@ export default function UserBookings() {
     );
   }
 
+  // Sort bookings by date (chronologically)
+  const sortedBookings = bookings?.slice().sort((a, b) => {
+    const dateA = new Date(a.date);
+    const dateB = new Date(b.date);
+    return dateA.getTime() - dateB.getTime();
+  });
+
   return (
     <div className="container mx-auto py-8">
       <Button variant="ghost" asChild className="mb-6">
@@ -51,7 +58,7 @@ export default function UserBookings() {
       </Button>
 
       <h1 className="text-2xl font-bold mb-6">My Bookings</h1>
-      {bookings && bookings.length > 0 ? (
+      {sortedBookings && sortedBookings.length > 0 ? (
         <Table>
           <TableHeader>
             <TableRow>
@@ -63,7 +70,7 @@ export default function UserBookings() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bookings.map((booking) => (
+            {sortedBookings.map((booking) => (
               <TableRow key={booking.id}>
                 <TableCell>{booking.restaurantName}</TableCell>
                 <TableCell>{format(new Date(booking.date), "PPP")}</TableCell>
