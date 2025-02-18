@@ -12,6 +12,7 @@ import RestaurantDashboard from "@/pages/restaurant-dashboard";
 import RestaurantProfileSetup from "@/pages/restaurant-profile-setup";
 import UserBookings from "@/pages/user-bookings";
 import SavedRestaurants from "@/pages/saved-restaurants";
+import PreviousBookings from "@/pages/previous-bookings";
 import { ProtectedRoute } from "./lib/protected-route";
 import { ProtectedRestaurantRoute } from "./lib/protected-restaurant-route";
 
@@ -31,6 +32,10 @@ function Router() {
       <ProtectedRestaurantRoute
         path="/restaurant/dashboard"
         component={RestaurantDashboard}
+      />
+      <ProtectedRestaurantRoute
+        path="/restaurant/previous-bookings"
+        component={PreviousBookings}
       />
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/restaurant/:id" component={RestaurantPage} />

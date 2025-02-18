@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu } from "lucide-react";
+import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History } from "lucide-react";
 import { format, isSameDay, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -271,6 +271,16 @@ export default function RestaurantDashboard() {
                       asChild
                       className="w-full justify-start mb-2"
                     >
+                      <Link to="/restaurant/previous-bookings">
+                        <History className="h-4 w-4 mr-2" />
+                        Previous Bookings
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      asChild
+                      className="w-full justify-start mb-2"
+                    >
                       <Link to="/restaurant/profile">
                         <Settings className="h-4 w-4 mr-2" />
                         My Restaurant
@@ -296,6 +306,15 @@ export default function RestaurantDashboard() {
               Welcome back, {auth?.name}
             </div>
             <div className="hidden lg:flex gap-4">
+              <Button
+                variant="outline"
+                asChild
+              >
+                <Link to="/restaurant/previous-bookings">
+                  <History className="h-4 w-4 mr-2" />
+                  Previous Bookings
+                </Link>
+              </Button>
               <Button
                 variant="outline"
                 asChild
