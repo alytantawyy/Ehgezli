@@ -30,16 +30,72 @@ export function registerRoutes(app: Express): Server {
   });
 
   const httpServer = createServer(app);
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wss = new WebSocketServer({ 
+    server: httpServer, 
+    path: '/ws',
+    verifyClient: (info, callback) => {
+      console.log('WebSocket verification:', {
+        headers: info.req.headers,
+        url: info.req.url,
+        cookie: info.req.headers.cookie
+      });
 
-  // Set up authentication after body parsing but before routes
-  setupAuth(app);
+      if (!info.req.headers.cookie) {
+        console.error('No cookie header in WebSocket connection');
+        callback(false, 401, 'No session cookie');
+        return;
+      }
+
+      const cookies = parseCookie(info.req.headers.cookie);
+      const sessionID = cookies['connect.sid'];
+
+      if (!sessionID) {
+        console.error('No session ID in WebSocket cookies');
+        callback(false, 401, 'No session ID');
+        return;
+      }
+
+      // Clean the session ID
+      const cleanSessionId = decodeURIComponent(
+        sessionID.split('.')[0].replace(/^s:/, '')
+      );
+
+      // Verify session
+      storage.sessionStore.get(cleanSessionId, (err, session) => {
+        if (err) {
+          console.error('Session store error during WebSocket verification:', err);
+          callback(false, 500, 'Session store error');
+          return;
+        }
+
+        if (!session?.passport?.user) {
+          console.error('Invalid session during WebSocket verification:', {
+            sessionId: cleanSessionId,
+            session
+          });
+          callback(false, 401, 'Invalid session');
+          return;
+        }
+
+        const { id, type } = session.passport.user;
+        if (typeof id !== 'number') {
+          console.error('Invalid user ID in session:', { id, type });
+          callback(false, 401, 'Invalid user ID');
+          return;
+        }
+
+        // Store user info for later use
+        (info.req as any).user = { id, type };
+        callback(true);
+      });
+    }
+  });
 
   // Track active connections with their authentication state
   const clients = new Map<WebSocket, {
     sessionID: string;
-    userId?: number;
-    userType?: 'user' | 'restaurant';
+    userId: number;
+    userType: 'user' | 'restaurant';
     isAlive: boolean;
   }>();
 
@@ -47,7 +103,7 @@ export function registerRoutes(app: Express): Server {
   const heartbeatInterval = setInterval(() => {
     clients.forEach((client, ws) => {
       if (!client.isAlive) {
-        console.log('Terminating inactive WebSocket connection');
+        console.log('Terminating inactive WebSocket connection:', client);
         clients.delete(ws);
         return ws.terminate();
       }
@@ -56,123 +112,68 @@ export function registerRoutes(app: Express): Server {
     });
   }, 30000);
 
-  // WebSocket connection setup with improved session handling
+  // WebSocket connection handler
   wss.on('connection', async (ws, req) => {
-    console.log('New WebSocket connection attempt:', {
-      headers: req.headers,
-      url: req.url,
-      cookie: req.headers.cookie,
-      sessionID: req.headers.cookie?.match(/connect\.sid=([^;]+)/)?.[1]
+    const user = (req as any).user;
+    console.log('WebSocket connection established:', {
+      userId: user.id,
+      userType: user.type
     });
 
-    try {
-      // Extract and parse cookie
-      const cookieHeader = req.headers.cookie;
-      if (!cookieHeader) {
-        console.error('No cookie header found in WebSocket connection');
-        ws.close(1008, 'No session cookie');
-        return;
+    // Get clean session ID from cookie
+    const sessionID = parseCookie(req.headers.cookie!)['connect.sid'];
+    const cleanSessionId = decodeURIComponent(
+      sessionID.split('.')[0].replace(/^s:/, '')
+    );
+
+    // Add client to tracked connections
+    clients.set(ws, {
+      sessionID: cleanSessionId,
+      userId: user.id,
+      userType: user.type,
+      isAlive: true
+    });
+
+    // Set up client event handlers
+    ws.on('pong', () => {
+      const client = clients.get(ws);
+      if (client) {
+        client.isAlive = true;
       }
+    });
 
-      const cookies = parseCookie(cookieHeader);
-      const sessionID = cookies['connect.sid'];
-      if (!sessionID) {
-        console.error('No session ID found in WebSocket cookies');
-        ws.close(1008, 'No session ID');
-        return;
-      }
-
-      // Clean the session ID (remove 's:' prefix and signature)
-      const cleanSessionId = decodeURIComponent(
-        sessionID.split('.')[0].replace(/^s:/, '')
-      );
-
-      console.log('WebSocket connection - cleaned session ID:', cleanSessionId);
-
-      // Verify session using the storage's session store
-      storage.sessionStore.get(cleanSessionId, async (err, session) => {
-        if (err) {
-          console.error('Session store error in WebSocket:', err);
-          ws.close(1008, 'Session store error');
-          return;
-        }
-
-        if (!session?.passport?.user) {
-          console.error('Invalid or expired session in WebSocket:', {
-            sessionId: cleanSessionId,
-            session: session
-          });
-          ws.close(1008, 'Invalid session');
-          return;
-        }
-
-        const { id, type } = session.passport.user;
-        if (typeof id !== 'number') {
-          console.error('Invalid user ID in session:', {
-            sessionId: cleanSessionId,
-            userId: id,
-            type: type
-          });
-          ws.close(1008, 'Invalid user ID');
-          return;
-        }
-
-        // Add client to tracked connections
-        clients.set(ws, {
-          sessionID: cleanSessionId,
-          userId: id,
-          userType: type,
-          isAlive: true
-        });
-
-        console.log('WebSocket connected successfully:', {
-          sessionID: cleanSessionId,
-          userId: id,
-          userType: type
-        });
-
-        // Set up event handlers
-        ws.on('pong', () => {
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString()) as WebSocketMessage;
+        if (data.type === 'heartbeat') {
           const client = clients.get(ws);
           if (client) {
             client.isAlive = true;
+            ws.send(JSON.stringify({ type: 'heartbeat' }));
           }
-        });
+        }
+      } catch (error) {
+        console.error('WebSocket message parsing error:', error);
+      }
+    });
 
-        ws.on('message', (message) => {
-          try {
-            const data = JSON.parse(message.toString()) as WebSocketMessage;
-            if (data.type === 'heartbeat') {
-              const client = clients.get(ws);
-              if (client) {
-                client.isAlive = true;
-                ws.send(JSON.stringify({ type: 'heartbeat' }));
-              }
-            }
-          } catch (error) {
-            console.error('WebSocket message parsing error:', error);
-          }
-        });
-
-        ws.on('close', () => {
-          console.log('WebSocket connection closed:', {
-            sessionID: cleanSessionId,
-            userId: id
-          });
-          clients.delete(ws);
-        });
-
-        // Send initial connection success message
-        ws.send(JSON.stringify({
-          type: 'connection_established',
-          data: { userId: id, userType: type }
-        }));
+    ws.on('close', () => {
+      console.log('WebSocket connection closed:', {
+        userId: user.id,
+        userType: user.type
       });
-    } catch (error) {
-      console.error('WebSocket setup error:', error);
-      ws.close(1008, 'Connection setup failed');
-    }
+      clients.delete(ws);
+    });
+
+    // Send initial connection success message
+    ws.send(JSON.stringify({
+      type: 'connection_established',
+      data: { userId: user.id, userType: user.type }
+    }));
   });
+
+  // Set up authentication after body parsing but before routes
+  setupAuth(app);
 
   // Get restaurant bookings endpoint
   app.get("/api/restaurant/bookings/:restaurantId", async (req, res) => {
