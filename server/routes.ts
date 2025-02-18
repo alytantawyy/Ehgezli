@@ -29,6 +29,9 @@ export function registerRoutes(app: Express): Server {
     next(err);
   });
 
+  // Set up authentication first to ensure session is available for WebSocket
+  setupAuth(app);
+
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ 
     server: httpServer, 
@@ -40,6 +43,7 @@ export function registerRoutes(app: Express): Server {
         cookie: info.req.headers.cookie
       });
 
+      // Check for cookie header
       if (!info.req.headers.cookie) {
         console.error('No cookie header in WebSocket connection');
         callback(false, 401, 'No session cookie');
@@ -49,45 +53,57 @@ export function registerRoutes(app: Express): Server {
       const cookies = parseCookie(info.req.headers.cookie);
       const sessionID = cookies['connect.sid'];
 
+      // Check for session ID
       if (!sessionID) {
         console.error('No session ID in WebSocket cookies');
         callback(false, 401, 'No session ID');
         return;
       }
 
-      // Clean the session ID
-      const cleanSessionId = decodeURIComponent(
-        sessionID.split('.')[0].replace(/^s:/, '')
-      );
+      try {
+        // Clean the session ID - handle potential undefined
+        const cleanSessionId = sessionID ? decodeURIComponent(
+          sessionID.split('.')[0].replace(/^s:/, '')
+        ) : null;
 
-      // Verify session
-      storage.sessionStore.get(cleanSessionId, (err, session) => {
-        if (err) {
-          console.error('Session store error during WebSocket verification:', err);
-          callback(false, 500, 'Session store error');
+        if (!cleanSessionId) {
+          console.error('Invalid session ID format');
+          callback(false, 401, 'Invalid session ID format');
           return;
         }
 
-        if (!session?.passport?.user) {
-          console.error('Invalid session during WebSocket verification:', {
-            sessionId: cleanSessionId,
-            session
-          });
-          callback(false, 401, 'Invalid session');
-          return;
-        }
+        // Verify session
+        storage.sessionStore.get(cleanSessionId, (err, session) => {
+          if (err) {
+            console.error('Session store error during WebSocket verification:', err);
+            callback(false, 500, 'Session store error');
+            return;
+          }
 
-        const { id, type } = session.passport.user;
-        if (typeof id !== 'number') {
-          console.error('Invalid user ID in session:', { id, type });
-          callback(false, 401, 'Invalid user ID');
-          return;
-        }
+          if (!session?.passport?.user) {
+            console.error('Invalid session during WebSocket verification:', {
+              sessionId: cleanSessionId,
+              session
+            });
+            callback(false, 401, 'Invalid session');
+            return;
+          }
 
-        // Store user info for later use
-        (info.req as any).user = { id, type };
-        callback(true);
-      });
+          const { id, type } = session.passport.user;
+          if (typeof id !== 'number' || !type) {
+            console.error('Invalid user data in session:', { id, type });
+            callback(false, 401, 'Invalid user data');
+            return;
+          }
+
+          // Store user info for later use
+          (info.req as any).user = { id, type };
+          callback(true);
+        });
+      } catch (error) {
+        console.error('Error during WebSocket verification:', error);
+        callback(false, 500, 'Internal server error');
+      }
     }
   });
 
@@ -171,9 +187,6 @@ export function registerRoutes(app: Express): Server {
       data: { userId: user.id, userType: user.type }
     }));
   });
-
-  // Set up authentication after body parsing but before routes
-  setupAuth(app);
 
   // Get restaurant bookings endpoint
   app.get("/api/restaurant/bookings/:restaurantId", async (req, res) => {

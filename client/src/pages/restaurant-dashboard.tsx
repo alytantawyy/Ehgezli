@@ -325,47 +325,51 @@ export default function RestaurantDashboard() {
             />
           </div>
 
-          <div className="flex justify-between items-center">
-            <Select
-              value={selectedBranchId}
-              onValueChange={setSelectedBranchId}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select Branch" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Branches</SelectItem>
-                {restaurant?.locations?.map((location) => (
-                  <SelectItem key={location.id} value={location.id.toString()}>
-                    {location.address}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-3 gap-6">
+            <div>
+              <Select
+                value={selectedBranchId}
+                onValueChange={setSelectedBranchId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {restaurant?.locations?.map((location) => (
+                    <SelectItem key={location.id} value={location.id.toString()}>
+                      {location.address}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[200px] justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+            <div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <Select
                 value={selectedTime}
                 onValueChange={setSelectedTime}
               >
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select Time">
                     <div className="flex items-center">
                       <Clock className="mr-2 h-4 w-4" />
@@ -400,9 +404,9 @@ export default function RestaurantDashboard() {
                     setSelectedDate(undefined);
                     setSelectedTime("all");
                   }}
-                  className="px-3"
+                  className="px-2"
                 >
-                  Clear filters
+                  Clear
                 </Button>
               )}
             </div>

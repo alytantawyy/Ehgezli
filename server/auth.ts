@@ -72,14 +72,16 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     store: sessionStore,
     cookie: cookieSettings,
-    name: 'connect.sid'
+    name: 'connect.sid',
+    rolling: true // Ensure session cookie is refreshed on each request
   };
 
+  // Set up session middleware before passport
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Debug middleware for tracking authentication state
+  // Add debug middleware for tracking authentication state
   app.use((req, res, next) => {
     console.log('Auth Debug -', {
       path: req.path,
@@ -94,41 +96,6 @@ export function setupAuth(app: Express) {
       }
     });
     next();
-  });
-
-  passport.serializeUser((user: Express.User, done) => {
-    if (!user || !user.id || !user.type) {
-      console.error('Invalid user data for serialization:', user);
-      return done(new Error('Invalid user data for serialization'));
-    }
-    console.log('Serializing user:', { id: user.id, type: user.type });
-    done(null, { id: user.id, type: user.type });
-  });
-
-  passport.deserializeUser(async (data: { id: number, type: 'user' | 'restaurant' }, done) => {
-    try {
-      console.log('Deserializing user:', data);
-      if (data.type === 'restaurant') {
-        const restaurant = await storage.getRestaurantAuth(data.id);
-        if (!restaurant) {
-          console.error('Restaurant not found during deserialization:', data.id);
-          return done(null, false);
-        }
-        console.log('Restaurant deserialized successfully:', restaurant.id);
-        return done(null, { ...restaurant, type: 'restaurant' });
-      } else {
-        const user = await storage.getUser(data.id);
-        if (!user) {
-          console.error('User not found during deserialization:', data.id);
-          return done(null, false);
-        }
-        console.log('User deserialized successfully:', user.id);
-        return done(null, { ...user, type: 'user' });
-      }
-    } catch (err) {
-      console.error('Deserialization error:', err);
-      done(err);
-    }
   });
 
   // Restaurant authentication strategy with detailed logging
