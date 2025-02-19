@@ -278,16 +278,6 @@ export default function RestaurantDashboard() {
                       asChild
                       className="w-full justify-start mb-2"
                     >
-                      <Link to="/restaurant/branch-availability">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Branch Availability
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      asChild
-                      className="w-full justify-start mb-2"
-                    >
                       <Link to="/restaurant/profile">
                         <Settings className="h-4 w-4 mr-2" />
                         My Restaurant
@@ -320,15 +310,6 @@ export default function RestaurantDashboard() {
                 <Link to="/restaurant/previous-bookings">
                   <History className="h-4 w-4 mr-2" />
                   Previous Bookings
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                asChild
-              >
-                <Link to="/restaurant/branch-availability">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Branch Availability
                 </Link>
               </Button>
               <Button
