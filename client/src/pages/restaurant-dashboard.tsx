@@ -37,7 +37,7 @@ interface BookingWithDetails extends Booking {
   };
 }
 
-const generateTimeSlots = (openingTime: string | undefined, closingTime: string | undefined, bookingDate?: Date) => {
+const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
   if (!openingTime || !closingTime) return [];
 
   const slots = [];
@@ -94,6 +94,7 @@ export default function RestaurantDashboard() {
   const { restaurant: auth, logoutMutation } = useRestaurantAuth();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>("all");
+  const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const now = new Date();
 
@@ -116,7 +117,6 @@ export default function RestaurantDashboard() {
     },
     enabled: !!auth?.id,
   });
-
 
   const { data: bookings, isLoading: isBookingsLoading } = useQuery<BookingWithDetails[]>({
     queryKey: ["/api/restaurant/bookings", auth?.id],
@@ -163,14 +163,23 @@ export default function RestaurantDashboard() {
   });
 
   useEffect(() => {
-    if (restaurant) {
-      const slots = generateTimeSlots(restaurant.openingTime, restaurant.closingTime, selectedDate);
-      setTimeSlots(slots);
-      if (selectedTime !== "all" && !slots.includes(selectedTime)) {
-        setSelectedTime("all");
+    if (restaurant?.locations && selectedBranch !== "all") {
+      const selectedLocation = restaurant.locations.find(
+        loc => loc.id.toString() === selectedBranch
+      );
+      if (selectedLocation) {
+        const slots = generateTimeSlots(
+          selectedLocation.openingTime,
+          selectedLocation.closingTime,
+          selectedDate
+        );
+        setTimeSlots(slots);
+        if (selectedTime !== "all" && !slots.includes(selectedTime)) {
+          setSelectedTime("all");
+        }
       }
     }
-  }, [selectedDate, restaurant, selectedTime]);
+  }, [selectedDate, selectedBranch, restaurant, selectedTime]);
 
   const isLoading = isRestaurantLoading || isBookingsLoading;
 
@@ -203,6 +212,12 @@ export default function RestaurantDashboard() {
       }
     }
 
+    if (selectedBranch !== "all") {
+      if (booking.branchId.toString() !== selectedBranch) {
+        return false;
+      }
+    }
+
     return true;
   }) || [];
 
@@ -210,7 +225,14 @@ export default function RestaurantDashboard() {
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const getTotalSeats = () => {
-    return restaurant?.seatsCount || 0;
+    if (!restaurant?.locations) return 0;
+    if (selectedBranch === "all") {
+      return restaurant.locations.reduce((total, loc) => total + loc.seatsCount, 0);
+    }
+    const selectedLocation = restaurant.locations.find(
+      loc => loc.id.toString() === selectedBranch
+    );
+    return selectedLocation?.seatsCount || 0;
   };
 
   return (
@@ -304,12 +326,11 @@ export default function RestaurantDashboard() {
         <div className="space-y-6">
           <div className="flex">
             <AddReservationModal
-              branches={[]}
+              branches={restaurant?.locations || []}
             />
           </div>
 
           <div className="grid grid-cols-3 gap-6">
-
             <div>
               <Popover>
                 <PopoverTrigger asChild>
@@ -327,6 +348,31 @@ export default function RestaurantDashboard() {
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+
+            <div>
+              <Select
+                value={selectedBranch}
+                onValueChange={setSelectedBranch}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Branch">
+                    <div className="flex items-center">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {selectedBranch === "all" ? "All Branches" : 
+                        restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
+                    </div>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {restaurant?.locations?.map((location) => (
+                    <SelectItem key={location.id} value={location.id.toString()}>
+                      {location.address}, {location.city}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex items-center gap-2">
@@ -358,12 +404,13 @@ export default function RestaurantDashboard() {
                 </SelectContent>
               </Select>
 
-              {(selectedDate || selectedTime !== "all") && (
+              {(selectedDate || selectedTime !== "all" || selectedBranch !== "all") && (
                 <Button
                   variant="ghost"
                   onClick={() => {
                     setSelectedDate(undefined);
                     setSelectedTime("all");
+                    setSelectedBranch("all");
                   }}
                   className="px-2"
                 >
@@ -394,7 +441,9 @@ export default function RestaurantDashboard() {
               <CardHeader>
                 <CardTitle>Total Seats</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {"Across all branches"}
+                  {selectedBranch === "all" 
+                    ? "Across all branches"
+                    : `In ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address}`}
                 </p>
               </CardHeader>
               <CardContent>
@@ -408,14 +457,14 @@ export default function RestaurantDashboard() {
               <CardHeader>
                 <CardTitle>Available Seats</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  { (!selectedDate || selectedTime === "all")
+                  {(!selectedDate || selectedTime === "all")
                     ? "Select date and time to view availability"
                     : `On ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
                 </p>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  { (!selectedDate || selectedTime === "all")
+                  {(!selectedDate || selectedTime === "all")
                     ? "-"
                     : getTotalSeats() - (filteredBookings.reduce((sum, booking) => sum + booking.partySize, 0))}
                 </div>
