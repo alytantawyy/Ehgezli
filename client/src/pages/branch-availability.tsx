@@ -3,9 +3,9 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Calendar } from "@/components/ui/calendar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -18,8 +18,17 @@ import {
 export default function BranchAvailabilityPage() {
   const { restaurant: auth } = useRestaurantAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [selectedBranchId, setSelectedBranchId] = useState<string>();
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!auth) {
+      setLocation('/auth');
+      return;
+    }
+  }, [auth, setLocation]);
 
   const { data: restaurant, isLoading: isRestaurantLoading } = useQuery({
     queryKey: ["/api/restaurants", auth?.id],
@@ -32,6 +41,20 @@ export default function BranchAvailabilityPage() {
       return response.json();
     },
     enabled: !!auth?.id,
+  });
+
+  // Fetch existing unavailable dates for the selected branch
+  const { data: unavailableDates, isLoading: isLoadingDates } = useQuery({
+    queryKey: ["/api/restaurant/branches", selectedBranchId, "unavailable-dates"],
+    queryFn: async () => {
+      const response = await fetch(`/api/restaurant/branches/${selectedBranchId}/unavailable-dates`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch unavailable dates');
+      const data = await response.json();
+      return data.map((date: string) => new Date(date));
+    },
+    enabled: !!selectedBranchId,
   });
 
   const saveDatesMutation = useMutation({
@@ -67,12 +90,17 @@ export default function BranchAvailabilityPage() {
 
   const handleSaveDates = () => {
     if (!selectedBranchId || selectedDates.length === 0) return;
-    
+
     saveDatesMutation.mutate({
       branchId: parseInt(selectedBranchId),
       dates: selectedDates.map(date => date.toISOString().split('T')[0])
     });
   };
+
+  // Early return if not authenticated
+  if (!auth) {
+    return null;
+  }
 
   if (isRestaurantLoading) {
     return <div>Loading...</div>;
@@ -103,7 +131,7 @@ export default function BranchAvailabilityPage() {
                   <SelectValue placeholder="Select Branch" />
                 </SelectTrigger>
                 <SelectContent>
-                  {restaurant?.locations?.map((location) => (
+                  {restaurant?.locations?.map((location: any) => (
                     <SelectItem key={location.id} value={location.id.toString()}>
                       {location.address}
                     </SelectItem>
@@ -119,6 +147,7 @@ export default function BranchAvailabilityPage() {
                   mode="multiple"
                   selected={selectedDates}
                   onSelect={setSelectedDates as any}
+                  blocked={unavailableDates || []} // Added to display blocked dates
                   className="rounded-md border"
                   disabled={(date) => date < new Date()}
                 />
@@ -127,7 +156,7 @@ export default function BranchAvailabilityPage() {
 
             <Button 
               onClick={handleSaveDates}
-              disabled={!selectedBranchId || selectedDates.length === 0 || saveDatesMutation.isPending}
+              disabled={!selectedBranchId || selectedDates.length === 0 || saveDatesMutation.isPending || isLoadingDates}
               className="w-full"
             >
               {saveDatesMutation.isPending ? "Saving..." : "Save Unavailable Dates"}

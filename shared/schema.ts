@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, jsonb, time } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, jsonb, time, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -83,12 +83,27 @@ export const restaurantBranches = pgTable("restaurant_branches", {
   reservationDuration: integer("reservation_duration").notNull().default(120), // 2 hours in minutes
 });
 
+export const branchUnavailableDates = pgTable("branch_unavailable_dates", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branch_id").notNull(),
+  date: date("date").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const branchUnavailableDatesRelations = relations(branchUnavailableDates, ({ one }) => ({
+  branch: one(restaurantBranches, {
+    fields: [branchUnavailableDates.branchId],
+    references: [restaurantBranches.id],
+  }),
+}));
+
 export const branchRelations = relations(restaurantBranches, ({ one, many }) => ({
   restaurant: one(restaurants, {
     fields: [restaurantBranches.restaurantId],
     references: [restaurants.id],
   }),
   bookings: many(bookings),
+  unavailableDates: many(branchUnavailableDates),
 }));
 
 export const bookings = pgTable("bookings", {
@@ -206,6 +221,14 @@ export const restaurantProfileSchema = createInsertSchema(restaurantProfiles).om
   })).min(1, "At least one branch is required"),
 });
 
+// Add schema for inserting unavailable dates
+export const insertBranchUnavailableDatesSchema = createInsertSchema(branchUnavailableDates).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  date: z.string()
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertRestaurantAuth = z.infer<typeof insertRestaurantAuthSchema>;
 export type User = typeof users.$inferSelect;
@@ -215,5 +238,7 @@ export type RestaurantBranch = typeof restaurantBranches.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type RestaurantProfile = typeof restaurantProfiles.$inferSelect;
 export type InsertRestaurantProfile = z.infer<typeof restaurantProfileSchema>;
+export type InsertBranchUnavailableDates = z.infer<typeof insertBranchUnavailableDatesSchema>;
+export type BranchUnavailableDate = typeof branchUnavailableDates.$inferSelect;
 
 export const mockRestaurants: Restaurant[] = [];
