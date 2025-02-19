@@ -1,9 +1,9 @@
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Booking, Restaurant } from "@shared/schema";
+import { Booking, Restaurant, Branch } from "@shared/schema"; // Added Branch import
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History, Calendar } from "lucide-react";
+import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History } from "lucide-react";
 import { format, isBefore, isSameDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
@@ -31,10 +31,7 @@ interface BookingWithDetails extends Booking {
     firstName: string;
     lastName: string;
   } | null;
-  branch: {
-    address: string;
-    city: string;
-  };
+  branch: Branch; // Changed to Branch type
 }
 
 const generateTimeSlots = (openingTime: string | undefined, closingTime: string | undefined, bookingDate?: Date) => {
@@ -182,7 +179,7 @@ export default function RestaurantDashboard() {
       return;
     }
 
-    const selectedBranch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
+    const selectedBranch = branches?.find(loc => loc.id.toString() === selectedBranchId);
     if (selectedBranch) {
       const slots = generateTimeSlots(selectedBranch.openingTime, selectedBranch.closingTime, selectedDate);
       setTimeSlots(slots);
@@ -190,7 +187,7 @@ export default function RestaurantDashboard() {
         setSelectedTime("all");
       }
     }
-  }, [selectedBranchId, selectedDate, restaurant?.locations, selectedTime]);
+  }, [selectedBranchId, selectedDate, branches, selectedTime]);
 
   const isLoading = isRestaurantLoading || isBookingsLoading || isBranchesLoading;
 
@@ -207,6 +204,7 @@ export default function RestaurantDashboard() {
     );
   }
 
+  // Filter bookings based on selected branch, date, and time
   const filteredBookings = bookings?.filter(booking => {
     const bookingDate = new Date(booking.date);
     if (bookingDate < now) {
@@ -214,9 +212,9 @@ export default function RestaurantDashboard() {
     }
 
     if (selectedBranchId !== "all") {
-      const branch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
+      const branch = branches?.find(b => b.id.toString() === selectedBranchId);
       if (!branch) return false;
-      if (booking.branch.address !== branch.address) {
+      if (booking.branchId !== parseInt(selectedBranchId)) {
         return false;
       }
     }
@@ -235,14 +233,13 @@ export default function RestaurantDashboard() {
     return true;
   }) || [];
 
-  const upcomingBookings = filteredBookings
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const upcomingBookings = filteredBookings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const getTotalSeats = () => {
     if (selectedBranchId === "all") {
-      return restaurant?.locations?.reduce((sum, loc) => sum + loc.seatsCount, 0) || 0;
+      return branches?.reduce((sum, branch) => sum + branch.seatsCount, 0) || 0;
     }
-    const branch = restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId);
+    const branch = branches?.find(b => b.id.toString() === selectedBranchId);
     return branch?.seatsCount || 0;
   };
 
@@ -271,16 +268,6 @@ export default function RestaurantDashboard() {
                       <Link to="/restaurant/previous-bookings">
                         <History className="h-4 w-4 mr-2" />
                         Previous Bookings
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      asChild
-                      className="w-full justify-start mb-2"
-                    >
-                      <Link to="/restaurant/branch-availability">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Branch Availability
                       </Link>
                     </Button>
                     <Button
@@ -326,15 +313,6 @@ export default function RestaurantDashboard() {
                 variant="outline"
                 asChild
               >
-                <Link to="/restaurant/branch-availability">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Branch Availability
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                asChild
-              >
                 <Link to="/restaurant/profile">
                   <Settings className="h-4 w-4 mr-2" />
                   My Restaurant
@@ -372,9 +350,9 @@ export default function RestaurantDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Branches</SelectItem>
-                  {restaurant?.locations?.map((location) => (
-                    <SelectItem key={location.id} value={location.id.toString()}>
-                      {location.address}
+                  {branches?.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id.toString()}>
+                      {branch.address}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -454,10 +432,10 @@ export default function RestaurantDashboard() {
                 <CardTitle>Bookings</CardTitle>
                 <p className="text-sm text-muted-foreground">
                   {selectedBranchId === "all" && !selectedDate && selectedTime === "all" && "Total upcoming bookings"}
-                  {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Upcoming bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
+                  {selectedBranchId !== "all" && !selectedDate && selectedTime === "all" && `Upcoming bookings at ${branches?.find(b => b.id.toString() === selectedBranchId)?.address}`}
                   {selectedDate && selectedBranchId === "all" && selectedTime === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
                   {selectedDate && selectedBranchId !== "all" && selectedTime === "all" &&
-                    `Bookings at ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")}`}
+                    `Bookings at ${branches?.find(b => b.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")}`}
                   {selectedTime !== "all" && `Bookings at ${selectedTime}${selectedDate ? ` on ${format(selectedDate, "MMMM d, yyyy")}` : ''}`}
                 </p>
               </CardHeader>
@@ -472,7 +450,7 @@ export default function RestaurantDashboard() {
               <CardHeader>
                 <CardTitle>Total Seats</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {selectedBranchId === "all" ? "Across all branches" : `At ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address}`}
+                  {selectedBranchId === "all" ? "Across all branches" : `At ${branches?.find(b => b.id.toString() === selectedBranchId)?.address}`}
                 </p>
               </CardHeader>
               <CardContent>
@@ -488,7 +466,7 @@ export default function RestaurantDashboard() {
                 <p className="text-sm text-muted-foreground">
                   {selectedBranchId === "all" || !selectedDate || selectedTime === "all"
                     ? "Select branch, date, and time to view availability"
-                    : `At ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
+                    : `At ${branches?.find(b => b.id.toString() === selectedBranchId)?.address} on ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
                 </p>
               </CardHeader>
               <CardContent>

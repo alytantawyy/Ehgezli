@@ -81,7 +81,6 @@ export const restaurantBranches = pgTable("restaurant_branches", {
   openingTime: text("opening_time").notNull(),
   closingTime: text("closing_time").notNull(),
   reservationDuration: integer("reservation_duration").notNull().default(120), // 2 hours in minutes
-  unavailableDates: jsonb("unavailable_dates").array().$type<Date[]>(), // Added unavailableDates field
 });
 
 // Add branchUnavailableDates table
