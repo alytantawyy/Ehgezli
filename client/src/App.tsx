@@ -10,6 +10,7 @@ import HomePage from "@/pages/home-page";
 import RestaurantPage from "@/pages/restaurant-page";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
 import RestaurantProfileSetup from "@/pages/restaurant-profile-setup";
+import BranchAvailabilityPage from "@/pages/restaurant/branch-availability";
 import UserBookings from "@/pages/user-bookings";
 import SavedRestaurants from "@/pages/saved-restaurants";
 import PreviousBookings from "@/pages/previous-bookings";
@@ -32,6 +33,10 @@ function Router() {
       <ProtectedRestaurantRoute
         path="/restaurant/dashboard"
         component={RestaurantDashboard}
+      />
+      <ProtectedRestaurantRoute
+        path="/restaurant/branch-availability"
+        component={BranchAvailabilityPage}
       />
       <ProtectedRestaurantRoute
         path="/restaurant/previous-bookings"

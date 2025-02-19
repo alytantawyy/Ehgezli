@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Calendar } from "@/components/ui/calendar";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -16,19 +16,11 @@ import {
 } from "@/components/ui/select";
 
 export default function BranchAvailabilityPage() {
-  const { restaurant, isLoading: isAuthLoading } = useRestaurantAuth();
+  const { restaurant } = useRestaurantAuth();
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [selectedBranchId, setSelectedBranchId] = useState<string>();
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
-
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!isAuthLoading && !restaurant) {
-      setLocation('/auth');
-    }
-  }, [restaurant, isAuthLoading, setLocation]);
 
   const { data: restaurantData, isLoading: isRestaurantLoading } = useQuery({
     queryKey: ["/api/restaurants", restaurant?.id],
@@ -43,7 +35,6 @@ export default function BranchAvailabilityPage() {
     enabled: !!restaurant?.id,
   });
 
-  // Fetch existing unavailable dates for the selected branch
   const { data: unavailableDates, isLoading: isLoadingDates } = useQuery({
     queryKey: ["/api/restaurant/branches", selectedBranchId, "unavailable-dates"],
     queryFn: async () => {
@@ -55,6 +46,7 @@ export default function BranchAvailabilityPage() {
       return data.map((date: string) => new Date(date));
     },
     enabled: !!selectedBranchId,
+    staleTime: 1000 * 60, // Cache for 1 minute
   });
 
   const saveDatesMutation = useMutation({
@@ -79,6 +71,7 @@ export default function BranchAvailabilityPage() {
         title: "Dates Updated",
         description: "The branch availability has been updated successfully.",
       });
+      setSelectedDates([]); // Reset selection after successful save
     },
     onError: (error: Error) => {
       toast({
@@ -98,18 +91,12 @@ export default function BranchAvailabilityPage() {
     });
   };
 
-  // Show loading state
-  if (isAuthLoading || isRestaurantLoading) {
+  if (isRestaurantLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-border" />
       </div>
     );
-  }
-
-  // Early return if not authenticated
-  if (!restaurant) {
-    return null;
   }
 
   return (
