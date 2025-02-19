@@ -276,7 +276,7 @@ export default function AuthPage() {
                       name="favoriteCuisines"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Favorite Cuisines (Max 3)</FormLabel>
+                          <FormLabel>What do you like to eat? (Max 3)</FormLabel>
                           <Select
                             onValueChange={(value: string) => {
                               const currentValues = field.value || [];
