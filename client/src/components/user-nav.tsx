@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Menu, BookmarkIcon, HomeIcon, CalendarDaysIcon, LogOut } from "lucide-react";
+import { Menu, BookmarkIcon, HomeIcon, CalendarDaysIcon, LogOut, Calendar } from "lucide-react";
 import {
   Drawer,
   DrawerClose,
@@ -36,18 +36,31 @@ export function UserNav() {
                   Home
                 </Link>
               </Button>
-              <Button asChild variant="ghost" className="w-full justify-start">
-                <Link href="/saved-restaurants">
-                  <BookmarkIcon className="mr-2 h-4 w-4" />
-                  Saved Restaurants
-                </Link>
-              </Button>
-              <Button asChild variant="ghost" className="w-full justify-start">
-                <Link href="/bookings">
-                  <CalendarDaysIcon className="mr-2 h-4 w-4" />
-                  My Bookings
-                </Link>
-              </Button>
+              {user.type === 'restaurant' ? (
+                <>
+                  <Button asChild variant="ghost" className="w-full justify-start">
+                    <Link href="/branch-availability">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Branch Availability
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button asChild variant="ghost" className="w-full justify-start">
+                    <Link href="/saved-restaurants">
+                      <BookmarkIcon className="mr-2 h-4 w-4" />
+                      Saved Restaurants
+                    </Link>
+                  </Button>
+                  <Button asChild variant="ghost" className="w-full justify-start">
+                    <Link href="/bookings">
+                      <CalendarDaysIcon className="mr-2 h-4 w-4" />
+                      My Bookings
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
           <div className="p-4 mt-auto border-t">
