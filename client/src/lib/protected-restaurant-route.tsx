@@ -23,9 +23,8 @@ export function ProtectedRestaurantRoute({
     );
   }
 
-  // Always redirect to auth if not authenticated
-  if (!restaurant) {
-    console.log('Protected route: redirecting to auth due to missing restaurant data');
+  // Only redirect to auth if not authenticated and not currently loading
+  if (!restaurant && !isLoading) {
     return (
       <Route path={path}>
         <Redirect to="/auth" />
@@ -33,10 +32,6 @@ export function ProtectedRestaurantRoute({
     );
   }
 
-  console.log('Protected route: rendering component for authenticated restaurant', {
-    restaurantId: restaurant.id,
-    path
-  });
-
+  // If we reach here, user is authenticated, render the component
   return <Route path={path} component={Component} />;
 }
