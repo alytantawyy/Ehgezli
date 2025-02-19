@@ -332,6 +332,31 @@ export default function RestaurantDashboard() {
 
           <div className="grid grid-cols-3 gap-6">
             <div>
+              <Select
+                value={selectedBranch}
+                onValueChange={setSelectedBranch}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Branch">
+                    <div className="flex items-center">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {selectedBranch === "all" ? "All Branches" :
+                        restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
+                    </div>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {restaurant?.locations?.map((location) => (
+                    <SelectItem key={location.id} value={location.id.toString()}>
+                      {location.address}, {location.city}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
@@ -348,31 +373,6 @@ export default function RestaurantDashboard() {
                   />
                 </PopoverContent>
               </Popover>
-            </div>
-
-            <div>
-              <Select
-                value={selectedBranch}
-                onValueChange={setSelectedBranch}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Branch">
-                    <div className="flex items-center">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {selectedBranch === "all" ? "All Branches" : 
-                        restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
-                    </div>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Branches</SelectItem>
-                  {restaurant?.locations?.map((location) => (
-                    <SelectItem key={location.id} value={location.id.toString()}>
-                      {location.address}, {location.city}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="flex items-center gap-2">
@@ -441,7 +441,7 @@ export default function RestaurantDashboard() {
               <CardHeader>
                 <CardTitle>Total Seats</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {selectedBranch === "all" 
+                  {selectedBranch === "all"
                     ? "Across all branches"
                     : `In ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address}`}
                 </p>
