@@ -252,26 +252,21 @@ export function registerRoutes(app: Express): Server {
 
 
   // Add the cancel booking endpoint
-  app.post("/api/restaurant/bookings/:bookingId/cancel", async (req, res, next) => {
+  app.post("/api/bookings/:bookingId/cancel", async (req, res, next) => {
     try {
-      if (!req.isAuthenticated() || req.user?.type !== 'restaurant' || !req.user?.id) {
-        return res.status(401).json({ message: "Not authenticated as restaurant" });
+      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
+        return res.status(401).json({ message: "Not authenticated as user" });
       }
 
       const bookingId = parseInt(req.params.bookingId);
-      const restaurantId = req.user.id;
 
-      // First get the booking
+      // First get the booking to verify ownership
       const [booking] = await db.select()
         .from(bookings)
-        .innerJoin(
-          restaurantBranches,
-          eq(bookings.branchId, restaurantBranches.id)
-        )
         .where(
           and(
             eq(bookings.id, bookingId),
-            eq(restaurantBranches.restaurantId, restaurantId)
+            eq(bookings.userId, req.user.id)
           )
         );
 
@@ -289,7 +284,7 @@ export function registerRoutes(app: Express): Server {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'booking_cancelled',
-            data: { bookingId, restaurantId }
+            data: { bookingId, userId: req.user?.id }
           }));
         }
       });
@@ -299,6 +294,7 @@ export function registerRoutes(app: Express): Server {
       next(error);
     }
   });
+
   app.get("/api/restaurants", async (req, res, next) => {
     try {
       const query = req.query.q as string;
