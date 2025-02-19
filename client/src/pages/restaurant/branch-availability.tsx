@@ -2,7 +2,7 @@ import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Calendar } from "@/components/ui/calendar";
 import { useState, useEffect } from "react";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 
 export default function BranchAvailabilityPage() {
-  const { restaurant } = useRestaurantAuth();
+  const { restaurant, isLoading: isAuthLoading } = useRestaurantAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -25,17 +25,18 @@ export default function BranchAvailabilityPage() {
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (!restaurant) {
+    if (!isAuthLoading && !restaurant) {
       setLocation('/auth');
-      return;
     }
-  }, [restaurant, setLocation]);
+  }, [restaurant, isAuthLoading, setLocation]);
 
   const { data: restaurantData, isLoading: isRestaurantLoading } = useQuery({
     queryKey: ["/api/restaurants", restaurant?.id],
     queryFn: async () => {
       if (!restaurant?.id) throw new Error("No restaurant ID");
-      const response = await fetch(`/api/restaurants/${restaurant.id}`);
+      const response = await fetch(`/api/restaurants/${restaurant.id}`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to fetch restaurant');
       return response.json();
     },
@@ -46,7 +47,9 @@ export default function BranchAvailabilityPage() {
   const { data: unavailableDates, isLoading: isLoadingDates } = useQuery({
     queryKey: ["/api/restaurant/branches", selectedBranchId, "unavailable-dates"],
     queryFn: async () => {
-      const response = await fetch(`/api/restaurant/branches/${selectedBranchId}/unavailable-dates`);
+      const response = await fetch(`/api/restaurant/branches/${selectedBranchId}/unavailable-dates`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to fetch unavailable dates');
       const data = await response.json();
       return data.map((date: string) => new Date(date));
@@ -61,6 +64,7 @@ export default function BranchAvailabilityPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ dates: dates.dates }),
       });
       if (!response.ok) {
@@ -94,12 +98,18 @@ export default function BranchAvailabilityPage() {
     });
   };
 
-  if (!restaurant) {
-    return null;
+  // Show loading state
+  if (isAuthLoading || isRestaurantLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-border" />
+      </div>
+    );
   }
 
-  if (isRestaurantLoading) {
-    return <div>Loading...</div>;
+  // Early return if not authenticated
+  if (!restaurant) {
+    return null;
   }
 
   return (

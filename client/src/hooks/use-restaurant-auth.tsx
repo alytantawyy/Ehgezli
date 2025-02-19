@@ -31,15 +31,16 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     refetch: refetchRestaurant,
   } = useQuery<RestaurantAuth | null>({
     queryKey: ["/api/restaurant"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
+    queryFn: getQueryFn({ on401: "returnNull", credentials: 'include' }),
     retry: false,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["/api/restaurant/profile-status", restaurant?.id],
     queryFn: async () => {
       if (!restaurant) return { isComplete: false };
-      const res = await apiRequest("GET", `/api/restaurant/profile-status/${restaurant.id}`);
+      const res = await apiRequest("GET", `/api/restaurant/profile-status/${restaurant.id}`, undefined, { credentials: 'include' });
       if (!res.ok) throw new Error("Failed to fetch profile status");
       return res.json();
     },
@@ -49,7 +50,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/restaurant/login", credentials);
+      const res = await apiRequest("POST", "/api/restaurant/login", credentials, { credentials: 'include' });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ message: "Login failed" }));
         throw new Error(errorData.message || "Login failed");
@@ -75,7 +76,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
 
   const registerMutation = useMutation({
     mutationFn: async (credentials: InsertRestaurantAuth) => {
-      const res = await apiRequest("POST", "/api/restaurant/register", credentials);
+      const res = await apiRequest("POST", "/api/restaurant/register", credentials, { credentials: 'include' });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ message: "Registration failed" }));
         throw new Error(errorData.message || "Registration failed");
@@ -100,7 +101,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/logout");
+      const res = await apiRequest("POST", "/api/logout", undefined, { credentials: 'include' });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ message: "Logout failed" }));
         throw new Error(errorData.message || "Logout failed");
