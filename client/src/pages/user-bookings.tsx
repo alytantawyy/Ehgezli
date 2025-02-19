@@ -76,11 +76,15 @@ export default function UserBookings() {
 
   // Separate and sort bookings
   const upcomingBookings = bookings
-    ?.filter(booking => new Date(booking.date) > now)
+    ?.filter(booking => new Date(booking.date) > now && booking.confirmed)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
   const previousBookings = bookings
-    ?.filter(booking => new Date(booking.date) <= now)
+    ?.filter(booking => new Date(booking.date) <= now && booking.confirmed)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) || [];
+
+  const cancelledBookings = bookings
+    ?.filter(booking => !booking.confirmed)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) || [];
 
   const BookingTable = ({ bookings, showCancelButton = false }: { bookings: BookingWithRestaurant[], showCancelButton?: boolean }) => (
@@ -164,6 +168,17 @@ export default function UserBookings() {
           ) : (
             <div className="text-center py-8 bg-gray-50 rounded-lg">
               <p className="text-lg text-muted-foreground">No previous bookings</p>
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Cancelled Bookings</h2>
+          {cancelledBookings.length > 0 ? (
+            <BookingTable bookings={cancelledBookings} />
+          ) : (
+            <div className="text-center py-8 bg-gray-50 rounded-lg">
+              <p className="text-lg text-muted-foreground">No cancelled bookings</p>
             </div>
           )}
         </section>
