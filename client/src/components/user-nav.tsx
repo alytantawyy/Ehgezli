@@ -39,7 +39,7 @@ export function UserNav() {
               {user.type === 'restaurant' ? (
                 <>
                   <Button asChild variant="ghost" className="w-full justify-start">
-                    <Link href="/branch-availability">
+                    <Link href="/restaurant/branch-availability">
                       <Calendar className="mr-2 h-4 w-4" />
                       Branch Availability
                     </Link>

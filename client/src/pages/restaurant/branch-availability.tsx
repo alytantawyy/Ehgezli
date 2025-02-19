@@ -1,5 +1,5 @@
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
@@ -16,40 +16,37 @@ import {
 } from "@/components/ui/select";
 
 export default function BranchAvailabilityPage() {
-  const { restaurant: auth } = useRestaurantAuth();
+  const { restaurant } = useRestaurantAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const [selectedBranchId, setSelectedBranchId] = useState<string>();
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (!auth) {
+    if (!restaurant) {
       setLocation('/auth');
       return;
     }
-  }, [auth, setLocation]);
+  }, [restaurant, setLocation]);
 
-  const { data: restaurant, isLoading: isRestaurantLoading } = useQuery({
-    queryKey: ["/api/restaurants", auth?.id],
+  const { data: restaurantData, isLoading: isRestaurantLoading } = useQuery({
+    queryKey: ["/api/restaurants", restaurant?.id],
     queryFn: async () => {
-      if (!auth?.id) throw new Error("No restaurant ID");
-      const response = await fetch(`/api/restaurants/${auth.id}`, {
-        credentials: 'include'
-      });
+      if (!restaurant?.id) throw new Error("No restaurant ID");
+      const response = await fetch(`/api/restaurants/${restaurant.id}`);
       if (!response.ok) throw new Error('Failed to fetch restaurant');
       return response.json();
     },
-    enabled: !!auth?.id,
+    enabled: !!restaurant?.id,
   });
 
   // Fetch existing unavailable dates for the selected branch
   const { data: unavailableDates, isLoading: isLoadingDates } = useQuery({
     queryKey: ["/api/restaurant/branches", selectedBranchId, "unavailable-dates"],
     queryFn: async () => {
-      const response = await fetch(`/api/restaurant/branches/${selectedBranchId}/unavailable-dates`, {
-        credentials: 'include'
-      });
+      const response = await fetch(`/api/restaurant/branches/${selectedBranchId}/unavailable-dates`);
       if (!response.ok) throw new Error('Failed to fetch unavailable dates');
       const data = await response.json();
       return data.map((date: string) => new Date(date));
@@ -64,7 +61,6 @@ export default function BranchAvailabilityPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ dates: dates.dates }),
       });
       if (!response.ok) {
@@ -74,6 +70,7 @@ export default function BranchAvailabilityPage() {
       return response.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/branches", selectedBranchId, "unavailable-dates"] });
       toast({
         title: "Dates Updated",
         description: "The branch availability has been updated successfully.",
@@ -97,8 +94,7 @@ export default function BranchAvailabilityPage() {
     });
   };
 
-  // Early return if not authenticated
-  if (!auth) {
+  if (!restaurant) {
     return null;
   }
 
@@ -131,7 +127,7 @@ export default function BranchAvailabilityPage() {
                   <SelectValue placeholder="Select Branch" />
                 </SelectTrigger>
                 <SelectContent>
-                  {restaurant?.locations?.map((location: any) => (
+                  {restaurantData?.locations?.map((location: any) => (
                     <SelectItem key={location.id} value={location.id.toString()}>
                       {location.address}
                     </SelectItem>
@@ -147,9 +143,9 @@ export default function BranchAvailabilityPage() {
                   mode="multiple"
                   selected={selectedDates}
                   onSelect={setSelectedDates as any}
-                  blocked={unavailableDates || []} // Added to display blocked dates
                   className="rounded-md border"
                   disabled={(date) => date < new Date()}
+                  defaultMonth={new Date()}
                 />
               </div>
             </div>
