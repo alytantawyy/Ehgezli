@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Booking } from "@shared/schema";
 import {
@@ -12,19 +12,50 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface BookingWithRestaurant extends Booking {
   restaurantName: string;
 }
 
 export default function UserBookings() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: bookings, isLoading } = useQuery<BookingWithRestaurant[]>({
     queryKey: ["/api/bookings"],
     queryFn: async () => {
       const response = await fetch("/api/bookings");
       if (!response.ok) throw new Error("Failed to fetch bookings");
       return response.json();
+    },
+  });
+
+  const cancelBookingMutation = useMutation({
+    mutationFn: async (bookingId: number) => {
+      const response = await fetch(`/api/bookings/${bookingId}/cancel`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to cancel booking');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      toast({
+        title: "Booking Cancelled",
+        description: "Your booking has been cancelled successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel booking. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -52,7 +83,7 @@ export default function UserBookings() {
     ?.filter(booking => new Date(booking.date) <= now)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) || [];
 
-  const BookingTable = ({ bookings }: { bookings: BookingWithRestaurant[] }) => (
+  const BookingTable = ({ bookings, showCancelButton = false }: { bookings: BookingWithRestaurant[], showCancelButton?: boolean }) => (
     <Table>
       <TableHeader>
         <TableRow>
@@ -61,6 +92,7 @@ export default function UserBookings() {
           <TableHead>Time</TableHead>
           <TableHead>Party Size</TableHead>
           <TableHead>Status</TableHead>
+          {showCancelButton && <TableHead className="w-[100px]">Action</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -72,13 +104,30 @@ export default function UserBookings() {
             <TableCell>{booking.partySize}</TableCell>
             <TableCell>
               <span className={`px-2 py-1 rounded-full text-sm ${
-                booking.confirmed 
-                  ? "bg-green-100 text-green-800" 
-                  : "bg-yellow-100 text-yellow-800"
+                !booking.confirmed 
+                  ? "bg-red-100 text-red-800"
+                  : "bg-green-100 text-green-800"
               }`}>
-                {booking.confirmed ? "Confirmed" : "Pending"}
+                {!booking.confirmed ? "Cancelled" : "Confirmed"}
               </span>
             </TableCell>
+            {showCancelButton && booking.confirmed && (
+              <TableCell>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to cancel this booking?')) {
+                      cancelBookingMutation.mutate(booking.id);
+                    }
+                  }}
+                  disabled={cancelBookingMutation.isPending}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>
@@ -100,7 +149,7 @@ export default function UserBookings() {
         <section>
           <h2 className="text-xl font-semibold mb-4">Upcoming Bookings</h2>
           {upcomingBookings.length > 0 ? (
-            <BookingTable bookings={upcomingBookings} />
+            <BookingTable bookings={upcomingBookings} showCancelButton={true} />
           ) : (
             <div className="text-center py-8 bg-gray-50 rounded-lg">
               <p className="text-lg text-muted-foreground">No upcoming bookings</p>
