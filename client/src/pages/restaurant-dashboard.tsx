@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History } from "lucide-react";
+import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History, Calendar } from "lucide-react";
 import { format, isBefore, isSameDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState, useEffect } from "react";
-import { Calendar } from "@/components/ui/calendar";
+import { Calendar as Datepicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AddReservationModal } from "@/components/add-reservation-modal";
 
@@ -278,6 +278,16 @@ export default function RestaurantDashboard() {
                       asChild
                       className="w-full justify-start mb-2"
                     >
+                      <Link to="/restaurant/branch-availability">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Branch Availability
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      asChild
+                      className="w-full justify-start mb-2"
+                    >
                       <Link to="/restaurant/profile">
                         <Settings className="h-4 w-4 mr-2" />
                         My Restaurant
@@ -310,6 +320,15 @@ export default function RestaurantDashboard() {
                 <Link to="/restaurant/previous-bookings">
                   <History className="h-4 w-4 mr-2" />
                   Previous Bookings
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                asChild
+              >
+                <Link to="/restaurant/branch-availability">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Branch Availability
                 </Link>
               </Button>
               <Button
@@ -371,7 +390,7 @@ export default function RestaurantDashboard() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="end">
-                  <Calendar
+                  <Datepicker
                     mode="single"
                     selected={selectedDate}
                     onSelect={setSelectedDate}
