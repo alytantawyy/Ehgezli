@@ -250,26 +250,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add this endpoint before the booking creation endpoints
-  app.get("/api/restaurants/availability/:branchId", async (req, res, next) => {
-    try {
-      const branchId = parseInt(req.params.branchId);
-      const date = new Date(req.query.date as string);
-
-      if (isNaN(branchId) || isNaN(date.getTime())) {
-        return res.status(400).json({ message: "Invalid parameters" });
-      }
-
-      const availability = await storage.getAvailableSeats(branchId, date);
-
-      res.json({
-        ...availability,
-        isAvailable: true // Not checking against party size here
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
 
   // Add the cancel booking endpoint
   app.post("/api/restaurant/bookings/:bookingId/cancel", async (req, res, next) => {
@@ -379,14 +359,6 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid date format" });
       }
 
-      // Check availability before creating booking
-      const isAvailable = await storage.isTimeSlotAvailable(branchId, new Date(date), partySize);
-      if (!isAvailable) {
-        return res.status(400).json({
-          message: "Selected time slot is not available for the requested party size"
-        });
-      }
-
       // Create the booking - now we know req.user.id is a number
       const booking = await storage.createBooking({
         userId: req.user.id,
@@ -449,6 +421,7 @@ export function registerRoutes(app: Express): Server {
       next(error);
     }
   });
+
 
 
   // Add saved restaurants endpoints
