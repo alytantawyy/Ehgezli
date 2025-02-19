@@ -25,7 +25,11 @@ export function ProtectedRestaurantRoute({
 
   // Always redirect to auth if not authenticated
   if (!restaurant) {
-    console.log('Protected route: redirecting to auth due to missing restaurant data');
+    console.log('Protected route: redirecting to auth due to missing restaurant data', {
+      path,
+      isLoading,
+      hasRestaurant: !!restaurant
+    });
     return (
       <Route path={path}>
         <Redirect to="/auth" />

@@ -7,6 +7,26 @@ import { Link } from "wouter";
 import { ArrowLeft, Clock, MapPin, DollarSign } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// Assumed implementation of apiRequest function.  This needs to be adjusted based on your actual implementation.
+async function apiRequest(method: string, url: string, body?: any) {
+  const headers = {
+    'Content-Type': 'application/json',
+    // Add authentication headers here if needed.  e.g., 'Authorization': `Bearer ${token}`
+  };
+
+  const options: RequestInit = {
+    method,
+    headers,
+  };
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, options);
+  return response;
+}
+
+
 export default function RestaurantPage() {
   const [, params] = useRoute("/restaurant/:id");
   const [, setLocation] = useLocation();
@@ -18,7 +38,7 @@ export default function RestaurantPage() {
     enabled: restaurantId > 0,
     retry: 1,
     queryFn: async () => {
-      const response = await fetch(`/api/restaurants/${restaurantId}`);
+      const response = await apiRequest("GET", `/api/restaurants/${restaurantId}`);
       if (!response.ok) throw new Error('Failed to fetch restaurant');
       return response.json();
     },

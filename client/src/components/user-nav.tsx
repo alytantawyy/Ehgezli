@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Menu, BookmarkIcon, HomeIcon, CalendarDaysIcon, LogOut, Calendar } from "lucide-react";
+import { Menu, BookmarkIcon, HomeIcon, CalendarDaysIcon, LogOut, Settings } from "lucide-react";
 import {
   Drawer,
   DrawerClose,
@@ -11,10 +11,25 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 
+interface User {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  type?: 'user' | 'restaurant';
+  password: string;
+  gender: string;
+  birthday: Date;
+  city: string;
+  favoriteCuisines: string[];
+}
+
 export function UserNav() {
   const { user, logoutMutation } = useAuth();
 
   if (!user) return null;
+
+  const currentUser = user as User;
 
   return (
     <Drawer direction="left">
@@ -36,12 +51,12 @@ export function UserNav() {
                   Home
                 </Link>
               </Button>
-              {user.type === 'restaurant' ? (
+              {currentUser.type === 'restaurant' ? (
                 <>
                   <Button asChild variant="ghost" className="w-full justify-start">
-                    <Link href="/restaurant/branch-availability">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      Branch Availability
+                    <Link href="/restaurant/profile">
+                      <Settings className="h-4 w-4 mr-2" />
+                      My Restaurant
                     </Link>
                   </Button>
                 </>

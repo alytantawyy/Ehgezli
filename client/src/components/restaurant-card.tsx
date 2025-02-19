@@ -12,6 +12,7 @@ import { MapPin, Bookmark } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 interface RestaurantBranchCardProps {
   restaurant: Restaurant;
@@ -27,9 +28,7 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
   const { data: savedStatus } = useQuery({
     queryKey: ['/api/saved-restaurants', restaurant.id, branchIndex],
     queryFn: async () => {
-      const response = await fetch(`/api/saved-restaurants/${restaurant.id}/${branchIndex}`, {
-        credentials: 'include'
-      });
+      const response = await apiRequest("GET", `/api/saved-restaurants/${restaurant.id}/${branchIndex}`);
       if (!response.ok) return false;
       return response.json();
     }
@@ -37,13 +36,9 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch('/api/saved-restaurants', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ restaurantId: restaurant.id, branchIndex }),
-        credentials: 'include'
+      const response = await apiRequest("POST", '/api/saved-restaurants', {
+        restaurantId: restaurant.id,
+        branchIndex
       });
       if (!response.ok) {
         const error = await response.json();
@@ -70,10 +65,7 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
 
   const unsaveMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/saved-restaurants/${restaurant.id}/${branchIndex}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      const response = await apiRequest("DELETE", `/api/saved-restaurants/${restaurant.id}/${branchIndex}`);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Failed to unsave restaurant');
