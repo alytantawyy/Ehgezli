@@ -74,7 +74,7 @@ export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter, priceFi
       }
     }
 
-    // Apply price range filter - exact match with the symbol
+    // Apply price range filter
     if (priceFilter && priceFilter !== 'all') {
       if (branch.restaurant.priceRange !== priceFilter) {
         return false;

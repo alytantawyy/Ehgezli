@@ -30,12 +30,6 @@ export interface IStorage {
   setSessionStore(store: session.Store): void;
   searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
   isRestaurantProfileComplete(restaurantId: number): Promise<boolean>;
-  getAvailableSeats(branchId: number, date: Date): Promise<{
-    availableSeats: number;
-    totalSeats: number;
-    existingBookings: number;
-  }>;
-  isTimeSlotAvailable(branchId: number, date: Date, partySize: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -125,7 +119,6 @@ export class DatabaseStorage implements IStorage {
 
   async getRestaurant(id: number): Promise<Restaurant | undefined> {
     try {
-      // Get restaurant auth and profile data
       const [restaurantData] = await db.select()
         .from(restaurantAuth)
         .where(eq(restaurantAuth.id, id))
@@ -136,7 +129,6 @@ export class DatabaseStorage implements IStorage {
         return undefined;
       }
 
-      // Get branches data separately to ensure we get all branches
       const branches = await db
         .select()
         .from(restaurantBranches)
@@ -146,7 +138,6 @@ export class DatabaseStorage implements IStorage {
 
       const { restaurant_auth, restaurant_profiles } = restaurantData;
 
-      // Map the data to the Restaurant type
       const restaurant: Restaurant = {
         id: restaurant_auth.id,
         authId: restaurant_auth.id,
@@ -155,8 +146,9 @@ export class DatabaseStorage implements IStorage {
         about: restaurant_profiles.about,
         logo: restaurant_profiles.logo || "",
         cuisine: restaurant_profiles.cuisine,
+        priceRange: restaurant_profiles.priceRange,
         locations: branches.map(branch => ({
-          id: branch.id, // Use the branch ID as the location ID
+          id: branch.id,
           address: branch.address,
           tablesCount: branch.tablesCount,
           seatsCount: branch.seatsCount,
@@ -310,7 +302,7 @@ export class DatabaseStorage implements IStorage {
           )
         )
         .leftJoin(users, eq(bookings.userId, users.id))
-        .where(eq(bookings.confirmed, true)); // Only get confirmed bookings
+        .where(eq(bookings.confirmed, true));
 
       console.log(`Found ${bookingsWithDetails.length} confirmed bookings for restaurant ${restaurantId}:`, bookingsWithDetails);
       return bookingsWithDetails;
@@ -373,11 +365,9 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log("Creating/updating restaurant profile with data:", profile);
 
-      // First check if profile exists
       const existingProfile = await this.getRestaurantProfile(profile.restaurantId);
 
       if (existingProfile) {
-        // If profile exists, update it
         await db.update(restaurantProfiles)
           .set({
             about: profile.about,
@@ -389,7 +379,6 @@ export class DatabaseStorage implements IStorage {
           })
           .where(eq(restaurantProfiles.restaurantId, profile.restaurantId));
       } else {
-        // If profile doesn't exist, insert new one
         await db.insert(restaurantProfiles).values({
           restaurantId: profile.restaurantId,
           about: profile.about,
@@ -402,11 +391,9 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
-      // Update branches - first delete existing ones
       await db.delete(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, profile.restaurantId));
 
-      // Then insert the new/updated branches
       const branchData = profile.branches.map(branch => ({
         restaurantId: profile.restaurantId,
         address: branch.address,
@@ -453,70 +440,6 @@ export class DatabaseStorage implements IStorage {
 
       return matchesName || matchesCuisine || matchesLocation;
     });
-  }
-
-
-  async getAvailableSeats(branchId: number, date: Date): Promise<{
-    availableSeats: number;
-    totalSeats: number;
-    existingBookings: number;
-  }> {
-    try {
-      // Get branch details first
-      const [branch] = await db.select()
-        .from(restaurantBranches)
-        .where(eq(restaurantBranches.id, branchId));
-
-      if (!branch) {
-        throw new Error('Branch not found');
-      }
-
-      // Calculate the time window (2 hours)
-      const startTime = new Date(date);
-      const endTime = new Date(date);
-      endTime.setHours(endTime.getHours() + 2);
-
-      // Get overlapping bookings
-      const overlappingBookings = await db.select()
-        .from(bookings)
-        .where(
-          and(
-            eq(bookings.branchId, branchId),
-            eq(bookings.confirmed, true)
-          )
-        );
-
-      // Filter bookings that overlap with the requested time slot
-      const conflictingBookings = overlappingBookings.filter(booking => {
-        const bookingStart = new Date(booking.date);
-        const bookingEnd = new Date(booking.date);
-        bookingEnd.setHours(bookingEnd.getHours() + 2);
-
-        return (
-          (startTime >= bookingStart && startTime < bookingEnd) ||
-          (endTime > bookingStart && endTime <= bookingEnd) ||
-          (startTime <= bookingStart && endTime >= bookingEnd)
-        );
-      });
-
-      // Calculate total booked seats
-      const bookedSeats = conflictingBookings.reduce((total, booking) =>
-        total + booking.partySize, 0);
-
-      return {
-        availableSeats: branch.seatsCount - bookedSeats,
-        totalSeats: branch.seatsCount,
-        existingBookings: conflictingBookings.length
-      };
-    } catch (error) {
-      console.error('Error checking availability:', error);
-      throw error;
-    }
-  }
-
-  async isTimeSlotAvailable(branchId: number, date: Date, partySize: number): Promise<boolean> {
-    const { availableSeats } = await this.getAvailableSeats(branchId, date);
-    return availableSeats >= partySize;
   }
 }
 
