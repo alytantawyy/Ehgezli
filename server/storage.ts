@@ -2,11 +2,10 @@ import {
   InsertUser, User, Restaurant, Booking, RestaurantBranch,
   mockRestaurants, RestaurantAuth, InsertRestaurantAuth,
   restaurantProfiles, restaurantBranches, bookings, users,
-  type InsertRestaurantProfile, RestaurantProfile, restaurants, restaurantAuth,
-  branchUnavailableDates, type InsertBranchUnavailableDates
+  type InsertRestaurantProfile, RestaurantProfile, restaurants, restaurantAuth
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -37,8 +36,6 @@ export interface IStorage {
     existingBookings: number;
   }>;
   isTimeSlotAvailable(branchId: number, date: Date, partySize: number): Promise<boolean>;
-  setBranchUnavailableDates(branchId: number, dates: string[]): Promise<void>;
-  getBranchUnavailableDates(branchId: number): Promise<string[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -179,38 +176,33 @@ export class DatabaseStorage implements IStorage {
 
   async getRestaurantBranches(restaurantId: number): Promise<RestaurantBranch[]> {
     try {
-      // Get all branches for the restaurant
+      const [restaurant] = await db
+        .select()
+        .from(restaurantAuth)
+        .where(eq(restaurantAuth.id, restaurantId));
+
+      if (!restaurant) {
+        throw new Error('Restaurant not found');
+      }
+
       const branches = await db
         .select()
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, restaurantId));
 
-      // Get unavailable dates for each branch
-      const branchesWithDates = await Promise.all(
-        branches.map(async (branch) => {
-          const unavailableDates = await db
-            .select()
-            .from(branchUnavailableDates)
-            .where(eq(branchUnavailableDates.branchId, branch.id));
+      console.log('Fetched branches from database:', branches);
 
-          return {
-            id: branch.id,
-            restaurantId: branch.restaurantId,
-            address: branch.address,
-            city: branch.city,
-            tablesCount: branch.tablesCount,
-            seatsCount: branch.seatsCount,
-            openingTime: branch.openingTime,
-            closingTime: branch.closingTime,
-            reservationDuration: branch.reservationDuration,
-            unavailableDates: unavailableDates.map(date =>
-              date.date.toISOString().split('T')[0]
-            )
-          };
-        })
-      );
-
-      return branchesWithDates;
+      return branches.map(branch => ({
+        id: branch.id,
+        restaurantId: branch.restaurantId,
+        address: branch.address,
+        city: branch.city as "Alexandria" | "Cairo",
+        tablesCount: branch.tablesCount,
+        seatsCount: branch.seatsCount,
+        openingTime: branch.openingTime,
+        closingTime: branch.closingTime,
+        reservationDuration: branch.reservationDuration || 120
+      }));
     } catch (error) {
       console.error('Error fetching restaurant branches:', error);
       throw new Error('Failed to fetch restaurant branches');
@@ -285,15 +277,12 @@ export class DatabaseStorage implements IStorage {
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, restaurantId));
 
-      console.log(`Found ${branches.length} branches for restaurant ${restaurantId}`);
+      console.log(`Found ${branches.length} branches for restaurant ${restaurantId}:`, branches);
 
       if (!branches.length) {
         console.log(`No branches found for restaurant ${restaurantId}`);
         return [];
       }
-
-      const branchIds = branches.map(branch => branch.id);
-      const branchIdsCondition = sql`${bookings.branchId} = ANY(${branchIds})`;
 
       const bookingsWithDetails = await db
         .select({
@@ -313,14 +302,17 @@ export class DatabaseStorage implements IStorage {
           }
         })
         .from(bookings)
-        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
+        .innerJoin(
+          restaurantBranches,
+          and(
+            eq(bookings.branchId, restaurantBranches.id),
+            eq(restaurantBranches.restaurantId, restaurantId)
+          )
+        )
         .leftJoin(users, eq(bookings.userId, users.id))
-        .where(and(
-          eq(bookings.confirmed, true),
-          branchIdsCondition
-        ));
+        .where(eq(bookings.confirmed, true)); // Only get confirmed bookings
 
-      console.log(`Found ${bookingsWithDetails.length} bookings for restaurant ${restaurantId}`);
+      console.log(`Found ${bookingsWithDetails.length} confirmed bookings for restaurant ${restaurantId}:`, bookingsWithDetails);
       return bookingsWithDetails;
     } catch (error) {
       console.error('Error fetching restaurant bookings:', error);
@@ -464,7 +456,6 @@ export class DatabaseStorage implements IStorage {
   }
 
 
-
   async getAvailableSeats(branchId: number, date: Date): Promise<{
     availableSeats: number;
     totalSeats: number;
@@ -526,56 +517,6 @@ export class DatabaseStorage implements IStorage {
   async isTimeSlotAvailable(branchId: number, date: Date, partySize: number): Promise<boolean> {
     const { availableSeats } = await this.getAvailableSeats(branchId, date);
     return availableSeats >= partySize;
-  }
-
-  async setBranchUnavailableDates(branchId: number, dates: string[]): Promise<void> {
-    try {
-      // First verify that the branch exists
-      const [branch] = await db
-        .select()
-        .from(restaurantBranches)
-        .where(eq(restaurantBranches.id, branchId));
-
-      if (!branch) {
-        throw new Error('Branch not found');
-      }
-
-      // Delete existing unavailable dates for this branch
-      await db
-        .delete(branchUnavailableDates)
-        .where(eq(branchUnavailableDates.branchId, branchId));
-
-      // Insert new unavailable dates
-      if (dates.length > 0) {
-        const unavailableDatesData = dates.map(date => ({
-          branchId,
-          date: new Date(date),
-          createdAt: new Date()
-        }));
-
-        await db.insert(branchUnavailableDates).values(unavailableDatesData);
-      }
-
-    } catch (error) {
-      console.error('Error setting branch unavailable dates:', error);
-      throw new Error('Failed to set branch unavailable dates');
-    }
-  }
-
-  async getBranchUnavailableDates(branchId: number): Promise<string[]> {
-    try {
-      const unavailableDates = await db
-        .select()
-        .from(branchUnavailableDates)
-        .where(eq(branchUnavailableDates.branchId, branchId));
-
-      return unavailableDates.map(record =>
-        new Date(record.date).toISOString().split('T')[0]
-      );
-    } catch (error) {
-      console.error('Error getting branch unavailable dates:', error);
-      throw new Error('Failed to get branch unavailable dates');
-    }
   }
 }
 

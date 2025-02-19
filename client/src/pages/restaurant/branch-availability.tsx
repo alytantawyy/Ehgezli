@@ -2,10 +2,10 @@ import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { Link } from "wouter";
+import { ArrowLeft } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { Calendar } from "@/components/ui/calendar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -18,35 +18,40 @@ import {
 export default function BranchAvailabilityPage() {
   const { restaurant } = useRestaurantAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [selectedBranchId, setSelectedBranchId] = useState<string>();
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!restaurant) {
+      setLocation('/auth');
+      return;
+    }
+  }, [restaurant, setLocation]);
 
   const { data: restaurantData, isLoading: isRestaurantLoading } = useQuery({
     queryKey: ["/api/restaurants", restaurant?.id],
     queryFn: async () => {
       if (!restaurant?.id) throw new Error("No restaurant ID");
-      const response = await fetch(`/api/restaurants/${restaurant.id}`, {
-        credentials: 'include'
-      });
+      const response = await fetch(`/api/restaurants/${restaurant.id}`);
       if (!response.ok) throw new Error('Failed to fetch restaurant');
       return response.json();
     },
     enabled: !!restaurant?.id,
   });
 
+  // Fetch existing unavailable dates for the selected branch
   const { data: unavailableDates, isLoading: isLoadingDates } = useQuery({
     queryKey: ["/api/restaurant/branches", selectedBranchId, "unavailable-dates"],
     queryFn: async () => {
-      const response = await fetch(`/api/restaurant/branches/${selectedBranchId}/unavailable-dates`, {
-        credentials: 'include'
-      });
+      const response = await fetch(`/api/restaurant/branches/${selectedBranchId}/unavailable-dates`);
       if (!response.ok) throw new Error('Failed to fetch unavailable dates');
       const data = await response.json();
       return data.map((date: string) => new Date(date));
     },
     enabled: !!selectedBranchId,
-    staleTime: 1000 * 60, // Cache for 1 minute
   });
 
   const saveDatesMutation = useMutation({
@@ -55,30 +60,14 @@ export default function BranchAvailabilityPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
         },
-        credentials: 'include',
         body: JSON.stringify({ dates: dates.dates }),
       });
-
-      // First check if response is ok before trying to parse JSON
       if (!response.ok) {
-        // Try to get error message from JSON response
-        try {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to save unavailable dates');
-        } catch (e) {
-          // If JSON parsing fails, use status text
-          throw new Error(`Failed to save dates: ${response.statusText}`);
-        }
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to save unavailable dates');
       }
-
-      // If response is ok, parse the JSON
-      try {
-        return await response.json();
-      } catch (e) {
-        throw new Error('Invalid response from server');
-      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/restaurant/branches", selectedBranchId, "unavailable-dates"] });
@@ -86,7 +75,6 @@ export default function BranchAvailabilityPage() {
         title: "Dates Updated",
         description: "The branch availability has been updated successfully.",
       });
-      setSelectedDates([]); // Reset selection after successful save
     },
     onError: (error: Error) => {
       toast({
@@ -106,12 +94,12 @@ export default function BranchAvailabilityPage() {
     });
   };
 
+  if (!restaurant) {
+    return null;
+  }
+
   if (isRestaurantLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-border" />
-      </div>
-    );
+    return <div>Loading...</div>;
   }
 
   return (

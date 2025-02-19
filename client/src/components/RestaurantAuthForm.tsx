@@ -23,17 +23,6 @@ export default function RestaurantAuthForm() {
   const [activeTab, setActiveTab] = useState("login");
   const { toast } = useToast();
 
-  // Track auth state changes
-  useEffect(() => {
-    if (!isLoading && restaurant) {
-      if (isProfileComplete) {
-        setLocation("/restaurant/dashboard");
-      } else {
-        setLocation("/restaurant/profile-setup");
-      }
-    }
-  }, [restaurant, isProfileComplete, isLoading, setLocation]);
-
   const loginForm = useForm({
     resolver: zodResolver(insertRestaurantAuthSchema.pick({ email: true, password: true })),
     defaultValues: {
@@ -50,6 +39,16 @@ export default function RestaurantAuthForm() {
       password: "",
     },
   });
+
+  useEffect(() => {
+    if (!isLoading && restaurant) {
+      if (isProfileComplete) {
+        setLocation("/restaurant/dashboard");
+      } else {
+        setLocation("/restaurant/profile-setup");
+      }
+    }
+  }, [restaurant, isProfileComplete, isLoading, setLocation]);
 
   const handleRegisterSubmit = async (data: any) => {
     try {
@@ -74,15 +73,6 @@ export default function RestaurantAuthForm() {
       });
     }
   };
-
-  // Show loading state while checking auth
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
