@@ -2,7 +2,8 @@ import {
   InsertUser, User, Restaurant, Booking, RestaurantBranch,
   mockRestaurants, RestaurantAuth, InsertRestaurantAuth,
   restaurantProfiles, restaurantBranches, bookings, users,
-  type InsertRestaurantProfile, RestaurantProfile, restaurants, restaurantAuth
+  type InsertRestaurantProfile, RestaurantProfile, restaurants, restaurantAuth,
+  branchUnavailableDates, type InsertBranchUnavailableDates
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -36,6 +37,8 @@ export interface IStorage {
     existingBookings: number;
   }>;
   isTimeSlotAvailable(branchId: number, date: Date, partySize: number): Promise<boolean>;
+  setBranchUnavailableDates(branchId: number, dates: string[]): Promise<void>;
+  getBranchUnavailableDates(branchId: number): Promise<string[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -517,6 +520,53 @@ export class DatabaseStorage implements IStorage {
   async isTimeSlotAvailable(branchId: number, date: Date, partySize: number): Promise<boolean> {
     const { availableSeats } = await this.getAvailableSeats(branchId, date);
     return availableSeats >= partySize;
+  }
+
+  async setBranchUnavailableDates(branchId: number, dates: string[]): Promise<void> {
+    try {
+      // First verify that the branch exists
+      const [branch] = await db
+        .select()
+        .from(restaurantBranches)
+        .where(eq(restaurantBranches.id, branchId));
+
+      if (!branch) {
+        throw new Error('Branch not found');
+      }
+
+      // Delete existing unavailable dates for this branch
+      await db
+        .delete(branchUnavailableDates)
+        .where(eq(branchUnavailableDates.branchId, branchId));
+
+      // Insert new unavailable dates
+      if (dates.length > 0) {
+        const unavailableDatesData = dates.map(date => ({
+          branchId,
+          date: new Date(date),
+        }));
+
+        await db.insert(branchUnavailableDates).values(unavailableDatesData);
+      }
+
+    } catch (error) {
+      console.error('Error setting branch unavailable dates:', error);
+      throw new Error('Failed to set branch unavailable dates');
+    }
+  }
+
+  async getBranchUnavailableDates(branchId: number): Promise<string[]> {
+    try {
+      const unavailableDates = await db
+        .select()
+        .from(branchUnavailableDates)
+        .where(eq(branchUnavailableDates.branchId, branchId));
+
+      return unavailableDates.map(record => record.date.toISOString().split('T')[0]);
+    } catch (error) {
+      console.error('Error getting branch unavailable dates:', error);
+      throw new Error('Failed to get branch unavailable dates');
+    }
   }
 }
 

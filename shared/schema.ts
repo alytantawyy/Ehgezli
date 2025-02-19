@@ -81,8 +81,10 @@ export const restaurantBranches = pgTable("restaurant_branches", {
   openingTime: text("opening_time").notNull(),
   closingTime: text("closing_time").notNull(),
   reservationDuration: integer("reservation_duration").notNull().default(120), // 2 hours in minutes
+  unavailableDates: jsonb("unavailable_dates").array().$type<Date[]>(), // Added unavailableDates field
 });
 
+// Add branchUnavailableDates table
 export const branchUnavailableDates = pgTable("branch_unavailable_dates", {
   id: serial("id").primaryKey(),
   branchId: integer("branch_id").notNull(),
@@ -226,7 +228,7 @@ export const insertBranchUnavailableDatesSchema = createInsertSchema(branchUnava
   id: true,
   createdAt: true,
 }).extend({
-  date: z.string()
+  date: z.date() // Corrected to z.date() for proper date validation
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

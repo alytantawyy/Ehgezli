@@ -55,15 +55,30 @@ export default function BranchAvailabilityPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         credentials: 'include',
         body: JSON.stringify({ dates: dates.dates }),
       });
+
+      // First check if response is ok before trying to parse JSON
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to save unavailable dates');
+        // Try to get error message from JSON response
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to save unavailable dates');
+        } catch (e) {
+          // If JSON parsing fails, use status text
+          throw new Error(`Failed to save dates: ${response.statusText}`);
+        }
       }
-      return response.json();
+
+      // If response is ok, parse the JSON
+      try {
+        return await response.json();
+      } catch (e) {
+        throw new Error('Invalid response from server');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/restaurant/branches", selectedBranchId, "unavailable-dates"] });
