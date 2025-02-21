@@ -35,85 +35,127 @@ async function comparePasswords(supplied: string, stored: string) {
 export function setupAuth(app: Express) {
   app.set("trust proxy", 1);
 
-  // Update session store configuration
+  // Enhanced session store configuration with better error handling
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     pool,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 60, // Prune every hour instead of 15 minutes
-    errorLog: (err) => console.error('Session store error:', err)
+    pruneSessionInterval: 60 * 60,
+    schemaName: 'public',
+    errorLog: (err) => {
+      console.error('Session store error:', {
+        code: err.code,
+        message: err.message,
+        stack: err.stack,
+        timestamp: new Date().toISOString()
+      });
+    }
   });
 
-  // Verify session store is working
+  // More detailed store event handling
   sessionStore.on('connect', () => {
-    console.log('Session store connected successfully');
+    console.log('Session store connected successfully:', {
+      timestamp: new Date().toISOString()
+    });
   });
 
   sessionStore.on('disconnect', () => {
-    console.error('Session store disconnected');
+    console.error('Session store disconnected:', {
+      timestamp: new Date().toISOString()
+    });
   });
 
-  // Use the setter method instead of direct assignment
+  sessionStore.on('error', (error) => {
+    console.error('Session store error:', {
+      error,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Use the setter method to update storage
   storage.setSessionStore(sessionStore);
 
-  // Update the cookie settings and session configuration
+  // Enhanced cookie settings for better security and WebSocket compatibility
   const cookieSettings = {
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax' as const,
-    path: '/'
+    path: '/',
+    domain: process.env.NODE_ENV === 'production' ? undefined : undefined // Let browser set appropriate domain
   };
 
+  // Updated session configuration with enhanced security
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID!,
-    resave: true, // Changed to true to ensure session updates
+    resave: true,
     saveUninitialized: false,
     store: sessionStore,
     cookie: cookieSettings,
     name: 'connect.sid',
-    rolling: true, // Refresh session with each request
-    proxy: true // Trust the proxy headers
+    rolling: true,
+    proxy: true
   };
 
   // Set up session middleware before passport
   app.use(session(sessionSettings));
 
+  // Enhanced serialization with better error handling
   passport.serializeUser((user, done) => {
-    console.log('Serializing user:', user);
-    // Store only the minimal necessary data in the session
+    console.log('Serializing user:', {
+      id: user.id,
+      type: user.type,
+      timestamp: new Date().toISOString()
+    });
     done(null, {
       id: user.id,
       type: user.type
     });
   });
 
+  // Enhanced deserialization with more detailed error handling
   passport.deserializeUser(async (serialized: { id: number; type: string }, done) => {
-    console.log('Deserializing user:', serialized);
+    console.log('Deserializing user:', {
+      serialized,
+      timestamp: new Date().toISOString()
+    });
     try {
       if (!serialized || !serialized.id || !serialized.type) {
-        console.log('Invalid serialized user data:', serialized);
+        console.error('Invalid serialized user data:', {
+          serialized,
+          timestamp: new Date().toISOString()
+        });
         return done(new Error('Invalid session data'));
       }
 
       if (serialized.type === 'restaurant') {
         const restaurant = await storage.getRestaurantAuth(serialized.id);
         if (!restaurant) {
-          console.log('Restaurant not found:', serialized.id);
+          console.error('Restaurant not found:', {
+            id: serialized.id,
+            timestamp: new Date().toISOString()
+          });
           return done(new Error('Restaurant not found'));
         }
         return done(null, { ...restaurant, type: 'restaurant' });
       } else {
         const user = await storage.getUser(serialized.id);
         if (!user) {
-          console.log('User not found:', serialized.id);
+          console.error('User not found:', {
+            id: serialized.id,
+            timestamp: new Date().toISOString()
+          });
           return done(new Error('User not found'));
         }
         return done(null, { ...user, type: 'user' });
       }
     } catch (error) {
-      console.error('Error deserializing user:', error);
+      console.error('Error deserializing user:', {
+        error,
+        serialized,
+        timestamp: new Date().toISOString()
+      });
       done(error);
     }
   });
@@ -121,37 +163,31 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Add more detailed session debugging
+  // Enhanced session debugging middleware
   app.use((req, res, next) => {
-    console.log('Session Debug -', {
+    const debugInfo = {
       path: req.path,
       method: req.method,
       isAuthenticated: req.isAuthenticated(),
       sessionID: req.sessionID,
       user: req.user ? {
         id: req.user.id,
-        type: req.user.type
+        type: req.user.type,
+        timestamp: new Date().toISOString()
       } : null,
       cookie: req.headers.cookie,
-      session: req.session
-    });
-    next();
-  });
-
-  // Add debug middleware for tracking authentication state
-  app.use((req, res, next) => {
-    console.log('Auth Debug -', {
-      path: req.path,
-      method: req.method,
-      isAuthenticated: req.isAuthenticated(),
-      sessionID: req.sessionID,
-      userType: req.user?.type,
-      userId: req.user?.id,
-      headers: {
-        cookie: req.headers.cookie,
-        authorization: req.headers.authorization
-      }
-    });
+      session: req.session ? {
+        ...req.session,
+        passport: req.session.passport ? {
+          ...req.session.passport,
+          user: req.session.passport.user ? {
+            id: req.session.passport.user.id,
+            type: req.session.passport.user.type
+          } : null
+        } : null
+      } : null
+    };
+    console.log('Session Debug -', debugInfo);
     next();
   });
 
