@@ -232,6 +232,11 @@ export default function RestaurantDashboard() {
 
   const filteredBookings = bookings?.filter(booking => {
     const bookingDate = new Date(booking.date);
+    // Don't show arrived bookings in the filtered list
+    if (booking.arrived) {
+      return false;
+    }
+
     if (bookingDate < now) {
       return false;
     }
