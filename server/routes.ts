@@ -251,6 +251,40 @@ export function registerRoutes(app: Express): Server {
   });
 
 
+  // Add the arrive endpoint
+  app.post("/api/restaurant/bookings/:bookingId/arrive", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
+        return res.status(401).json({ message: "Not authenticated as restaurant" });
+      }
+
+      const bookingId = parseInt(req.params.bookingId);
+
+      // First get the booking to verify it belongs to a branch of this restaurant
+      const [booking] = await db.select()
+        .from(bookings)
+        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
+        .where(
+          and(
+            eq(bookings.id, bookingId),
+            eq(restaurantBranches.restaurantId, req.user.id)
+          )
+        );
+
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found or unauthorized" });
+      }
+
+      await storage.markBookingArrived(bookingId);
+
+      // Return success response
+      res.json({ message: "Booking marked as arrived" });
+    } catch (error) {
+      console.error('Error marking booking as arrived:', error);
+      next(error);
+    }
+  });
+
   // Add the cancel booking endpoint
   app.post("/api/bookings/:bookingId/cancel", async (req, res, next) => {
     try {
@@ -417,7 +451,6 @@ export function registerRoutes(app: Express): Server {
       next(error);
     }
   });
-
 
 
   // Add saved restaurants endpoints

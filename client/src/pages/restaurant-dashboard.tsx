@@ -41,6 +41,7 @@ interface BookingWithDetails extends Booking {
     address: string;
     city: string;
   };
+  arrived: boolean; // Added: arrived is now a required field
 }
 
 const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {

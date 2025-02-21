@@ -113,6 +113,7 @@ export const bookings = pgTable("bookings", {
   date: timestamp("date").notNull(),
   partySize: integer("party_size").notNull(),
   confirmed: boolean("confirmed").notNull().default(false),
+  arrived: boolean("arrived").notNull().default(false),
 });
 
 export const bookingRelations = relations(bookings, ({ one }) => ({

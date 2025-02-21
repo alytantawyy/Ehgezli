@@ -30,6 +30,7 @@ export interface IStorage {
   setSessionStore(store: session.Store): void;
   searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
   isRestaurantProfileComplete(restaurantId: number): Promise<boolean>;
+  markBookingArrived(bookingId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -220,7 +221,8 @@ export class DatabaseStorage implements IStorage {
           branchId: booking.branchId,
           date: date,
           partySize: booking.partySize,
-          confirmed: true
+          confirmed: true,
+          arrived: false
         })
         .returning();
 
@@ -240,6 +242,7 @@ export class DatabaseStorage implements IStorage {
         date: bookings.date,
         partySize: bookings.partySize,
         confirmed: bookings.confirmed,
+        arrived: bookings.arrived,
         restaurantName: restaurantAuth.name,
       })
       .from(bookings)
@@ -284,6 +287,7 @@ export class DatabaseStorage implements IStorage {
           date: bookings.date,
           partySize: bookings.partySize,
           confirmed: bookings.confirmed,
+          arrived: bookings.arrived,
           user: {
             firstName: users.firstName,
             lastName: users.lastName
@@ -440,6 +444,16 @@ export class DatabaseStorage implements IStorage {
 
       return matchesName || matchesCuisine || matchesLocation;
     });
+  }
+  async markBookingArrived(bookingId: number): Promise<void> {
+    try {
+      await db.update(bookings)
+        .set({ arrived: true })
+        .where(eq(bookings.id, bookingId));
+    } catch (error) {
+      console.error('Error marking booking as arrived:', error);
+      throw error;
+    }
   }
 }
 
