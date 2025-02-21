@@ -42,10 +42,12 @@ export default function RestaurantAuthForm() {
 
   useEffect(() => {
     if (!isLoading && restaurant) {
-      if (isProfileComplete) {
-        setLocation("/restaurant/dashboard");
-      } else {
+      // If restaurant exists and profile is not complete, go to profile setup
+      if (!isProfileComplete) {
         setLocation("/restaurant/profile-setup");
+      } else {
+        // If profile is complete, go to dashboard
+        setLocation("/restaurant/dashboard");
       }
     }
   }, [restaurant, isProfileComplete, isLoading, setLocation]);

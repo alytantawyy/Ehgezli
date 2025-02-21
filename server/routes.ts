@@ -214,10 +214,10 @@ export function registerRoutes(app: Express): Server {
 
     try {
       const restaurantId = parseInt(req.params.restaurantId);
-      if (restaurantId !== req.user.id) {
+      if (restaurantId !== req.user?.id) {
         console.error('Unauthorized booking access attempt:', {
           requestedId: restaurantId,
-          userId: req.user.id
+          userId: req.user?.id
         });
         return res.status(403).json({ message: "Unauthorized to access these bookings" });
       }
@@ -230,14 +230,13 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-
   // Update arrive endpoint with enhanced auth and proper type checking
   app.post("/api/restaurant/bookings/:bookingId/arrive", requireRestaurantAuth, async (req, res, next) => {
     try {
       const bookingId = parseInt(req.params.bookingId);
       console.log('Processing arrival for booking:', {
         bookingId,
-        restaurantId: req.user.id
+        restaurantId: req.user?.id
       });
 
       // Verify booking belongs to this restaurant
@@ -247,14 +246,14 @@ export function registerRoutes(app: Express): Server {
         .where(
           and(
             eq(bookings.id, bookingId),
-            eq(restaurantBranches.restaurantId, req.user.id)
+            eq(restaurantBranches.restaurantId, req.user?.id)
           )
         );
 
       if (!booking) {
         console.error('Booking not found or unauthorized:', {
           bookingId,
-          restaurantId: req.user.id
+          restaurantId: req.user?.id
         });
         return res.status(404).json({ message: "Booking not found or unauthorized" });
       }
@@ -262,7 +261,7 @@ export function registerRoutes(app: Express): Server {
       await storage.markBookingArrived(bookingId);
       console.log('Successfully marked booking as arrived:', {
         bookingId,
-        restaurantId: req.user.id
+        restaurantId: req.user?.id
       });
 
       // Notify connected clients about the arrival update
@@ -270,7 +269,7 @@ export function registerRoutes(app: Express): Server {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'booking_arrived',
-            data: { bookingId, restaurantId: req.user.id }
+            data: { bookingId, restaurantId: req.user?.id }
           }));
         }
       });
@@ -281,8 +280,6 @@ export function registerRoutes(app: Express): Server {
       next(error);
     }
   });
-
-  // Add the cancel booking endpoint
   app.post("/api/bookings/:bookingId/cancel", async (req, res, next) => {
     try {
       if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
@@ -392,6 +389,7 @@ export function registerRoutes(app: Express): Server {
         branchId,
         date: new Date(date),
         partySize,
+        arrived: false
       });
 
       // Notify connected clients about the new booking

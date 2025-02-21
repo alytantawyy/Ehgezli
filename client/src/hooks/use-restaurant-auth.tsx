@@ -37,12 +37,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["/api/restaurant/profile-status", restaurant?.id],
-    queryFn: async () => {
-      if (!restaurant) return { isComplete: false };
-      const res = await apiRequest("GET", `/api/restaurant/profile-status/${restaurant.id}`);
-      if (!res.ok) throw new Error("Failed to fetch profile status");
-      return res.json();
-    },
+    queryFn: getQueryFn({ on401: "returnNull" }),
     enabled: !!restaurant,
     retry: false,
   });

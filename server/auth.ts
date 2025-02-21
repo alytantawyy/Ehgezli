@@ -79,6 +79,7 @@ export function setupAuth(app: Express) {
 
   // Set up session middleware before passport
   app.use(session(sessionSettings));
+
   passport.serializeUser((user, done) => {
     console.log('Serializing user:', user);
     // Store only the minimal necessary data in the session
@@ -116,6 +117,7 @@ export function setupAuth(app: Express) {
       done(error);
     }
   });
+
   app.use(passport.initialize());
   app.use(passport.session());
 
@@ -383,39 +385,6 @@ export function setupAuth(app: Express) {
       res.status(500).json({
         message: error.message || "Registration failed"
       });
-    }
-  });
-  // Add the restaurant bookings endpoint
-  app.get("/api/restaurant/bookings/:restaurantId", async (req, res) => {
-    console.log('Restaurant bookings request:', {
-      restaurantId: req.params.restaurantId,
-      user: req.user
-    });
-
-    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      console.log('Authentication failed:', {
-        isAuthenticated: req.isAuthenticated(),
-        userType: req.user?.type
-      });
-      return res.status(401).json({ message: "Not authenticated as restaurant" });
-    }
-
-    try {
-      const restaurantId = parseInt(req.params.restaurantId);
-      if (restaurantId !== req.user.id) {
-        console.log('Restaurant ID mismatch:', {
-          requestedId: restaurantId,
-          userRestaurantId: req.user.id
-        });
-        return res.status(403).json({ message: "Unauthorized to access these bookings" });
-      }
-
-      const bookings = await storage.getRestaurantBookings(restaurantId);
-      console.log('Successfully fetched bookings:', bookings);
-      res.json(bookings);
-    } catch (error: any) {
-      console.error('Error fetching restaurant bookings:', error);
-      res.status(500).json({ message: error.message });
     }
   });
 }
