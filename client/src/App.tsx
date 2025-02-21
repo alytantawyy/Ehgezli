@@ -10,7 +10,6 @@ import AuthPage from "@/pages/auth-page";
 import HomePage from "@/pages/home-page";
 import RestaurantPage from "@/pages/restaurant-page";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
-import RestaurantProfileSetup from "@/pages/restaurant-profile-setup";
 import UserBookings from "@/pages/user-bookings";
 import SavedRestaurants from "@/pages/saved-restaurants";
 import PreviousBookings from "@/pages/previous-bookings";
@@ -21,15 +20,6 @@ function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
-      <ProtectedRestaurantRoute 
-        path="/restaurant/profile-setup" 
-        component={RestaurantProfileSetup}
-        requiresProfile={false}
-      />
-      <ProtectedRestaurantRoute
-        path="/restaurant/profile"
-        component={RestaurantProfileSetup}
-      />
       <ProtectedRestaurantRoute
         path="/restaurant/dashboard"
         component={RestaurantDashboard}

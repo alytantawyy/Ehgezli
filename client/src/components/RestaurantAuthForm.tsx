@@ -18,10 +18,16 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
 export default function RestaurantAuthForm() {
-  const { restaurant, isProfileComplete, isLoading, loginMutation, registerMutation } = useRestaurantAuth();
+  const { restaurant, loginMutation, registerMutation } = useRestaurantAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("login");
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (restaurant) {
+      setLocation("/restaurant/dashboard");
+    }
+  }, [restaurant, setLocation]);
 
   const loginForm = useForm({
     resolver: zodResolver(insertRestaurantAuthSchema.pick({ email: true, password: true })),
@@ -39,18 +45,6 @@ export default function RestaurantAuthForm() {
       password: "",
     },
   });
-
-  useEffect(() => {
-    if (!isLoading && restaurant) {
-      // If restaurant exists and profile is not complete, go to profile setup
-      if (!isProfileComplete) {
-        setLocation("/restaurant/profile-setup");
-      } else {
-        // If profile is complete, go to dashboard
-        setLocation("/restaurant/dashboard");
-      }
-    }
-  }, [restaurant, isProfileComplete, isLoading, setLocation]);
 
   const handleRegisterSubmit = async (data: any) => {
     try {

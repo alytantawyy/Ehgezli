@@ -9,7 +9,6 @@ import { useToast } from "@/hooks/use-toast";
 
 type RestaurantAuthContextType = {
   restaurant: RestaurantAuth | null;
-  isProfileComplete: boolean;
   isLoading: boolean;
   error: Error | null;
   loginMutation: any;
@@ -27,20 +26,13 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
   const {
     data: restaurant,
     error,
-    isLoading: restaurantLoading,
-    refetch: refetchRestaurant,
+    isLoading,
   } = useQuery<RestaurantAuth | null>({
     queryKey: ["/api/restaurant"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
   });
 
-  const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ["/api/restaurant/profile-status", restaurant?.id],
-    queryFn: getQueryFn({ on401: "returnNull" }),
-    enabled: !!restaurant,
-    retry: false,
-  });
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
@@ -53,7 +45,6 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (restaurant: RestaurantAuth) => {
       queryClient.setQueryData(["/api/restaurant"], restaurant);
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/profile-status", restaurant.id] });
       toast({
         title: "Login successful",
         description: "Welcome back!",
@@ -81,7 +72,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["/api/restaurant"], restaurant);
       toast({
         title: "Registration successful",
-        description: "Let's set up your restaurant profile!",
+        description: "Welcome to your restaurant dashboard!",
       });
     },
     onError: (error: Error) => {
@@ -115,7 +106,6 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
         description: error.message,
         variant: "destructive",
       });
-      refetchRestaurant();
     },
   });
 
@@ -123,8 +113,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     <RestaurantAuthContext.Provider
       value={{
         restaurant: restaurant ?? null,
-        isProfileComplete: profile?.isComplete ?? false,
-        isLoading: restaurantLoading || (!!restaurant && profileLoading),
+        isLoading,
         error,
         loginMutation,
         logoutMutation,
