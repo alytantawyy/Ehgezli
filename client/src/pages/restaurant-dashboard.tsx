@@ -262,7 +262,18 @@ export default function RestaurantDashboard() {
 
   const currentlySeatedBookings = bookings?.filter(booking => {
     // Only show bookings that have been manually marked as arrived and not completed
-    return booking.arrived && booking.confirmed && !booking.completed;
+    if (!booking.arrived || !booking.confirmed || booking.completed) {
+      return false;
+    }
+
+    // Apply branch filter if a specific branch is selected
+    if (selectedBranch !== "all") {
+      if (booking.branchId.toString() !== selectedBranch) {
+        return false;
+      }
+    }
+
+    return true;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Filtered bookings for the Latest Bookings section
