@@ -35,13 +35,13 @@ async function comparePasswords(supplied: string, stored: string) {
 export function setupAuth(app: Express) {
   app.set("trust proxy", 1);
 
-  // Initialize PostgreSQL session store with debug logs
+  // Update session store configuration
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     pool,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15,
+    pruneSessionInterval: 60 * 60, // Prune every hour instead of 15 minutes
     errorLog: (err) => console.error('Session store error:', err)
   });
 
@@ -57,23 +57,24 @@ export function setupAuth(app: Express) {
   // Use the setter method instead of direct assignment
   storage.setSessionStore(sessionStore);
 
-  // Consistent cookie settings for all auth-related operations
+  // Update the cookie settings and session configuration
   const cookieSettings = {
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     httpOnly: true,
-    secure: false, // Set to false for non-HTTPS development
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax' as const,
     path: '/'
   };
 
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID!,
-    resave: false,
+    resave: true, // Changed to true to ensure session updates
     saveUninitialized: false,
     store: sessionStore,
     cookie: cookieSettings,
     name: 'connect.sid',
-    rolling: true // Ensure session cookie is refreshed on each request
+    rolling: true, // Refresh session with each request
+    proxy: true // Trust the proxy headers
   };
 
   // Set up session middleware before passport
@@ -117,6 +118,23 @@ export function setupAuth(app: Express) {
   });
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Add more detailed session debugging
+  app.use((req, res, next) => {
+    console.log('Session Debug -', {
+      path: req.path,
+      method: req.method,
+      isAuthenticated: req.isAuthenticated(),
+      sessionID: req.sessionID,
+      user: req.user ? {
+        id: req.user.id,
+        type: req.user.type
+      } : null,
+      cookie: req.headers.cookie,
+      session: req.session
+    });
+    next();
+  });
 
   // Add debug middleware for tracking authentication state
   app.use((req, res, next) => {

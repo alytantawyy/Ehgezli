@@ -4,7 +4,7 @@ import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History, Calendar } from "lucide-react";
-import { format, isBefore, isSameDay } from "date-fns";
+import { format, isBefore, isSameDay, addHours, isWithinInterval } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import {
@@ -234,6 +234,20 @@ export default function RestaurantDashboard() {
     );
     return selectedLocation?.seatsCount || 0;
   };
+
+  // Filter for currently seated customers (bookings from today that started within the last 2 hours)
+  const currentlySeatedBookings = filteredBookings
+    .filter(booking => {
+      const bookingTime = new Date(booking.date);
+      const endTime = addHours(bookingTime, 2); // Assuming 2-hour dining duration
+
+      return (
+        isSameDay(bookingTime, now) &&
+        booking.confirmed &&
+        isWithinInterval(now, { start: bookingTime, end: endTime })
+      );
+    })
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -523,6 +537,54 @@ export default function RestaurantDashboard() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   {selectedDate ? "No bookings for this date" : "No upcoming bookings"}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle>Currently Seated</CardTitle>
+              <span className="text-sm text-muted-foreground">
+                Showing active bookings for today
+              </span>
+            </CardHeader>
+            <CardContent>
+              {currentlySeatedBookings && currentlySeatedBookings.length > 0 ? (
+                <div className="space-y-4">
+                  {currentlySeatedBookings.map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="flex items-center justify-between p-4 border rounded-lg bg-muted/50"
+                    >
+                      <div>
+                        <div className="font-medium">
+                          {booking.user ?
+                            `${booking.user.firstName} ${booking.user.lastName}` :
+                            `Guest Booking #${booking.id}`
+                          }
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Seated at: {format(new Date(booking.date), "h:mm a")}
+                        </div>
+                        <div className="text-sm">
+                          Party size: {booking.partySize}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Branch: {booking.branch.address}, {booking.branch.city}
+                        </div>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="px-3 py-1 rounded-full text-sm bg-primary/10 text-primary">
+                          Currently Seated
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No customers currently seated
                 </div>
               )}
             </CardContent>
