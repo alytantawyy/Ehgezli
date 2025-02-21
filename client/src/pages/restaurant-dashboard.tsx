@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History, Calendar } from "lucide-react";
+import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History, Calendar, MoreVertical } from "lucide-react";
 import { format, isBefore, isSameDay, addHours, isWithinInterval } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
@@ -25,6 +25,12 @@ import { useState, useEffect } from "react";
 import { Calendar as Datepicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AddReservationModal } from "@/components/add-reservation-modal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface BookingWithDetails extends Booking {
   user?: {
@@ -162,6 +168,34 @@ export default function RestaurantDashboard() {
     },
   });
 
+  const markPartyArrivedMutation = useMutation({
+    mutationFn: async (bookingId: number) => {
+      const response = await fetch(`/api/restaurant/bookings/${bookingId}/arrive`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to mark party as arrived');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth?.id] });
+      toast({
+        title: "Party Marked as Arrived",
+        description: "The booking has been moved to Currently Seated.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   useEffect(() => {
     if (restaurant?.locations && selectedBranch !== "all") {
       const selectedLocation = restaurant.locations.find(
@@ -239,11 +273,10 @@ export default function RestaurantDashboard() {
     .filter(booking => {
       const bookingTime = new Date(booking.date);
       const endTime = addHours(bookingTime, 2); // Assuming 2-hour dining duration
-
       return (
         isSameDay(bookingTime, now) &&
         booking.confirmed &&
-        isWithinInterval(now, { start: bookingTime, end: endTime })
+        (isWithinInterval(now, { start: bookingTime, end: endTime }) || booking.arrived)
       );
     })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -519,17 +552,32 @@ export default function RestaurantDashboard() {
                           Branch: {booking.branch.address}, {booking.branch.city}
                         </div>
                       </div>
-                      <Button
-                        variant="destructive"
-                        onClick={() => {
-                          if (window.confirm('Are you sure you want to cancel this booking?')) {
-                            cancelBookingMutation.mutate(booking.id);
-                          }
-                        }}
-                        disabled={!booking.confirmed || cancelBookingMutation.isPending}
-                      >
-                        {booking.confirmed ? "Cancel Booking" : "Cancelled"}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to cancel this booking?')) {
+                                  cancelBookingMutation.mutate(booking.id);
+                                }
+                              }}
+                              className="text-destructive"
+                            >
+                              Cancel Booking
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => markPartyArrivedMutation.mutate(booking.id)}
+                            >
+                              Party Arrived
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                   ))}
                 </div>
