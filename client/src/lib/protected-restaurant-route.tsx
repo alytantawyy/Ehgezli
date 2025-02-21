@@ -25,11 +25,6 @@ export function ProtectedRestaurantRoute({
 
   // Always redirect to auth if not authenticated
   if (!restaurant) {
-    console.log('Protected route: redirecting to auth due to missing restaurant data', {
-      path,
-      isLoading,
-      hasRestaurant: !!restaurant
-    });
     return (
       <Route path={path}>
         <Redirect to="/auth" />
@@ -37,10 +32,20 @@ export function ProtectedRestaurantRoute({
     );
   }
 
-  console.log('Protected route: rendering component for authenticated restaurant', {
-    restaurantId: restaurant.id,
-    path
-  });
+  // For routes that don't require profile (like profile setup),
+  // render them directly
+  if (!requiresProfile) {
+    return <Route path={path} component={Component} />;
+  }
+
+  // For all other routes, show the dashboard if profile is not set up
+  if (path !== "/restaurant/dashboard" && !restaurant.hasProfile) {
+    return (
+      <Route path={path}>
+        <Redirect to="/restaurant/profile-setup" />
+      </Route>
+    );
+  }
 
   return <Route path={path} component={Component} />;
 }
