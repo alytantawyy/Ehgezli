@@ -4,7 +4,7 @@ import { Booking, Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History, Calendar, MoreVertical } from "lucide-react";
-import { format, isBefore, isSameDay, addHours, isWithinInterval } from "date-fns";
+import { format, isBefore, isSameDay, addHours, isWithinInterval, parse } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import {
@@ -92,6 +92,31 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
     }
   }
   return slots;
+};
+
+const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefined, filteredBookings: BookingWithDetails[], totalSeats: number) => {
+  if (!selectedDate || !selectedTimeStr || selectedTimeStr === "all") {
+    return "-";
+  }
+
+  // Convert selected time to a Date object
+  const [hours, minutes] = selectedTimeStr.split(':').map(Number);
+  const selectedDateTime = new Date(selectedDate);
+  selectedDateTime.setHours(hours, minutes, 0, 0);
+
+  // Count seats taken by bookings that overlap with the selected time
+  const takenSeats = filteredBookings.reduce((sum, booking) => {
+    const bookingStart = new Date(booking.date);
+    const bookingEnd = addHours(bookingStart, 2); // 2-hour reservation period
+
+    // Check if selected time falls within booking's time window
+    if (isWithinInterval(selectedDateTime, { start: bookingStart, end: bookingEnd })) {
+      return sum + booking.partySize;
+    }
+    return sum;
+  }, 0);
+
+  return totalSeats - takenSeats;
 };
 
 export default function RestaurantDashboard() {
@@ -546,9 +571,7 @@ export default function RestaurantDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  {(!selectedDate || selectedTime === "all")
-                    ? "-"
-                    : getTotalSeats() - (filteredBookings.reduce((sum, booking) => sum + booking.partySize, 0))}
+                  {getAvailableSeats(selectedTime, selectedDate, filteredBookings, getTotalSeats())}
                 </div>
               </CardContent>
             </Card>
