@@ -11,7 +11,7 @@ import { parse as parseCookie } from 'cookie';
 
 // Define WebSocket message types
 type WebSocketMessage = {
-  type: 'new_booking' | 'booking_cancelled' | 'heartbeat' | 'connection_established';
+  type: 'new_booking' | 'booking_cancelled' | 'heartbeat' | 'connection_established' | 'booking_arrived';
   data?: any;
 };
 
@@ -36,8 +36,8 @@ export function registerRoutes(app: Express): Server {
   const wss = new WebSocketServer({ 
     server: httpServer, 
     path: '/ws',
-    verifyClient: (info, callback) => {
-      console.log('WebSocket verification:', {
+    verifyClient: async (info, callback) => {
+      console.log('WebSocket authentication attempt:', {
         headers: info.req.headers,
         url: info.req.url,
         cookie: info.req.headers.cookie
@@ -45,64 +45,53 @@ export function registerRoutes(app: Express): Server {
 
       // Check for cookie header
       if (!info.req.headers.cookie) {
-        console.error('No cookie header in WebSocket connection');
-        callback(false, 401, 'No session cookie');
-        return;
+        console.error('WebSocket connection rejected: No cookie header');
+        return callback(false, 401, 'Authentication required');
       }
 
       const cookies = parseCookie(info.req.headers.cookie);
       const sessionID = cookies['connect.sid'];
 
-      // Check for session ID
       if (!sessionID) {
-        console.error('No session ID in WebSocket cookies');
-        callback(false, 401, 'No session ID');
-        return;
+        console.error('WebSocket connection rejected: No session ID in cookies');
+        return callback(false, 401, 'No session found');
       }
 
       try {
-        // Clean the session ID - handle potential undefined
-        const cleanSessionId = sessionID ? decodeURIComponent(
-          sessionID.split('.')[0].replace(/^s:/, '')
-        ) : null;
+        // Clean session ID
+        const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
 
-        if (!cleanSessionId) {
-          console.error('Invalid session ID format');
-          callback(false, 401, 'Invalid session ID format');
-          return;
+        // Verify session using a Promise wrapper
+        const session = await new Promise((resolve, reject) => {
+          storage.sessionStore.get(cleanSessionId, (err, session) => {
+            if (err) reject(err);
+            else resolve(session);
+          });
+        });
+
+        if (!session?.passport?.user) {
+          console.error('WebSocket connection rejected: Invalid session data', {
+            sessionId: cleanSessionId,
+            session
+          });
+          return callback(false, 401, 'Invalid session');
         }
 
-        // Verify session
-        storage.sessionStore.get(cleanSessionId, (err, session) => {
-          if (err) {
-            console.error('Session store error during WebSocket verification:', err);
-            callback(false, 500, 'Session store error');
-            return;
-          }
+        const { id, type } = session.passport.user;
 
-          if (!session?.passport?.user) {
-            console.error('Invalid session during WebSocket verification:', {
-              sessionId: cleanSessionId,
-              session
-            });
-            callback(false, 401, 'Invalid session');
-            return;
-          }
+        if (!id || !type) {
+          console.error('WebSocket connection rejected: Invalid user data', { id, type });
+          return callback(false, 401, 'Invalid user data');
+        }
 
-          const { id, type } = session.passport.user;
-          if (typeof id !== 'number' || !type) {
-            console.error('Invalid user data in session:', { id, type });
-            callback(false, 401, 'Invalid user data');
-            return;
-          }
+        // Store user info in request
+        (info.req as any).user = { id, type };
+        console.log('WebSocket authentication successful:', { userId: id, userType: type });
+        callback(true);
 
-          // Store user info for later use
-          (info.req as any).user = { id, type };
-          callback(true);
-        });
       } catch (error) {
-        console.error('Error during WebSocket verification:', error);
-        callback(false, 500, 'Internal server error');
+        console.error('WebSocket authentication error:', error);
+        callback(false, 500, 'Authentication failed');
       }
     }
   });
@@ -188,26 +177,48 @@ export function registerRoutes(app: Express): Server {
     }));
   });
 
-  // Get restaurant bookings endpoint
-  app.get("/api/restaurant/bookings/:restaurantId", async (req, res) => {
+  // Add authentication middleware for all /api routes
+  app.use('/api', (req, res, next) => {
+    if (!req.isAuthenticated()) {
+      console.error('API request rejected: Not authenticated', {
+        path: req.path,
+        method: req.method,
+        sessionID: req.sessionID
+      });
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    next();
+  });
+
+  // Add type-specific authentication middleware
+  const requireRestaurantAuth = (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
+      console.error('Restaurant API access denied:', {
+        path: req.path,
+        method: req.method,
+        userType: req.user?.type,
+        sessionID: req.sessionID
+      });
+      return res.status(401).json({ message: "Not authenticated as restaurant" });
+    }
+    next();
+  };
+
+  // Update restaurant bookings endpoint with enhanced auth
+  app.get("/api/restaurant/bookings/:restaurantId", requireRestaurantAuth, async (req, res) => {
     console.log('Restaurant bookings request:', {
       restaurantId: req.params.restaurantId,
       user: req.user,
       sessionID: req.sessionID
     });
 
-    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      console.log('Authentication failed:', {
-        isAuthenticated: req.isAuthenticated(),
-        userType: req.user?.type,
-        sessionID: req.sessionID
-      });
-      return res.status(401).json({ message: "Not authenticated as restaurant" });
-    }
-
     try {
       const restaurantId = parseInt(req.params.restaurantId);
       if (restaurantId !== req.user.id) {
+        console.error('Unauthorized booking access attempt:', {
+          requestedId: restaurantId,
+          userId: req.user.id
+        });
         return res.status(403).json({ message: "Unauthorized to access these bookings" });
       }
 
@@ -219,48 +230,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add restaurant profile endpoint
-  app.get("/api/restaurant/profile/:id", async (req, res, next) => {
+
+  // Update arrive endpoint with enhanced auth and proper type checking
+  app.post("/api/restaurant/bookings/:bookingId/arrive", requireRestaurantAuth, async (req, res, next) => {
     try {
-      const profile = await storage.getRestaurantProfile(parseInt(req.params.id));
-      if (!profile) {
-        res.status(404).json({ message: "Profile not found" });
-        return;
-      }
-      res.json({
-        ...profile,
-        isProfileComplete: await storage.isRestaurantProfileComplete(parseInt(req.params.id))
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Add profile completion status endpoint
-  app.get("/api/restaurant/profile-status/:id", async (req, res, next) => {
-    try {
-      if (!req.isAuthenticated()) {
-        res.status(401).json({ message: "Please log in to access profile status" });
-        return;
-      }
-      const isComplete = await storage.isRestaurantProfileComplete(parseInt(req.params.id));
-      res.json({ isComplete });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-
-  // Add the arrive endpoint
-  app.post("/api/restaurant/bookings/:bookingId/arrive", async (req, res, next) => {
-    try {
-      if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-        return res.status(401).json({ message: "Not authenticated as restaurant" });
-      }
-
       const bookingId = parseInt(req.params.bookingId);
+      console.log('Processing arrival for booking:', {
+        bookingId,
+        restaurantId: req.user.id
+      });
 
-      // First get the booking to verify it belongs to a branch of this restaurant
+      // Verify booking belongs to this restaurant
       const [booking] = await db.select()
         .from(bookings)
         .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
@@ -272,12 +252,29 @@ export function registerRoutes(app: Express): Server {
         );
 
       if (!booking) {
+        console.error('Booking not found or unauthorized:', {
+          bookingId,
+          restaurantId: req.user.id
+        });
         return res.status(404).json({ message: "Booking not found or unauthorized" });
       }
 
       await storage.markBookingArrived(bookingId);
+      console.log('Successfully marked booking as arrived:', {
+        bookingId,
+        restaurantId: req.user.id
+      });
 
-      // Return success response
+      // Notify connected clients about the arrival update
+      clients.forEach((client, ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'booking_arrived',
+            data: { bookingId, restaurantId: req.user.id }
+          }));
+        }
+      });
+
       res.json({ message: "Booking marked as arrived" });
     } catch (error) {
       console.error('Error marking booking as arrived:', error);
@@ -431,16 +428,8 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Add restaurant profile endpoints
-  app.put("/api/restaurant/profile", async (req, res, next) => {
+  app.put("/api/restaurant/profile", requireRestaurantAuth, async (req, res, next) => {
     try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Please log in to update profile" });
-      }
-
-      if (!req.user?.type || req.user.type !== 'restaurant') {
-        return res.status(403).json({ message: "Not authorized as restaurant" });
-      }
-
       await storage.createRestaurantProfile({
         ...req.body,
         restaurantId: req.user.id
