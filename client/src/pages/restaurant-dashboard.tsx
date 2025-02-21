@@ -235,7 +235,6 @@ export default function RestaurantDashboard() {
     return selectedLocation?.seatsCount || 0;
   };
 
-  // Filter for currently seated customers (bookings from today that started within the last 2 hours)
   const currentlySeatedBookings = filteredBookings
     .filter(booking => {
       const bookingTime = new Date(booking.date);
