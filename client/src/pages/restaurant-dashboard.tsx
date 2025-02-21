@@ -230,6 +230,13 @@ export default function RestaurantDashboard() {
     );
   }
 
+  const currentlySeatedBookings = bookings?.filter(booking => {
+    const bookingTime = new Date(booking.date);
+    // Show booking if it's today AND confirmed AND has been marked as arrived
+    return isSameDay(bookingTime, now) && booking.confirmed && booking.arrived;
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // Filtered bookings for the Latest Bookings section
   const filteredBookings = bookings?.filter(booking => {
     const bookingDate = new Date(booking.date);
     // Don't show arrived bookings in the filtered list
@@ -274,18 +281,6 @@ export default function RestaurantDashboard() {
     );
     return selectedLocation?.seatsCount || 0;
   };
-
-  const currentlySeatedBookings = filteredBookings
-    .filter(booking => {
-      const bookingTime = new Date(booking.date);
-      const endTime = addHours(bookingTime, 2); // Assuming 2-hour dining duration
-      return (
-        isSameDay(bookingTime, now) &&
-        booking.confirmed &&
-        (isWithinInterval(now, { start: bookingTime, end: endTime }) || booking.arrived)
-      );
-    })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return (
     <div className="min-h-screen bg-background p-8">
