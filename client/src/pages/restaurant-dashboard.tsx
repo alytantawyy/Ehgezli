@@ -210,6 +210,7 @@ export default function RestaurantDashboard() {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate both the bookings query and previous bookings query
       queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth?.id] });
       toast({
         title: "Booking Completed",
@@ -260,8 +261,8 @@ export default function RestaurantDashboard() {
   }
 
   const currentlySeatedBookings = bookings?.filter(booking => {
-    // Only show bookings that have been manually marked as arrived
-    return booking.arrived && booking.confirmed;
+    // Only show bookings that have been manually marked as arrived and not completed
+    return booking.arrived && booking.confirmed && !booking.completed;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Filtered bookings for the Latest Bookings section

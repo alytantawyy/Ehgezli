@@ -289,6 +289,7 @@ export class DatabaseStorage implements IStorage {
           partySize: bookings.partySize,
           confirmed: bookings.confirmed,
           arrived: bookings.arrived,
+          completed: bookings.completed,
           user: {
             firstName: users.firstName,
             lastName: users.lastName
