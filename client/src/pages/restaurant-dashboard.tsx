@@ -197,6 +197,35 @@ export default function RestaurantDashboard() {
     },
   });
 
+  const markBookingCompleteMutation = useMutation({
+    mutationFn: async (bookingId: number) => {
+      const response = await fetch(`/api/restaurant/bookings/${bookingId}/complete`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to mark booking as complete');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth?.id] });
+      toast({
+        title: "Booking Completed",
+        description: "The booking has been marked as complete and moved to Previous Bookings.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+
   useEffect(() => {
     if (restaurant?.locations && selectedBranch !== "all") {
       const selectedLocation = restaurant.locations.find(
@@ -617,9 +646,19 @@ export default function RestaurantDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center">
-                        <span className="px-3 py-1 rounded-full text-sm bg-primary/10 text-primary">
-                          Currently Seated
-                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to mark this booking as complete?')) {
+                              markBookingCompleteMutation.mutate(booking.id);
+                            }
+                          }}
+                          disabled={markBookingCompleteMutation.isPending}
+                          className="text-primary hover:text-primary-foreground hover:bg-primary"
+                        >
+                          Booking Over
+                        </Button>
                       </div>
                     </div>
                   ))}

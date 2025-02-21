@@ -11,7 +11,7 @@ import { parse as parseCookie } from 'cookie';
 
 // Define WebSocket message types
 type WebSocketMessage = {
-  type: 'new_booking' | 'booking_cancelled' | 'heartbeat' | 'connection_established' | 'booking_arrived';
+  type: 'new_booking' | 'booking_cancelled' | 'heartbeat' | 'connection_established' | 'booking_arrived' | 'booking_completed';
   data?: any;
 };
 
@@ -297,6 +297,58 @@ export function registerRoutes(app: Express): Server {
       next(error);
     }
   });
+
+  // Add new endpoint to mark booking as complete
+  app.post("/api/restaurant/bookings/:bookingId/complete", requireRestaurantAuth, async (req, res, next) => {
+    try {
+      const bookingId = parseInt(req.params.bookingId);
+      console.log('Processing completion for booking:', {
+        bookingId,
+        restaurantId: req.user?.id
+      });
+
+      // Verify booking belongs to this restaurant
+      const [booking] = await db.select()
+        .from(bookings)
+        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
+        .where(
+          and(
+            eq(bookings.id, bookingId),
+            eq(restaurantBranches.restaurantId, req.user?.id)
+          )
+        );
+
+      if (!booking) {
+        console.error('Booking not found or unauthorized:', {
+          bookingId,
+          restaurantId: req.user?.id
+        });
+        return res.status(404).json({ message: "Booking not found or unauthorized" });
+      }
+
+      await storage.markBookingComplete(bookingId);
+      console.log('Successfully marked booking as complete:', {
+        bookingId,
+        restaurantId: req.user?.id
+      });
+
+      // Notify connected clients about the completion update
+      clients.forEach((client, ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'booking_completed',
+            data: { bookingId, restaurantId: req.user?.id }
+          }));
+        }
+      });
+
+      res.json({ message: "Booking marked as complete" });
+    } catch (error) {
+      console.error('Error marking booking as complete:', error);
+      next(error);
+    }
+  });
+
   app.post("/api/bookings/:bookingId/cancel", async (req, res, next) => {
     try {
       if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
