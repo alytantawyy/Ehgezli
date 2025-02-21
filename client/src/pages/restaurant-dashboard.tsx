@@ -231,20 +231,14 @@ export default function RestaurantDashboard() {
   }
 
   const currentlySeatedBookings = bookings?.filter(booking => {
-    const bookingTime = new Date(booking.date);
-    // Show booking if it's today AND confirmed AND has been marked as arrived
-    return isSameDay(bookingTime, now) && booking.confirmed && booking.arrived;
+    // Only show bookings that have been manually marked as arrived
+    return booking.arrived && booking.confirmed;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Filtered bookings for the Latest Bookings section
   const filteredBookings = bookings?.filter(booking => {
-    const bookingDate = new Date(booking.date);
     // Don't show arrived bookings in the filtered list
     if (booking.arrived) {
-      return false;
-    }
-
-    if (bookingDate < now) {
       return false;
     }
 

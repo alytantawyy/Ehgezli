@@ -37,110 +37,63 @@ export function registerRoutes(app: Express): Server {
     server: httpServer, 
     path: '/ws',
     verifyClient: async (info, callback) => {
-      console.log('WebSocket authentication attempt:', {
-        headers: info.req.headers,
-        url: info.req.url,
-        cookie: info.req.headers.cookie,
-        timestamp: new Date().toISOString(),
-        query: info.req.url ? new URL(info.req.url, 'ws://localhost').searchParams : null
-      });
-
-      // Check for cookie header
-      if (!info.req.headers.cookie) {
-        console.error('WebSocket connection rejected: No cookie header', {
-          headers: info.req.headers,
-          timestamp: new Date().toISOString()
-        });
-        return callback(false, 401, 'Authentication required');
-      }
-
-      const cookies = parseCookie(info.req.headers.cookie);
-      const sessionID = cookies['connect.sid'];
-
-      if (!sessionID) {
-        console.error('WebSocket connection rejected: No session ID in cookies', {
-          cookies,
-          timestamp: new Date().toISOString()
-        });
-        return callback(false, 401, 'No session found');
-      }
-
       try {
-        // Clean session ID and handle potential undefined
+        if (!info.req.headers.cookie) {
+          console.error('WebSocket connection rejected: No cookie header');
+          return callback(false, 401, 'Authentication required');
+        }
+
+        const cookies = parseCookie(info.req.headers.cookie);
+        const sessionID = cookies['connect.sid'];
+
+        if (!sessionID) {
+          console.error('WebSocket connection rejected: No session ID in cookies');
+          return callback(false, 401, 'No session found');
+        }
+
+        // Clean session ID
         const cleanSessionId = decodeURIComponent(
           sessionID.split('.')[0].replace(/^s:/, '')
         );
-        console.log('Processing WebSocket session:', {
-          sessionId: cleanSessionId,
-          timestamp: new Date().toISOString()
-        });
 
-        // Verify session using a Promise wrapper
+        // Get session from store
         const session = await new Promise((resolve, reject) => {
           storage.sessionStore.get(cleanSessionId, (err, session) => {
             if (err) {
-              console.error('Session store error:', {
-                error: err,
-                sessionId: cleanSessionId,
-                timestamp: new Date().toISOString()
-              });
+              console.error('Session store error:', err);
               reject(err);
             } else {
-              console.log('Session retrieved:', {
-                sessionId: cleanSessionId,
-                hasSession: !!session,
-                sessionData: session ? {
-                  ...session,
-                  passport: session.passport ? {
-                    ...session.passport,
-                    user: session.passport.user ? {
-                      id: session.passport.user.id,
-                      type: session.passport.user.type
-                    } : null
-                  } : null
-                } : null,
-                timestamp: new Date().toISOString()
-              });
               resolve(session);
             }
           });
         });
 
-        if (!session?.passport?.user) {
-          console.error('WebSocket connection rejected: Invalid session data', {
-            sessionId: cleanSessionId,
-            session,
-            timestamp: new Date().toISOString()
-          });
+        if (!session) {
+          console.error('WebSocket connection rejected: Invalid session');
           return callback(false, 401, 'Invalid session');
         }
 
-        const { id, type } = session.passport.user;
-
-        if (!id || !type) {
-          console.error('WebSocket connection rejected: Invalid user data', {
-            id,
-            type,
-            timestamp: new Date().toISOString()
-          });
+        // Safely access passport data with type assertion
+        const passportData = (session as any).passport;
+        if (!passportData?.user?.id || !passportData?.user?.type) {
+          console.error('WebSocket connection rejected: No user data in session');
           return callback(false, 401, 'Invalid user data');
         }
 
         // Store user info in request
-        (info.req as any).user = { id, type };
-        console.log('WebSocket authentication successful:', {
-          userId: id,
-          userType: type,
-          timestamp: new Date().toISOString()
-        });
-        callback(true);
+        (info.req as any).user = {
+          id: passportData.user.id,
+          type: passportData.user.type
+        };
 
-      } catch (error) {
-        console.error('WebSocket authentication error:', {
-          error,
-          sessionID,
-          timestamp: new Date().toISOString()
+        console.log('WebSocket authentication successful:', {
+          userId: passportData.user.id,
+          userType: passportData.user.type
         });
+
+        callback(true);
+      } catch (error) {
+        console.error('WebSocket authentication error:', error);
         callback(false, 500, 'Authentication failed');
       }
     }
