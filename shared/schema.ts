@@ -114,6 +114,7 @@ export const bookings = pgTable("bookings", {
   partySize: integer("party_size").notNull(),
   confirmed: boolean("confirmed").notNull().default(false),
   arrived: boolean("arrived").notNull().default(false),
+  completed: boolean("completed").notNull().default(false), // Add this new field
 });
 
 export const bookingRelations = relations(bookings, ({ one }) => ({

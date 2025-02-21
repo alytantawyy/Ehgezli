@@ -55,8 +55,9 @@ export default function PreviousBookingsPage() {
     );
   }
 
+  // Filter for completed bookings
   const previousBookings = bookings?.filter(booking => 
-    isBefore(new Date(booking.date), new Date())
+    booking.completed || (!booking.confirmed && isBefore(new Date(booking.date), new Date()))
   ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
@@ -99,7 +100,7 @@ export default function PreviousBookingsPage() {
                   </div>
                   <div className="flex items-center text-muted-foreground">
                     <Clock className="h-4 w-4 mr-2" />
-                    <span>{booking.confirmed ? "Completed" : "Cancelled"}</span>
+                    <span>{booking.completed ? "Completed" : "Cancelled"}</span>
                   </div>
                 </div>
               ))}

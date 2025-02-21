@@ -459,7 +459,7 @@ export class DatabaseStorage implements IStorage {
   async markBookingComplete(bookingId: number): Promise<void> {
     try {
       await db.update(bookings)
-        .set({ confirmed: false })
+        .set({ completed: true })
         .where(eq(bookings.id, bookingId));
     } catch (error) {
       console.error('Error marking booking as complete:', error);
