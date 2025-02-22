@@ -132,6 +132,11 @@ const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefin
 
   // Count seats taken by bookings that overlap with the selected time
   const takenSeats = relevantBookings.reduce((sum, booking) => {
+    // For "Now" time slot, include currently seated parties
+    if (selectedTimeStr === getCurrentTimeSlot() && booking.arrived && !booking.completed) {
+      return sum + booking.partySize;
+    }
+
     const bookingStart = new Date(booking.date);
     const bookingEnd = addHours(bookingStart, 2); // 2-hour reservation period
 
