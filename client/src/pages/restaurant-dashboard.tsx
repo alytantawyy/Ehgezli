@@ -165,6 +165,28 @@ export default function RestaurantDashboard() {
     return `${hours.toString().padStart(2, '0')}:${roundedMinutes.toString().padStart(2, '0')}`;
   };
 
+  // Add isCurrentTimeWithinBranchHours function
+  const isCurrentTimeWithinBranchHours = () => {
+    if (selectedBranch === "all") return false;
+
+    const branch = restaurant?.locations.find(
+      loc => loc.id.toString() === selectedBranch
+    );
+
+    if (!branch) return false;
+
+    const currentTime = getCurrentTimeSlot();
+    const [currentHour, currentMinute] = currentTime.split(':').map(Number);
+    const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
+    const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
+
+    // Convert to minutes for easier comparison
+    const current = currentHour * 60 + currentMinute;
+    const open = openHour * 60 + openMinute;
+    const close = closeHour * 60 + closeMinute;
+
+    return current >= open && current <= close;
+  };
 
   useEffect(() => {
     if (!auth) {
@@ -533,7 +555,9 @@ export default function RestaurantDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Times</SelectItem>
-                  <SelectItem value={getCurrentTimeSlot()}>Now</SelectItem>
+                  {isCurrentTimeWithinBranchHours() && (
+                    <SelectItem value={getCurrentTimeSlot()}>Now ({getCurrentTimeSlot()})</SelectItem>
+                  )}
                   {timeSlots.length > 0 ? (
                     timeSlots.map((time) => (
                       <SelectItem key={time} value={time}>
