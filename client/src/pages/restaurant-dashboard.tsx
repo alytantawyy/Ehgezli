@@ -156,13 +156,22 @@ export default function RestaurantDashboard() {
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const now = new Date();
 
-  // Add getCurrentTimeSlot function
+  // Update the getCurrentTimeSlot function to round up
   const getCurrentTimeSlot = () => {
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    // Round to nearest 30 minutes
-    const roundedMinutes = minutes >= 30 ? 30 : 0;
-    return `${hours.toString().padStart(2, '0')}:${roundedMinutes.toString().padStart(2, '0')}`;
+    let hours = now.getHours();
+    let minutes = now.getMinutes();
+    // Round up to next 30 minutes
+    if (minutes > 0 && minutes < 30) {
+      minutes = 30;
+    } else if (minutes > 30) {
+      minutes = 0;
+      hours = hours + 1;
+    }
+    // Handle hour wrapping
+    if (hours >= 24) {
+      hours = 0;
+    }
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
   // Add isCurrentTimeWithinBranchHours function
@@ -359,7 +368,7 @@ export default function RestaurantDashboard() {
     return true;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Filtered bookings for the Latest Bookings section
+  // Update the filtered bookings logic to handle current time properly
   const filteredBookings = bookings?.filter(booking => {
     // Don't show arrived bookings in the filtered list
     if (booking.arrived) {
@@ -372,8 +381,16 @@ export default function RestaurantDashboard() {
 
     if (selectedTime !== "all") {
       const bookingTime = format(new Date(booking.date), 'HH:mm');
-      if (bookingTime !== selectedTime) {
-        return false;
+      const bookingDateTime = new Date(booking.date);
+      const bookingEnd = addHours(bookingDateTime, 2); // Add 2 hours for reservation period
+
+      // If current time is selected, check if booking is within its 2-hour window
+      if (selectedTime === getCurrentTimeSlot()) {
+        const currentDateTime = new Date();
+        return isWithinInterval(currentDateTime, { start: bookingDateTime, end: bookingEnd });
+      } else {
+        // For other times, check exact time match
+        return bookingTime === selectedTime;
       }
     }
 
