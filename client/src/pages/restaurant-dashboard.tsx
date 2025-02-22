@@ -156,6 +156,16 @@ export default function RestaurantDashboard() {
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const now = new Date();
 
+  // Add getCurrentTimeSlot function
+  const getCurrentTimeSlot = () => {
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    // Round to nearest 30 minutes
+    const roundedMinutes = minutes >= 30 ? 30 : 0;
+    return `${hours.toString().padStart(2, '0')}:${roundedMinutes.toString().padStart(2, '0')}`;
+  };
+
+
   useEffect(() => {
     if (!auth) {
       setLocation('/auth');
@@ -523,6 +533,7 @@ export default function RestaurantDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Times</SelectItem>
+                  <SelectItem value={getCurrentTimeSlot()}>Now</SelectItem>
                   {timeSlots.length > 0 ? (
                     timeSlots.map((time) => (
                       <SelectItem key={time} value={time}>
