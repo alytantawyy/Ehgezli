@@ -94,10 +94,36 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
   return slots;
 };
 
-const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefined, filteredBookings: BookingWithDetails[], totalSeats: number) => {
+const getBookingsForSeatCalculation = (bookings: BookingWithDetails[] | undefined, selectedDate: Date | undefined, selectedBranch: string) => {
+  return bookings?.filter(booking => {
+    // Skip completed bookings
+    if (booking.completed) {
+      return false;
+    }
+
+    // Apply date filter
+    if (selectedDate && !isSameDay(new Date(booking.date), selectedDate)) {
+      return false;
+    }
+
+    // Apply branch filter if selected
+    if (selectedBranch !== "all") {
+      if (booking.branchId.toString() !== selectedBranch) {
+        return false;
+      }
+    }
+
+    return true;
+  }) || [];
+};
+
+const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefined, bookings: BookingWithDetails[] | undefined, selectedBranch: string, totalSeats: number) => {
   if (!selectedDate || !selectedTimeStr || selectedTimeStr === "all") {
     return "-";
   }
+
+  // Get all relevant bookings for seat calculation
+  const relevantBookings = getBookingsForSeatCalculation(bookings, selectedDate, selectedBranch);
 
   // Convert selected time to a Date object
   const [hours, minutes] = selectedTimeStr.split(':').map(Number);
@@ -105,7 +131,7 @@ const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefin
   selectedDateTime.setHours(hours, minutes, 0, 0);
 
   // Count seats taken by bookings that overlap with the selected time
-  const takenSeats = filteredBookings.reduce((sum, booking) => {
+  const takenSeats = relevantBookings.reduce((sum, booking) => {
     const bookingStart = new Date(booking.date);
     const bookingEnd = addHours(bookingStart, 2); // 2-hour reservation period
 
@@ -571,7 +597,7 @@ export default function RestaurantDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  {getAvailableSeats(selectedTime, selectedDate, filteredBookings, getTotalSeats())}
+                  {getAvailableSeats(selectedTime, selectedDate, bookings, selectedBranch, getTotalSeats())}
                 </div>
               </CardContent>
             </Card>
