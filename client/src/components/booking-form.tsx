@@ -32,7 +32,22 @@ import { format, startOfToday, addHours, isWithinInterval } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
-// Add the generateTimeSlots function back after imports
+// Add proper types for the API responses
+interface Booking {
+  id: number;
+  date: string;
+  partySize: number;
+  confirmed: boolean;
+  completed: boolean;
+}
+
+interface Branch {
+  id: number;
+  seatsCount: number;
+  tablesCount: number;
+  reservationDuration: number;
+}
+
 const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
   if (!openingTime || !closingTime) return [];
 
@@ -83,19 +98,6 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
   return slots;
 };
 
-// Fix TypeScript errors by adding proper types
-interface Booking {
-  id: number;
-  date: string;
-  partySize: number;
-  confirmed: boolean;
-  completed: boolean;
-}
-
-interface Branch {
-  id: number;
-  seatsCount: number;
-}
 
 const bookingSchema = z.object({
   date: z.date(),
@@ -154,7 +156,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     enabled: !!restaurantId,
   });
 
-  // Calculate available seats for a given time
+  // Update the calculateAvailableSeats function to properly handle the 2-hour window
   const calculateAvailableSeats = (date: Date, timeStr: string) => {
     if (!branch || !bookings) return 0;
 
@@ -162,16 +164,28 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     const selectedDateTime = new Date(date);
     selectedDateTime.setHours(hours, minutes, 0, 0);
 
-    const relevantBookings = bookings.filter(booking => {
+    // Calculate the window based on the reservation duration
+    const halfDuration = branch.reservationDuration / 2; // Convert to hours
+    const windowStart = new Date(selectedDateTime);
+    const windowEnd = new Date(selectedDateTime);
+    windowStart.setHours(windowStart.getHours() - (halfDuration / 60));
+    windowEnd.setHours(windowEnd.getHours() + (halfDuration / 60));
+
+    const relevantBookings = bookings.filter((booking: Booking) => {
       if (!booking.confirmed || booking.completed) return false;
 
-      const bookingStart = new Date(booking.date);
-      const bookingEnd = addHours(bookingStart, 2); // 2-hour reservation window
+      const bookingDateTime = new Date(booking.date);
+      const bookingEnd = new Date(bookingDateTime);
+      bookingEnd.setMinutes(bookingEnd.getMinutes() + branch.reservationDuration * 60); //Fixed minutes calculation
 
-      return isWithinInterval(selectedDateTime, { start: bookingStart, end: bookingEnd });
+      // Check if booking overlaps with our reservation window
+      return (
+        (bookingDateTime <= windowEnd && bookingEnd >= windowStart) ||
+        (bookingDateTime >= windowStart && bookingDateTime <= windowEnd)
+      );
     });
 
-    const seatsOccupied = relevantBookings.reduce((sum, booking) => sum + booking.partySize, 0);
+    const seatsOccupied = relevantBookings.reduce((sum: number, booking: Booking) => sum + booking.partySize, 0);
     return branch.seatsCount - seatsOccupied;
   };
 
