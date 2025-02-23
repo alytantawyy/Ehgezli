@@ -154,14 +154,14 @@ const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefin
   // Check if the booking is for today
   const isToday = isSameDay(selectedDateTime, new Date());
 
-  // Count seats taken by bookings that overlap with the selected time
+  // Count seats taken by bookings and currently seated parties
   const takenSeats = relevantBookings.reduce((sum, booking) => {
     // Skip cancelled bookings
     if (!booking.confirmed) {
       return sum;
     }
 
-    // For current time slot, include all arrived bookings that aren't completed
+    // For current time slot, include all arrived bookings regardless of their original time
     if (isCurrentTimeSlot && isToday && booking.arrived && !booking.completed) {
       return sum + booking.partySize;
     }
@@ -172,7 +172,10 @@ const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefin
 
     // Check if selected time falls within booking's time window
     if (isWithinInterval(selectedDateTime, { start: bookingStart, end: bookingEnd })) {
-      return sum + booking.partySize;
+      // For non-current time slots, only count non-arrived bookings
+      if (!isCurrentTimeSlot || !booking.arrived) {
+        return sum + booking.partySize;
+      }
     }
 
     return sum;
