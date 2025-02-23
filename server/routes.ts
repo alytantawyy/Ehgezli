@@ -694,6 +694,108 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add new endpoint for checking seat availability
+  app.get("/api/restaurants/:restaurantId/branches/:branchId/availability", async (req, res, next) => {
+    try {
+      const restaurantId = parseInt(req.params.restaurantId);
+      const branchId = parseInt(req.params.branchId);
+      const date = req.query.date as string;
+
+      if (!date) {
+        return res.status(400).json({ message: "Date parameter is required" });
+      }
+
+      // Get branch information
+      const [branch] = await db
+        .select()
+        .from(restaurantBranches)
+        .where(eq(restaurantBranches.id, branchId));
+
+      if (!branch) {
+        return res.status(404).json({ message: "Branch not found" });
+      }
+
+      // Get all confirmed bookings for this branch on the specified date
+      const branchBookings = await db
+        .select()
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.branchId, branchId),
+            eq(bookings.confirmed, true),
+            eq(bookings.completed, false),
+            sql`DATE(${bookings.date}) = DATE(${date})`
+          )
+        );
+
+      console.log('Fetching availability - Current bookings:', {
+        date,
+        bookings: branchBookings.map(b => ({
+          id: b.id,
+          time: new Date(b.date).toISOString(),
+          partySize: b.partySize
+        }))
+      });
+
+      // Calculate availability for each time slot
+      const timeSlots = {};
+      const startTime = branch.openingTime.split(':').map(Number);
+      const endTime = branch.closingTime.split(':').map(Number);
+
+      // Generate 30-minute slots
+      for (let hour = startTime[0]; hour < endTime[0]; hour++) {
+        for (let minute of [0, 30]) {
+          if (hour === startTime[0] && minute < startTime[1]) continue;
+          if (hour === endTime[0] && minute > endTime[1]) continue;
+
+          const timeSlot = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+          const slotDateTime = new Date(date);
+          slotDateTime.setHours(hour, minute, 0, 0);
+
+          // Calculate the end time for a reservation starting at this slot
+          const reservationEnd = new Date(slotDateTime.getTime() + branch.reservationDuration * 60000);
+
+          // Find bookings that overlap with this time slot
+          const overlappingBookings = branchBookings.filter(booking => {
+            const bookingStart = new Date(booking.date);
+            const bookingEnd = new Date(bookingStart.getTime() + branch.reservationDuration * 60000);
+
+            return (
+              (bookingStart <= slotDateTime && bookingEnd > slotDateTime) || // Booking spans over slot start
+              (bookingStart < reservationEnd && bookingEnd >= reservationEnd) || // Booking spans over slot end
+              (bookingStart >= slotDateTime && bookingEnd <= reservationEnd) // Booking is within slot
+            );
+          });
+
+          // Calculate total seats taken during this slot
+          const seatsOccupied = overlappingBookings.reduce((sum, booking) => sum + booking.partySize, 0);
+          const availableSeats = Math.max(0, branch.seatsCount - seatsOccupied);
+
+          console.log(`Availability for ${timeSlot}:`, {
+            timeSlot,
+            overlappingBookings: overlappingBookings.length,
+            seatsOccupied,
+            availableSeats,
+            totalSeats: branch.seatsCount
+          });
+
+          timeSlots[timeSlot] = availableSeats;
+        }
+      }
+
+      res.json({
+        branchId,
+        date,
+        availability: timeSlots,
+        totalSeats: branch.seatsCount,
+        reservationDuration: branch.reservationDuration
+      });
+    } catch (error) {
+      console.error('Error calculating availability:', error);
+      next(error);
+    }
+  });
+
   // Error handling middleware should be last
   app.use((err: any, req: any, res: any, next: any) => {
     console.error('Error:', err);
