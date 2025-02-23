@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
@@ -30,7 +30,7 @@ import {
 import { CalendarIcon } from "lucide-react";
 import { format, startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 interface AvailabilityResponse {
   branchId: number;
@@ -38,6 +38,11 @@ interface AvailabilityResponse {
   availability: { [timeSlot: string]: number };
   totalSeats: number;
   reservationDuration: number;
+}
+
+interface WebSocketMessage {
+  type: 'new_booking' | 'booking_cancelled' | 'connection_established' | 'heartbeat';
+  data: any;
 }
 
 const bookingSchema = z.object({
@@ -76,6 +81,7 @@ const generateTimeSlots = (openingTime: string, closingTime: string) => {
 
 export function BookingForm({ restaurantId, branchIndex, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
 
@@ -86,7 +92,17 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     },
   });
 
-  // Fetch branch information
+  // Reset form and clear branch ID when restaurant or branch changes
+  useEffect(() => {
+    form.reset({ partySize: 2 });
+    setBranchId(null);
+    // Clear availability data for the previous branch
+    if (branchId) {
+      queryClient.removeQueries({ queryKey: ["/api/restaurants", restaurantId, "availability", branchId] });
+    }
+  }, [branchIndex, restaurantId]);
+
+  // Get branch information
   const { data: branch } = useQuery({
     queryKey: ["/api/restaurants", restaurantId, "branches", branchIndex],
     queryFn: async () => {
@@ -118,19 +134,70 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     enabled: !!branchId && !!form.watch("date"),
   });
 
+  // WebSocket connection for real-time updates
+  useEffect(() => {
+    if (!branchId) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data) as WebSocketMessage;
+        if (message.type === 'new_booking' || message.type === 'booking_cancelled') {
+          console.log('Received WebSocket update:', message);
+          // Invalidate all availability queries for this branch
+          queryClient.invalidateQueries({
+            queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
+          });
+        }
+      } catch (error) {
+        console.error('WebSocket message parsing error:', error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    const heartbeat = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'heartbeat' }));
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(heartbeat);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [branchId, restaurantId]);
+
   // Update time slots when date changes
   useEffect(() => {
     if (form.watch("date")) {
-      setTimeSlots(generateTimeSlots(openingTime, closingTime));
+      const slots = generateTimeSlots(openingTime, closingTime);
+      setTimeSlots(slots);
+      // Reset time selection when date changes
+      form.setValue("time", "");
     }
   }, [openingTime, closingTime, form.watch("date")]);
 
   // Check if the selected time has enough seats for the party size
-  const hasAvailability = (time: string) => {
+  const hasAvailability = useCallback((time: string) => {
     if (!availabilityData?.availability) return false;
     const partySize = form.getValues("partySize");
     return availabilityData.availability[time] >= partySize;
-  };
+  }, [availabilityData, form]);
+
+  // Reset time selection if selected time becomes unavailable
+  useEffect(() => {
+    const currentTime = form.getValues("time");
+    if (currentTime && !hasAvailability(currentTime)) {
+      form.setValue("time", "");
+    }
+  }, [form.watch("partySize"), availabilityData]);
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
@@ -179,7 +246,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       }
     },
     onSuccess: () => {
-      // Invalidate both availability and bookings queries
+      // Invalidate queries to refresh data
       queryClient.invalidateQueries({ 
         queryKey: ["/api/restaurants", restaurantId, "availability", branchId] 
       });
@@ -189,6 +256,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         description: "Your booking request has been submitted successfully.",
       });
 
+      // Reset form
       form.reset();
     },
     onError: (error: Error) => {
@@ -235,7 +303,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                   <Calendar
                     mode="single"
                     selected={field.value}
-                    onSelect={field.onChange}
+                    onSelect={(date) => {
+                      field.onChange(date);
+                      // Reset time when date changes
+                      form.setValue("time", "");
+                    }}
                     disabled={(date) => {
                       const today = startOfToday();
                       return date < today;

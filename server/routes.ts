@@ -451,15 +451,64 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid date format" });
       }
 
+      // Get branch information
+      const [branch] = await db
+        .select()
+        .from(restaurantBranches)
+        .where(eq(restaurantBranches.id, branchId));
+
+      if (!branch) {
+        return res.status(404).json({ message: "Branch not found" });
+      }
+
+      // Check for overlapping bookings
+      const bookingStart = new Date(date);
+      const bookingEnd = new Date(bookingStart.getTime() + branch.reservationDuration * 60000);
+
+      const overlappingBookings = await db
+        .select()
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.branchId, branchId),
+            eq(bookings.confirmed, true),
+            eq(bookings.completed, false),
+            sql`
+              (
+                (${bookings.date} >= ${bookingStart} AND ${bookings.date} < ${bookingEnd}) OR
+                (DATE_ADD(${bookings.date}, INTERVAL ${branch.reservationDuration} MINUTE) > ${bookingStart} AND 
+                 DATE_ADD(${bookings.date}, INTERVAL ${branch.reservationDuration} MINUTE) <= ${bookingEnd}) OR
+                (${bookings.date} <= ${bookingStart} AND DATE_ADD(${bookings.date}, INTERVAL ${branch.reservationDuration} MINUTE) >= ${bookingEnd})
+              )
+            `
+          )
+        );
+
+      // Calculate total seats occupied during the requested time
+      const seatsOccupied = overlappingBookings.reduce((sum, booking) => sum + booking.partySize, 0);
+      const availableSeats = branch.seatsCount - seatsOccupied;
+
+      if (availableSeats < partySize) {
+        return res.status(400).json({
+          message: "Not enough seats available for this time slot",
+          availableSeats,
+          requestedSeats: partySize
+        });
+      }
+
       // Create the booking
-      const booking = await storage.createBooking({
-        userId: req.user.id,
-        branchId,
-        date: new Date(date),
-        partySize,
-        arrived: false,
-        completed: false
-      });
+      const [booking] = await db
+        .insert(bookings)
+        .values({
+          userId: req.user.id,
+          branchId,
+          date: bookingStart,
+          partySize,
+          confirmed: true,
+          arrived: false,
+          completed: false
+        })
+        .returning();
 
       // Notify connected clients about the new booking
       clients.forEach((client, ws) => {
@@ -730,6 +779,9 @@ export function registerRoutes(app: Express): Server {
 
       console.log('Fetching availability - Current bookings:', {
         date,
+        branchId,
+        totalSeats: branch.seatsCount,
+        reservationDuration: branch.reservationDuration,
         bookings: branchBookings.map(b => ({
           id: b.id,
           time: new Date(b.date).toISOString(),
@@ -746,28 +798,42 @@ export function registerRoutes(app: Express): Server {
       for (let hour = startTime[0]; hour < endTime[0]; hour++) {
         for (let minute of [0, 30]) {
           if (hour === startTime[0] && minute < startTime[1]) continue;
-          if (hour === endTime[0] && minute > endTime[1]) continue;
+          const closeHour = endTime[0];
+          const closeMinute = endTime[1];
+          if (hour === closeHour && minute > closeMinute) continue;
 
           const timeSlot = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
           const slotDateTime = new Date(date);
           slotDateTime.setHours(hour, minute, 0, 0);
 
-          // Calculate the end time for a reservation starting at this slot
-          const reservationEnd = new Date(slotDateTime.getTime() + branch.reservationDuration * 60000);
-
-          // Find bookings that overlap with this time slot
+          // For this time slot, check all overlapping bookings considering the 2-hour window
           const overlappingBookings = branchBookings.filter(booking => {
-            const bookingStart = new Date(booking.date);
-            const bookingEnd = new Date(bookingStart.getTime() + branch.reservationDuration * 60000);
+            const bookingTime = new Date(booking.date);
+            const bookingEnd = new Date(bookingTime.getTime() + (branch.reservationDuration * 60000));
+            const slotEnd = new Date(slotDateTime.getTime() + (branch.reservationDuration * 60000));
 
-            return (
-              (bookingStart <= slotDateTime && bookingEnd > slotDateTime) || // Booking spans over slot start
-              (bookingStart < reservationEnd && bookingEnd >= reservationEnd) || // Booking spans over slot end
-              (bookingStart >= slotDateTime && bookingEnd <= reservationEnd) // Booking is within slot
+          // A booking overlaps if:
+          // 1. The existing booking starts before or during our potential reservation
+          // 2. The existing booking ends during our potential reservation
+          // 3. The existing booking completely encompasses our potential reservation
+            const overlaps = (
+              (bookingTime <= slotDateTime && bookingEnd > slotDateTime) ||
+              (bookingTime >= slotDateTime && bookingTime < slotEnd) ||
+              (bookingEnd > slotDateTime && bookingEnd <= slotEnd)
             );
+
+            if (overlaps) {
+              console.log(`Found overlapping booking for ${timeSlot}:`, {
+                bookingId: booking.id,
+                bookingStart: bookingTime.toISOString(),
+                bookingEnd: bookingEnd.toISOString(),
+                partySize: booking.partySize
+              });
+            }
+
+            return overlaps;
           });
 
-          // Calculate total seats taken during this slot
           const seatsOccupied = overlappingBookings.reduce((sum, booking) => sum + booking.partySize, 0);
           const availableSeats = Math.max(0, branch.seatsCount - seatsOccupied);
 
