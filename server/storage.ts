@@ -32,6 +32,7 @@ export interface IStorage {
   isRestaurantProfileComplete(restaurantId: number): Promise<boolean>;
   markBookingArrived(bookingId: number): Promise<void>;
   markBookingComplete(bookingId: number): Promise<void>;
+  cancelBooking(bookingId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -464,6 +465,16 @@ export class DatabaseStorage implements IStorage {
         .where(eq(bookings.id, bookingId));
     } catch (error) {
       console.error('Error marking booking as complete:', error);
+      throw error;
+    }
+  }
+  async cancelBooking(bookingId: number): Promise<void> {
+    try {
+      await db.update(bookings)
+        .set({ confirmed: false })
+        .where(eq(bookings.id, bookingId));
+    } catch (error) {
+      console.error('Error canceling booking:', error);
       throw error;
     }
   }

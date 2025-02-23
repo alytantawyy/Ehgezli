@@ -7,6 +7,8 @@ import { ArrowLeft, Clock } from "lucide-react";
 import { format, isBefore } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface BookingWithDetails extends Booking {
   user?: {
@@ -21,6 +23,7 @@ interface BookingWithDetails extends Booking {
 
 export default function PreviousBookingsPage() {
   const { restaurant: auth } = useRestaurantAuth();
+  const { toast } = useToast();
 
   const { data: bookings, isLoading } = useQuery<BookingWithDetails[]>({
     queryKey: ["/api/restaurant/bookings", auth?.id],
@@ -34,6 +37,33 @@ export default function PreviousBookingsPage() {
       return response.json();
     },
     enabled: !!auth?.id,
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (bookingId: number) => {
+      const response = await fetch(`/api/restaurant/bookings/${bookingId}/cancel`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to cancel booking');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings"] });
+      toast({
+        title: "Booking Cancelled",
+        description: "The booking has been cancelled successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel booking",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -98,9 +128,21 @@ export default function PreviousBookingsPage() {
                       Branch: {booking.branch.address}, {booking.branch.city}
                     </div>
                   </div>
-                  <div className="flex items-center text-muted-foreground">
-                    <Clock className="h-4 w-4 mr-2" />
-                    <span>{booking.completed ? "Completed" : "Cancelled"}</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center text-muted-foreground">
+                      <Clock className="h-4 w-4 mr-2" />
+                      <span>{booking.completed ? "Completed" : "Cancelled"}</span>
+                    </div>
+                    {!booking.completed && booking.confirmed && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => cancelMutation.mutate(booking.id)}
+                        disabled={cancelMutation.isPending}
+                      >
+                        Cancel
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
