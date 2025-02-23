@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CalendarIcon } from "lucide-react";
-import { format, startOfToday, addHours, isWithinInterval, addMinutes } from "date-fns";
+import { format, startOfToday, addMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -38,6 +38,7 @@ interface Booking {
   date: string;
   partySize: number;
   confirmed: boolean;
+  arrived: boolean;
   completed: boolean;
 }
 
@@ -97,7 +98,6 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
   }
   return slots;
 };
-
 
 const bookingSchema = z.object({
   date: z.date(),
@@ -159,7 +159,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   // Update the calculateAvailableSeats function to properly handle the 2-hour window
   const calculateAvailableSeats = (date: Date, timeStr: string) => {
     if (!branch || !bookings) {
-      console.log('Missing branch or bookings data');
+      console.log('Missing branch or bookings data', { branch, bookings });
       return branch?.seatsCount || 0;
     }
 
@@ -196,7 +196,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         console.log('Found overlapping booking:', {
           bookingStart: bookingDateTime,
           bookingEnd,
-          partySize: booking.partySize
+          partySize: booking.partySize,
+          bookingId: booking.id
         });
       }
 
@@ -209,7 +210,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     console.log('Availability calculation result:', {
       seatsOccupied,
       availableSeats,
-      overlappingBookings: relevantBookings.length
+      overlappingBookings: relevantBookings.length,
+      relevantBookings: relevantBookings.map(b => ({ id: b.id, date: b.date, partySize: b.partySize }))
     });
 
     return availableSeats;
@@ -290,15 +292,37 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         throw new Error('An unexpected error occurred');
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+    onSuccess: (newBooking) => {
+      console.log("Booking successfully created:", newBooking);
+
+      // Optimistically update the bookings cache
+      const currentBookings = queryClient.getQueryData(["/api/restaurant/bookings", restaurantId]) as Booking[] || [];
+      queryClient.setQueryData(["/api/restaurant/bookings", restaurantId], [...currentBookings, newBooking]);
+
+      // Then invalidate queries to get fresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", restaurantId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurants", restaurantId] });
+
       toast({
         title: "Booking Submitted",
         description: "Your booking request has been submitted successfully.",
       });
+
+      // Reset form
       form.reset();
+
+      // Force refresh of availability calculations
+      const selectedDate = new Date(newBooking.date);
+      const slots = generateTimeSlots(openingTime, closingTime, selectedDate);
+      const seatsPerSlot: { [key: string]: number } = {};
+      slots.forEach(slot => {
+        seatsPerSlot[slot] = calculateAvailableSeats(selectedDate, slot);
+      });
+      setAvailableSeats(seatsPerSlot);
+      setTimeSlots(slots);
     },
     onError: (error: Error) => {
+      console.error("Booking failed:", error);
       toast({
         title: "Booking Failed",
         description: error.message,
