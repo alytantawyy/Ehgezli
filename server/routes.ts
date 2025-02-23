@@ -349,6 +349,57 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add restaurant booking cancellation endpoint
+  app.post("/api/restaurant/bookings/:bookingId/cancel", requireRestaurantAuth, async (req, res, next) => {
+    try {
+      const bookingId = parseInt(req.params.bookingId);
+      console.log('Processing cancellation for booking:', {
+        bookingId,
+        restaurantId: req.user?.id
+      });
+
+      // Verify booking belongs to this restaurant
+      const [booking] = await db.select()
+        .from(bookings)
+        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
+        .where(
+          and(
+            eq(bookings.id, bookingId),
+            eq(restaurantBranches.restaurantId, req.user?.id)
+          )
+        );
+
+      if (!booking) {
+        console.error('Booking not found or unauthorized:', {
+          bookingId,
+          restaurantId: req.user?.id
+        });
+        return res.status(404).json({ message: "Booking not found or unauthorized" });
+      }
+
+      await storage.cancelBooking(bookingId);
+      console.log('Successfully cancelled booking:', {
+        bookingId,
+        restaurantId: req.user?.id
+      });
+
+      // Notify connected clients about the cancelled booking
+      clients.forEach((client, ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'booking_cancelled',
+            data: { bookingId, restaurantId: req.user?.id }
+          }));
+        }
+      });
+
+      res.json({ message: "Booking cancelled successfully" });
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      next(error);
+    }
+  });
+
   app.post("/api/bookings/:bookingId/cancel", async (req, res, next) => {
     try {
       if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
