@@ -15,8 +15,14 @@ type WebSocketMessage = {
   data?: any;
 };
 
+type WebSocketClient = {
+  sessionID: string;
+  userId: number;
+  userType: 'user' | 'restaurant';
+  isAlive: boolean;
+};
+
 export function registerRoutes(app: Express): Server {
-  // Add JSON and URL-encoded body parsing before any routes
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -37,18 +43,12 @@ export function registerRoutes(app: Express): Server {
     path: '/ws',
     verifyClient: async (info, callback) => {
       try {
-        if (!info.req.headers.cookie) {
+        const cookies = info.req.headers.cookie ? parseCookie(info.req.headers.cookie) : null;
+        if (!cookies?.['connect.sid']) {
           return callback(false, 401, 'Authentication required');
         }
 
-        const cookies = parseCookie(info.req.headers.cookie);
         const sessionID = cookies['connect.sid'];
-
-        if (!sessionID) {
-          return callback(false, 401, 'No session found');
-        }
-
-        // Clean session ID - remove prefix and signature
         const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
 
         // Get session from store
@@ -64,12 +64,15 @@ export function registerRoutes(app: Express): Server {
 
         // Safely access passport data
         const passportData = (session as any).passport;
-        if (!passportData?.user) {
-          return callback(false, 401, 'No user data');
+        if (!passportData?.user?.id || !passportData?.user?.type) {
+          return callback(false, 401, 'Invalid user data');
         }
 
         // Store user info in request
-        (info.req as any).user = passportData.user;
+        (info.req as any).user = {
+          id: passportData.user.id,
+          type: passportData.user.type
+        };
 
         callback(true);
       } catch (error) {
@@ -79,18 +82,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Track active connections with their authentication state
-  const clients = new Map<WebSocket, {
-    sessionID: string;
-    userId: number;
-    userType: 'user' | 'restaurant';
-    isAlive: boolean;
-  }>();
+  // Track active connections by WebSocket instances
+  const clients = new Map<WebSocket, WebSocketClient>();
 
   // Heartbeat interval
   const heartbeatInterval = setInterval(() => {
-    clients.forEach((client, ws) => {
-      if (!client.isAlive) {
+    wss.clients.forEach((ws) => {
+      const client = clients.get(ws);
+      if (!client || !client.isAlive) {
         clients.delete(ws);
         return ws.terminate();
       }
@@ -102,20 +101,25 @@ export function registerRoutes(app: Express): Server {
   // WebSocket connection handler
   wss.on('connection', async (ws, req) => {
     const user = (req as any).user;
-    if (!user?.id || !user?.type) {
+    if (!user?.id || !user?.type || !['user', 'restaurant'].includes(user.type)) {
       ws.close(1008, 'Invalid user data');
       return;
     }
 
-    // Get clean session ID from cookie
-    const sessionID = parseCookie(req.headers.cookie!)['connect.sid'];
+    const cookies = req.headers.cookie ? parseCookie(req.headers.cookie) : null;
+    if (!cookies?.['connect.sid']) {
+      ws.close(1008, 'No session found');
+      return;
+    }
+
+    const sessionID = cookies['connect.sid'];
     const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
 
     // Add client to tracked connections
     clients.set(ws, {
       sessionID: cleanSessionId,
       userId: user.id,
-      userType: user.type,
+      userType: user.type as 'user' | 'restaurant',
       isAlive: true
     });
 
@@ -428,9 +432,9 @@ export function registerRoutes(app: Express): Server {
       });
 
       // Notify connected clients about the new booking
-      clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
+      clients.forEach((client, ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
             type: 'new_booking',
             data: booking
           }));
