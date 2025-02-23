@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CalendarIcon } from "lucide-react";
-import { format, startOfToday, addHours, isWithinInterval } from "date-fns";
+import { format, startOfToday, addHours, isWithinInterval, addMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -158,35 +158,61 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
   // Update the calculateAvailableSeats function to properly handle the 2-hour window
   const calculateAvailableSeats = (date: Date, timeStr: string) => {
-    if (!branch || !bookings) return 0;
+    if (!branch || !bookings) {
+      console.log('Missing branch or bookings data');
+      return branch?.seatsCount || 0;
+    }
 
     const [hours, minutes] = timeStr.split(':').map(Number);
     const selectedDateTime = new Date(date);
     selectedDateTime.setHours(hours, minutes, 0, 0);
 
     // Calculate the window based on the reservation duration
-    const halfDuration = branch.reservationDuration / 2; // Convert to hours
-    const windowStart = new Date(selectedDateTime);
-    const windowEnd = new Date(selectedDateTime);
-    windowStart.setHours(windowStart.getHours() - (halfDuration / 60));
-    windowEnd.setHours(windowEnd.getHours() + (halfDuration / 60));
+    const reservationStart = new Date(selectedDateTime);
+    const reservationEnd = addMinutes(reservationStart, branch.reservationDuration);
+
+    console.log('Checking availability for:', {
+      date: selectedDateTime,
+      time: timeStr,
+      reservationStart,
+      reservationEnd,
+      totalSeats: branch.seatsCount,
+      bookingsCount: bookings.length
+    });
 
     const relevantBookings = bookings.filter((booking: Booking) => {
       if (!booking.confirmed || booking.completed) return false;
 
       const bookingDateTime = new Date(booking.date);
-      const bookingEnd = new Date(bookingDateTime);
-      bookingEnd.setMinutes(bookingEnd.getMinutes() + branch.reservationDuration * 60); //Fixed minutes calculation
+      const bookingEnd = addMinutes(bookingDateTime, branch.reservationDuration);
 
-      // Check if booking overlaps with our reservation window
-      return (
-        (bookingDateTime <= windowEnd && bookingEnd >= windowStart) ||
-        (bookingDateTime >= windowStart && bookingDateTime <= windowEnd)
+      // Check if the reservations overlap
+      const overlaps = (
+        (bookingDateTime < reservationEnd && bookingEnd > reservationStart) ||
+        (bookingDateTime >= reservationStart && bookingDateTime < reservationEnd)
       );
+
+      if (overlaps) {
+        console.log('Found overlapping booking:', {
+          bookingStart: bookingDateTime,
+          bookingEnd,
+          partySize: booking.partySize
+        });
+      }
+
+      return overlaps;
     });
 
     const seatsOccupied = relevantBookings.reduce((sum: number, booking: Booking) => sum + booking.partySize, 0);
-    return branch.seatsCount - seatsOccupied;
+    const availableSeats = Math.max(0, branch.seatsCount - seatsOccupied);
+
+    console.log('Availability calculation result:', {
+      seatsOccupied,
+      availableSeats,
+      overlappingBookings: relevantBookings.length
+    });
+
+    return availableSeats;
   };
 
   // Update time slots and available seats when date changes
