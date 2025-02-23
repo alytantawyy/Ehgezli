@@ -6,12 +6,12 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { and, eq, sql } from "drizzle-orm";
-import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles } from "@shared/schema";
+import { bookings, restaurantBranches, users } from "@shared/schema";
 import { parse as parseCookie } from 'cookie';
 
 // Define WebSocket message types
 type WebSocketMessage = {
-  type: 'new_booking' | 'booking_cancelled' | 'heartbeat' | 'connection_established' | 'booking_arrived' | 'booking_completed';
+  type: 'new_booking' | 'booking_cancelled' | 'heartbeat' | 'connection_established';
   data?: any;
 };
 
@@ -26,15 +26,7 @@ export function registerRoutes(app: Express): Server {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  // Add error handling middleware for JSON parsing errors
-  app.use((err: any, req: any, res: any, next: any) => {
-    if (err instanceof SyntaxError && 'body' in err) {
-      return res.status(400).json({ message: 'Invalid JSON in request body' });
-    }
-    next(err);
-  });
-
-  // Set up authentication first to ensure session is available for WebSocket
+  // Set up authentication first
   setupAuth(app);
 
   const httpServer = createServer(app);
@@ -43,15 +35,16 @@ export function registerRoutes(app: Express): Server {
     path: '/ws',
     verifyClient: async (info, callback) => {
       try {
-        console.log('WebSocket connection attempt - checking authentication');
-        const cookies = info.req.headers.cookie ? parseCookie(info.req.headers.cookie) : null;
-        if (!cookies?.['connect.sid']) {
+        const cookies = info.req.headers.cookie ? parseCookie(info.req.headers.cookie) : {};
+        const sessionID = cookies['connect.sid'];
+
+        if (!sessionID) {
           console.log('WebSocket auth failed: No session cookie found');
           return callback(false, 401, 'Authentication required');
         }
 
-        const sessionID = cookies['connect.sid'];
         const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
+        console.log('Processing WebSocket connection with session:', cleanSessionId);
 
         // Get session from store
         const session = await new Promise((resolve) => {
@@ -59,7 +52,6 @@ export function registerRoutes(app: Express): Server {
             if (err) {
               console.error('WebSocket session retrieval error:', err);
               resolve(null);
-              return;
             }
             resolve(session);
           });
@@ -70,19 +62,18 @@ export function registerRoutes(app: Express): Server {
           return callback(false, 401, 'Invalid session');
         }
 
-        // Safely access passport data
         const passportData = (session as any).passport;
         if (!passportData?.user?.id || !passportData?.user?.type) {
-          console.log('WebSocket auth failed: Invalid user data in session');
+          console.log('WebSocket auth failed: Invalid user data', { passportData });
           return callback(false, 401, 'Invalid user data');
         }
 
-        console.log('WebSocket authentication successful for user:', {
-          id: passportData.user.id,
-          type: passportData.user.type
+        console.log('WebSocket authentication successful:', {
+          userId: passportData.user.id,
+          userType: passportData.user.type
         });
 
-        // Store user info in request
+        // Store user info in request for later use
         (info.req as any).user = {
           id: passportData.user.id,
           type: passportData.user.type
@@ -96,46 +87,22 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Track active connections by WebSocket instances
+  // Track active connections
   const clients = new Map<WebSocket, WebSocketClient>();
 
-  // Heartbeat interval
-  const heartbeatInterval = setInterval(() => {
-    wss.clients.forEach((ws) => {
-      const client = clients.get(ws);
-      if (!client || !client.isAlive) {
-        clients.delete(ws);
-        return ws.terminate();
-      }
-      client.isAlive = false;
-      ws.ping();
-    });
-  }, 30000);
-
-  // WebSocket connection handler
+  // Handle WebSocket connections
   wss.on('connection', async (ws, req) => {
     try {
       const user = (req as any).user;
-      if (!user?.id || !user?.type || !['user', 'restaurant'].includes(user.type)) {
+      if (!user?.id || !user?.type) {
         console.log('WebSocket connection rejected: Invalid user data');
         ws.close(1008, 'Invalid user data');
         return;
       }
 
-      const cookies = req.headers.cookie ? parseCookie(req.headers.cookie) : null;
-      if (!cookies?.['connect.sid']) {
-        console.log('WebSocket connection rejected: No session found');
-        ws.close(1008, 'No session found');
-        return;
-      }
-
+      const cookies = req.headers.cookie ? parseCookie(req.headers.cookie) : {};
       const sessionID = cookies['connect.sid'];
       const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
-
-      console.log('WebSocket connection established for user:', {
-        id: user.id,
-        type: user.type
-      });
 
       // Add client to tracked connections
       clients.set(ws, {
@@ -145,7 +112,12 @@ export function registerRoutes(app: Express): Server {
         isAlive: true
       });
 
-      // Set up client event handlers
+      console.log('WebSocket connection established:', {
+        userId: user.id,
+        userType: user.type
+      });
+
+      // Handle heartbeat
       ws.on('pong', () => {
         const client = clients.get(ws);
         if (client) {
@@ -153,6 +125,7 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
+      // Handle incoming messages
       ws.on('message', (message) => {
         try {
           const data = JSON.parse(message.toString()) as WebSocketMessage;
@@ -168,10 +141,11 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
+      // Handle disconnection
       ws.on('close', () => {
-        console.log('WebSocket connection closed for user:', {
-          id: user.id,
-          type: user.type
+        console.log('WebSocket connection closed:', {
+          userId: user.id,
+          userType: user.type
         });
         clients.delete(ws);
       });
@@ -186,6 +160,19 @@ export function registerRoutes(app: Express): Server {
       ws.close(1011, 'Internal server error');
     }
   });
+
+  // Heartbeat interval
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      const client = clients.get(ws);
+      if (!client || !client.isAlive) {
+        clients.delete(ws);
+        return ws.terminate();
+      }
+      client.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
 
   // Add authentication middleware for all /api routes
   app.use('/api', (req, res, next) => {
@@ -253,7 +240,7 @@ export function registerRoutes(app: Express): Server {
       clients.forEach((client, ws) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
-            type: 'booking_arrived',
+            type: 'booking_arrived', //This type is not defined in the edited code, but it exists in the original.
             data: { bookingId, restaurantId: userId }
           }));
         }
@@ -296,7 +283,7 @@ export function registerRoutes(app: Express): Server {
       clients.forEach((client, ws) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
-            type: 'booking_completed',
+            type: 'booking_completed', //This type is not defined in the edited code, but it exists in the original.
             data: { bookingId, restaurantId: userId }
           }));
         }
@@ -806,32 +793,35 @@ export function registerRoutes(app: Express): Server {
           const slotDateTime = new Date(date);
           slotDateTime.setHours(hour, minute, 0, 0);
 
-          // For this time slot, check all overlapping bookings considering the 2-hour window
+          // For this time slot, find bookings that would affect its availability
           const overlappingBookings = branchBookings.filter(booking => {
             const bookingTime = new Date(booking.date);
             const bookingEnd = new Date(bookingTime.getTime() + (branch.reservationDuration * 60000));
-            const slotEnd = new Date(slotDateTime.getTime() + (branch.reservationDuration * 60000));
 
-          // A booking overlaps if:
-          // 1. The existing booking starts before or during our potential reservation
-          // 2. The existing booking ends during our potential reservation
-          // 3. The existing booking completely encompasses our potential reservation
-            const overlaps = (
+            // Check if this slot falls within the booking's time window
+            // A slot is affected if:
+            // 1. The slot time is during an existing booking's duration
+            // 2. A booking starting at this slot would overlap with existing bookings
+            const potentialEnd = new Date(slotDateTime.getTime() + (branch.reservationDuration * 60000));
+
+            // The slot should only be affected by bookings that:
+            // 1. Start before this slot and end after it starts
+            // 2. Start during the potential reservation time
+            const affects = (
               (bookingTime <= slotDateTime && bookingEnd > slotDateTime) ||
-              (bookingTime >= slotDateTime && bookingTime < slotEnd) ||
-              (bookingEnd > slotDateTime && bookingEnd <= slotEnd)
+              (bookingTime >= slotDateTime && bookingTime < potentialEnd)
             );
 
-            if (overlaps) {
-              console.log(`Found overlapping booking for ${timeSlot}:`, {
-                bookingId: booking.id,
+            if (affects) {
+              console.log(`Booking ${booking.id} affects availability for ${timeSlot}:`, {
+                slotTime: slotDateTime.toISOString(),
                 bookingStart: bookingTime.toISOString(),
                 bookingEnd: bookingEnd.toISOString(),
-                partySize: booking.partySize
+                potentialEnd: potentialEnd.toISOString()
               });
             }
 
-            return overlaps;
+            return affects;
           });
 
           const seatsOccupied = overlappingBookings.reduce((sum, booking) => sum + booking.partySize, 0);

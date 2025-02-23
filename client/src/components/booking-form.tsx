@@ -60,30 +60,12 @@ interface BookingFormProps {
   closingTime: string;
 }
 
-const generateTimeSlots = (openingTime: string, closingTime: string) => {
-  if (!openingTime || !closingTime) return [];
-
-  const slots: string[] = [];
-  const [openHour, openMinute] = openingTime.split(':').map(Number);
-  const [closeHour, closeMinute] = closingTime.split(':').map(Number);
-
-  for (let hour = openHour; hour < closeHour; hour++) {
-    for (let minute of [0, 30]) {
-      if (hour === openHour && minute < openMinute) continue;
-      if (hour === closeHour && minute > closeMinute) continue;
-
-      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-      slots.push(time);
-    }
-  }
-  return slots;
-};
-
 export function BookingForm({ restaurantId, branchIndex, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
@@ -92,13 +74,14 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     },
   });
 
-  // Reset form and clear branch ID when restaurant or branch changes
+  // Reset form and clear cache when branch changes
   useEffect(() => {
     form.reset({ partySize: 2 });
-    setBranchId(null);
-    // Clear availability data for the previous branch
     if (branchId) {
-      queryClient.removeQueries({ queryKey: ["/api/restaurants", restaurantId, "availability", branchId] });
+      queryClient.removeQueries({
+        queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
+      });
+      setBranchId(null);
     }
   }, [branchIndex, restaurantId]);
 
@@ -119,6 +102,86 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     },
   });
 
+  // WebSocket connection with reconnection logic
+  useEffect(() => {
+    if (!branchId) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    let heartbeatTimer: NodeJS.Timeout | null = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+
+    const connect = () => {
+      if (reconnectAttempts >= maxReconnectAttempts) {
+        console.log('Max reconnection attempts reached');
+        setWsConnected(false);
+        return;
+      }
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        setWsConnected(true);
+        reconnectAttempts = 0;
+
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'heartbeat' }));
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as WebSocketMessage;
+          if (message.type === 'connection_established') {
+            console.log('WebSocket connection confirmed:', message);
+          } else if (message.type === 'new_booking' || message.type === 'booking_cancelled') {
+            console.log('Received booking update:', message);
+            queryClient.invalidateQueries({
+              queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
+            });
+          }
+        } catch (error) {
+          console.error('WebSocket message parsing error:', error);
+        }
+      };
+
+      ws.onclose = (event) => {
+        console.log('WebSocket disconnected:', event);
+        setWsConnected(false);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+        reconnectTimer = setTimeout(() => {
+          reconnectAttempts++;
+          connect();
+        }, backoffDelay);
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        // Close the connection on error to trigger reconnect
+        ws?.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [branchId]);
+
   // Fetch availability data
   const { data: availabilityData } = useQuery<AvailabilityResponse>({
     queryKey: ["/api/restaurants", restaurantId, "availability", branchId, form.watch("date")?.toISOString()],
@@ -132,66 +195,27 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       return response.json();
     },
     enabled: !!branchId && !!form.watch("date"),
+    staleTime: 0,
+    cacheTime: 0,
   });
-
-  // WebSocket connection for real-time updates
-  useEffect(() => {
-    if (!branchId) return;
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as WebSocketMessage;
-        if (message.type === 'new_booking' || message.type === 'booking_cancelled') {
-          console.log('Received WebSocket update:', message);
-          // Invalidate all availability queries for this branch
-          queryClient.invalidateQueries({
-            queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
-          });
-        }
-      } catch (error) {
-        console.error('WebSocket message parsing error:', error);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    const heartbeat = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'heartbeat' }));
-      }
-    }, 30000);
-
-    return () => {
-      clearInterval(heartbeat);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-    };
-  }, [branchId, restaurantId]);
 
   // Update time slots when date changes
   useEffect(() => {
     if (form.watch("date")) {
       const slots = generateTimeSlots(openingTime, closingTime);
       setTimeSlots(slots);
-      // Reset time selection when date changes
       form.setValue("time", "");
     }
   }, [openingTime, closingTime, form.watch("date")]);
 
-  // Check if the selected time has enough seats for the party size
+  // Check if the selected time has enough seats
   const hasAvailability = useCallback((time: string) => {
     if (!availabilityData?.availability) return false;
     const partySize = form.getValues("partySize");
     return availabilityData.availability[time] >= partySize;
   }, [availabilityData, form]);
 
-  // Reset time selection if selected time becomes unavailable
+  // Reset time selection if it becomes unavailable
   useEffect(() => {
     const currentTime = form.getValues("time");
     if (currentTime && !hasAvailability(currentTime)) {
@@ -246,9 +270,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       }
     },
     onSuccess: () => {
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ 
-        queryKey: ["/api/restaurants", restaurantId, "availability", branchId] 
+      queryClient.invalidateQueries({
+        queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
       });
 
       toast({
@@ -256,7 +279,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         description: "Your booking request has been submitted successfully.",
       });
 
-      // Reset form
       form.reset();
     },
     onError: (error: Error) => {
@@ -267,6 +289,25 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       });
     },
   });
+
+  const generateTimeSlots = (openingTime: string, closingTime: string) => {
+    if (!openingTime || !closingTime) return [];
+
+    const slots: string[] = [];
+    const [openHour, openMinute] = openingTime.split(':').map(Number);
+    const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+
+    for (let hour = openHour; hour < closeHour; hour++) {
+      for (let minute of [0, 30]) {
+        if (hour === openHour && minute < openMinute) continue;
+        if (hour === closeHour && minute > closeMinute) continue;
+
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        slots.push(time);
+      }
+    }
+    return slots;
+  };
 
   return (
     <Form {...form}>
@@ -305,7 +346,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                     selected={field.value}
                     onSelect={(date) => {
                       field.onChange(date);
-                      // Reset time when date changes
                       form.setValue("time", "");
                     }}
                     disabled={(date) => {
@@ -396,7 +436,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
             bookingMutation.isPending ||
             !form.getValues("time") ||
             !form.getValues("date") ||
-            !hasAvailability(form.getValues("time"))
+            !hasAvailability(form.getValues("time")) ||
+            !wsConnected
           }
         >
           {bookingMutation.isPending ? "Submitting..." : "Submit Booking"}
