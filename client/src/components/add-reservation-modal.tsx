@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import confetti from 'canvas-confetti';
 import {
   Dialog,
   DialogContent,
@@ -74,6 +75,53 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
     },
   });
 
+  const triggerConfetti = () => {
+    const count = 200;
+    const defaults = {
+      origin: { y: 0.7 },
+      spread: 360,
+      ticks: 50,
+      gravity: 0,
+      decay: 0.94,
+      startVelocity: 30,
+    };
+
+    function fire(particleRatio: number, opts: any) {
+      confetti({
+        ...defaults,
+        ...opts,
+        particleCount: Math.floor(count * particleRatio),
+      });
+    }
+
+    fire(0.25, {
+      spread: 26,
+      startVelocity: 55,
+    });
+
+    fire(0.2, {
+      spread: 60,
+    });
+
+    fire(0.35, {
+      spread: 100,
+      decay: 0.91,
+      scalar: 0.8,
+    });
+
+    fire(0.1, {
+      spread: 120,
+      startVelocity: 25,
+      decay: 0.92,
+      scalar: 1.2,
+    });
+
+    fire(0.1, {
+      spread: 120,
+      startVelocity: 45,
+    });
+  };
+
   const onSubmit = async (data: AddReservationFormData) => {
     try {
       const dateTime = new Date(data.date);
@@ -102,6 +150,9 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
         title: "Reservation Created",
         description: "The reservation has been added successfully.",
       });
+
+      // Trigger confetti animation
+      triggerConfetti();
 
       setOpen(false);
       form.reset();
