@@ -5,7 +5,7 @@ import express from 'express';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles } from "@shared/schema";
 import { parse as parseCookie } from 'cookie';
 
@@ -23,7 +23,6 @@ export function registerRoutes(app: Express): Server {
   // Add error handling middleware for JSON parsing errors
   app.use((err: any, req: any, res: any, next: any) => {
     if (err instanceof SyntaxError && 'body' in err) {
-      console.error('JSON parsing error:', err);
       return res.status(400).json({ message: 'Invalid JSON in request body' });
     }
     next(err);
@@ -39,7 +38,6 @@ export function registerRoutes(app: Express): Server {
     verifyClient: async (info, callback) => {
       try {
         if (!info.req.headers.cookie) {
-          console.error('WebSocket connection rejected: No cookie header');
           return callback(false, 401, 'Authentication required');
         }
 
@@ -47,49 +45,31 @@ export function registerRoutes(app: Express): Server {
         const sessionID = cookies['connect.sid'];
 
         if (!sessionID) {
-          console.error('WebSocket connection rejected: No session ID in cookies');
           return callback(false, 401, 'No session found');
         }
 
-        // Clean session ID
-        const cleanSessionId = decodeURIComponent(
-          sessionID.split('.')[0].replace(/^s:/, '')
-        );
+        // Clean session ID - remove prefix and signature
+        const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
 
         // Get session from store
-        const session = await new Promise((resolve, reject) => {
+        const session = await new Promise((resolve) => {
           storage.sessionStore.get(cleanSessionId, (err, session) => {
-            if (err) {
-              console.error('Session store error:', err);
-              reject(err);
-            } else {
-              resolve(session);
-            }
+            resolve(err ? null : session);
           });
         });
 
         if (!session) {
-          console.error('WebSocket connection rejected: Invalid session');
           return callback(false, 401, 'Invalid session');
         }
 
-        // Safely access passport data with type assertion
+        // Safely access passport data
         const passportData = (session as any).passport;
-        if (!passportData?.user?.id || !passportData?.user?.type) {
-          console.error('WebSocket connection rejected: No user data in session');
-          return callback(false, 401, 'Invalid user data');
+        if (!passportData?.user) {
+          return callback(false, 401, 'No user data');
         }
 
         // Store user info in request
-        (info.req as any).user = {
-          id: passportData.user.id,
-          type: passportData.user.type
-        };
-
-        console.log('WebSocket authentication successful:', {
-          userId: passportData.user.id,
-          userType: passportData.user.type
-        });
+        (info.req as any).user = passportData.user;
 
         callback(true);
       } catch (error) {
@@ -111,7 +91,6 @@ export function registerRoutes(app: Express): Server {
   const heartbeatInterval = setInterval(() => {
     clients.forEach((client, ws) => {
       if (!client.isAlive) {
-        console.log('Terminating inactive WebSocket connection:', client);
         clients.delete(ws);
         return ws.terminate();
       }
@@ -123,17 +102,14 @@ export function registerRoutes(app: Express): Server {
   // WebSocket connection handler
   wss.on('connection', async (ws, req) => {
     const user = (req as any).user;
-    console.log('WebSocket connection established:', {
-      userId: user.id,
-      userType: user.type,
-      timestamp: new Date().toISOString()
-    });
+    if (!user?.id || !user?.type) {
+      ws.close(1008, 'Invalid user data');
+      return;
+    }
 
     // Get clean session ID from cookie
     const sessionID = parseCookie(req.headers.cookie!)['connect.sid'];
-    const cleanSessionId = decodeURIComponent(
-      sessionID.split('.')[0].replace(/^s:/, '')
-    );
+    const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
 
     // Add client to tracked connections
     clients.set(ws, {
@@ -154,13 +130,6 @@ export function registerRoutes(app: Express): Server {
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message.toString()) as WebSocketMessage;
-        console.log('WebSocket message received:', {
-          type: data.type,
-          userId: user.id,
-          userType: user.type,
-          timestamp: new Date().toISOString()
-        });
-
         if (data.type === 'heartbeat') {
           const client = clients.get(ws);
           if (client) {
@@ -169,21 +138,11 @@ export function registerRoutes(app: Express): Server {
           }
         }
       } catch (error) {
-        console.error('WebSocket message parsing error:', {
-          error,
-          userId: user.id,
-          userType: user.type,
-          timestamp: new Date().toISOString()
-        });
+        console.error('WebSocket message parsing error:', error);
       }
     });
 
     ws.on('close', () => {
-      console.log('WebSocket connection closed:', {
-        userId: user.id,
-        userType: user.type,
-        timestamp: new Date().toISOString()
-      });
       clients.delete(ws);
     });
 
@@ -197,12 +156,11 @@ export function registerRoutes(app: Express): Server {
   // Add authentication middleware for all /api routes
   app.use('/api', (req, res, next) => {
     if (!req.isAuthenticated()) {
-      console.error('API request rejected: Not authenticated', {
-        path: req.path,
-        method: req.method,
-        sessionID: req.sessionID
-      });
       return res.status(401).json({ message: "Authentication required" });
+    }
+    // Add user type check for restaurant-only endpoints
+    if (req.path.startsWith('/restaurant/') && req.user?.type !== 'restaurant') {
+      return res.status(403).json({ message: "Access denied" });
     }
     next();
   });
@@ -210,12 +168,6 @@ export function registerRoutes(app: Express): Server {
   // Add type-specific authentication middleware
   const requireRestaurantAuth = (req: any, res: any, next: any) => {
     if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      console.error('Restaurant API access denied:', {
-        path: req.path,
-        method: req.method,
-        userType: req.user?.type,
-        sessionID: req.sessionID
-      });
       return res.status(401).json({ message: "Not authenticated as restaurant" });
     }
     next();
@@ -223,26 +175,15 @@ export function registerRoutes(app: Express): Server {
 
   // Update restaurant bookings endpoint with enhanced auth
   app.get("/api/restaurant/bookings/:restaurantId", requireRestaurantAuth, async (req, res) => {
-    console.log('Restaurant bookings request:', {
-      restaurantId: req.params.restaurantId,
-      user: req.user,
-      sessionID: req.sessionID
-    });
-
     try {
       const restaurantId = parseInt(req.params.restaurantId);
       if (restaurantId !== req.user?.id) {
-        console.error('Unauthorized booking access attempt:', {
-          requestedId: restaurantId,
-          userId: req.user?.id
-        });
         return res.status(403).json({ message: "Unauthorized to access these bookings" });
       }
 
       const bookings = await storage.getRestaurantBookings(restaurantId);
       res.json(bookings);
     } catch (error: any) {
-      console.error('Error fetching restaurant bookings:', error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -251,10 +192,11 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/restaurant/bookings/:bookingId/arrive", requireRestaurantAuth, async (req, res, next) => {
     try {
       const bookingId = parseInt(req.params.bookingId);
-      console.log('Processing arrival for booking:', {
-        bookingId,
-        restaurantId: req.user?.id
-      });
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
 
       // Verify booking belongs to this restaurant
       const [booking] = await db.select()
@@ -263,37 +205,28 @@ export function registerRoutes(app: Express): Server {
         .where(
           and(
             eq(bookings.id, bookingId),
-            eq(restaurantBranches.restaurantId, req.user?.id)
+            eq(restaurantBranches.restaurantId, sql`${userId}`)
           )
         );
 
       if (!booking) {
-        console.error('Booking not found or unauthorized:', {
-          bookingId,
-          restaurantId: req.user?.id
-        });
         return res.status(404).json({ message: "Booking not found or unauthorized" });
       }
 
       await storage.markBookingArrived(bookingId);
-      console.log('Successfully marked booking as arrived:', {
-        bookingId,
-        restaurantId: req.user?.id
-      });
 
       // Notify connected clients about the arrival update
       clients.forEach((client, ws) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'booking_arrived',
-            data: { bookingId, restaurantId: req.user?.id }
+            data: { bookingId, restaurantId: userId }
           }));
         }
       });
 
       res.json({ message: "Booking marked as arrived" });
     } catch (error) {
-      console.error('Error marking booking as arrived:', error);
       next(error);
     }
   });
@@ -302,10 +235,11 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/restaurant/bookings/:bookingId/complete", requireRestaurantAuth, async (req, res, next) => {
     try {
       const bookingId = parseInt(req.params.bookingId);
-      console.log('Processing completion for booking:', {
-        bookingId,
-        restaurantId: req.user?.id
-      });
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
 
       // Verify booking belongs to this restaurant
       const [booking] = await db.select()
@@ -314,37 +248,28 @@ export function registerRoutes(app: Express): Server {
         .where(
           and(
             eq(bookings.id, bookingId),
-            eq(restaurantBranches.restaurantId, req.user?.id)
+            eq(restaurantBranches.restaurantId, sql`${userId}`)
           )
         );
 
       if (!booking) {
-        console.error('Booking not found or unauthorized:', {
-          bookingId,
-          restaurantId: req.user?.id
-        });
         return res.status(404).json({ message: "Booking not found or unauthorized" });
       }
 
       await storage.markBookingComplete(bookingId);
-      console.log('Successfully marked booking as complete:', {
-        bookingId,
-        restaurantId: req.user?.id
-      });
 
       // Notify connected clients about the completion update
       clients.forEach((client, ws) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'booking_completed',
-            data: { bookingId, restaurantId: req.user?.id }
+            data: { bookingId, restaurantId: userId }
           }));
         }
       });
 
       res.json({ message: "Booking marked as complete" });
     } catch (error) {
-      console.error('Error marking booking as complete:', error);
       next(error);
     }
   });
@@ -353,10 +278,11 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/restaurant/bookings/:bookingId/cancel", requireRestaurantAuth, async (req, res, next) => {
     try {
       const bookingId = parseInt(req.params.bookingId);
-      console.log('Processing cancellation for booking:', {
-        bookingId,
-        restaurantId: req.user?.id
-      });
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
 
       // Verify booking belongs to this restaurant
       const [booking] = await db.select()
@@ -365,37 +291,28 @@ export function registerRoutes(app: Express): Server {
         .where(
           and(
             eq(bookings.id, bookingId),
-            eq(restaurantBranches.restaurantId, req.user?.id)
+            eq(restaurantBranches.restaurantId, sql`${userId}`)
           )
         );
 
       if (!booking) {
-        console.error('Booking not found or unauthorized:', {
-          bookingId,
-          restaurantId: req.user?.id
-        });
         return res.status(404).json({ message: "Booking not found or unauthorized" });
       }
 
       await storage.cancelBooking(bookingId);
-      console.log('Successfully cancelled booking:', {
-        bookingId,
-        restaurantId: req.user?.id
-      });
 
       // Notify connected clients about the cancelled booking
       clients.forEach((client, ws) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'booking_cancelled',
-            data: { bookingId, restaurantId: req.user?.id }
+            data: { bookingId, restaurantId: userId }
           }));
         }
       });
 
       res.json({ message: "Booking cancelled successfully" });
     } catch (error) {
-      console.error('Error cancelling booking:', error);
       next(error);
     }
   });
@@ -422,10 +339,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "Booking not found or unauthorized" });
       }
 
-      // Update the booking to be cancelled (confirmed = false)
-      await db.update(bookings)
-        .set({ confirmed: false })
-        .where(eq(bookings.id, bookingId));
+      await storage.cancelBooking(bookingId);
 
       // Notify connected clients about the cancelled booking
       clients.forEach((client, ws) => {
@@ -503,17 +417,18 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid date format" });
       }
 
-      // Create the booking - now we know req.user.id is a number
+      // Create the booking
       const booking = await storage.createBooking({
         userId: req.user.id,
         branchId,
         date: new Date(date),
         partySize,
-        arrived: false
+        arrived: false,
+        completed: false
       });
 
       // Notify connected clients about the new booking
-      wss.clients.forEach((client) => {
+      clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(JSON.stringify({
             type: 'new_booking',
@@ -548,9 +463,14 @@ export function registerRoutes(app: Express): Server {
   // Add restaurant profile endpoints
   app.put("/api/restaurant/profile", requireRestaurantAuth, async (req, res, next) => {
     try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
       await storage.createRestaurantProfile({
         ...req.body,
-        restaurantId: req.user.id
+        restaurantId: userId
       });
 
       res.json({ message: "Profile updated successfully" });

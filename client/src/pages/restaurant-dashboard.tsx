@@ -1,48 +1,20 @@
-import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Booking, Restaurant } from "@shared/schema";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History, Calendar, MoreVertical } from "lucide-react";
-import { format, isBefore, isSameDay, addHours, isWithinInterval, parse } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
-import { Link, useLocation } from "wouter";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useState, useEffect } from "react";
-import { Calendar as Datepicker } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { AddReservationModal } from "@/components/add-reservation-modal";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
-interface BookingWithDetails extends Booking {
-  user?: {
-    firstName: string;
-    lastName: string;
-  } | null;
-  branch: {
-    address: string;
-    city: string;
-  };
-  arrived: boolean; // Added: arrived is now a required field
-}
+const getCurrentTimeSlot = () => {
+  const now = new Date();
+  let hours = now.getHours();
+  let minutes = now.getMinutes();
+  // Round up to next 30 minutes
+  if (minutes > 0 && minutes < 30) {
+    minutes = 30;
+  } else if (minutes > 30) {
+    minutes = 0;
+    hours = hours + 1;
+  }
+  // Handle hour wrapping
+  if (hours >= 24) {
+    hours = 0;
+  }
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+};
 
 const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
   if (!openingTime || !closingTime) return [];
@@ -93,6 +65,52 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
   }
   return slots;
 };
+
+import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Booking, Restaurant } from "@shared/schema";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History, Calendar, MoreVertical } from "lucide-react";
+import { format, isBefore, isSameDay, addHours, isWithinInterval, parse } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { Link, useLocation } from "wouter";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useState, useEffect } from "react";
+import { Calendar as Datepicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AddReservationModal } from "@/components/add-reservation-modal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+interface BookingWithDetails extends Booking {
+  user?: {
+    firstName: string;
+    lastName: string;
+  } | null;
+  branch: {
+    address: string;
+    city: string;
+  };
+  arrived: boolean; // Added: arrived is now a required field
+}
 
 const getBookingsForSeatCalculation = (bookings: BookingWithDetails[] | undefined, selectedDate: Date | undefined, selectedBranch: string) => {
   return bookings?.filter(booking => {
@@ -173,24 +191,6 @@ export default function RestaurantDashboard() {
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const now = new Date();
-
-  // Update the getCurrentTimeSlot function to round up
-  const getCurrentTimeSlot = () => {
-    let hours = now.getHours();
-    let minutes = now.getMinutes();
-    // Round up to next 30 minutes
-    if (minutes > 0 && minutes < 30) {
-      minutes = 30;
-    } else if (minutes > 30) {
-      minutes = 0;
-      hours = hours + 1;
-    }
-    // Handle hour wrapping
-    if (hours >= 24) {
-      hours = 0;
-    }
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  };
 
   // Add isCurrentTimeWithinBranchHours function
   const isCurrentTimeWithinBranchHours = () => {
