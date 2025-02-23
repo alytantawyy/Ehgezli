@@ -237,7 +237,10 @@ export default function RestaurantDashboard() {
     mutationFn: async (bookingId: number) => {
       const response = await fetch(`/api/restaurant/bookings/${bookingId}/cancel`, {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       if (!response.ok) {
         const error = await response.json();
@@ -255,7 +258,7 @@ export default function RestaurantDashboard() {
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to cancel booking. Please try again.",
         variant: "destructive",
       });
     },
