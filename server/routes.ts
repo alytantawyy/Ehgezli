@@ -43,8 +43,10 @@ export function registerRoutes(app: Express): Server {
     path: '/ws',
     verifyClient: async (info, callback) => {
       try {
+        console.log('WebSocket connection attempt - checking authentication');
         const cookies = info.req.headers.cookie ? parseCookie(info.req.headers.cookie) : null;
         if (!cookies?.['connect.sid']) {
+          console.log('WebSocket auth failed: No session cookie found');
           return callback(false, 401, 'Authentication required');
         }
 
@@ -54,19 +56,31 @@ export function registerRoutes(app: Express): Server {
         // Get session from store
         const session = await new Promise((resolve) => {
           storage.sessionStore.get(cleanSessionId, (err, session) => {
-            resolve(err ? null : session);
+            if (err) {
+              console.error('WebSocket session retrieval error:', err);
+              resolve(null);
+              return;
+            }
+            resolve(session);
           });
         });
 
         if (!session) {
+          console.log('WebSocket auth failed: Invalid session');
           return callback(false, 401, 'Invalid session');
         }
 
         // Safely access passport data
         const passportData = (session as any).passport;
         if (!passportData?.user?.id || !passportData?.user?.type) {
+          console.log('WebSocket auth failed: Invalid user data in session');
           return callback(false, 401, 'Invalid user data');
         }
+
+        console.log('WebSocket authentication successful for user:', {
+          id: passportData.user.id,
+          type: passportData.user.type
+        });
 
         // Store user info in request
         (info.req as any).user = {
@@ -100,61 +114,77 @@ export function registerRoutes(app: Express): Server {
 
   // WebSocket connection handler
   wss.on('connection', async (ws, req) => {
-    const user = (req as any).user;
-    if (!user?.id || !user?.type || !['user', 'restaurant'].includes(user.type)) {
-      ws.close(1008, 'Invalid user data');
-      return;
-    }
-
-    const cookies = req.headers.cookie ? parseCookie(req.headers.cookie) : null;
-    if (!cookies?.['connect.sid']) {
-      ws.close(1008, 'No session found');
-      return;
-    }
-
-    const sessionID = cookies['connect.sid'];
-    const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
-
-    // Add client to tracked connections
-    clients.set(ws, {
-      sessionID: cleanSessionId,
-      userId: user.id,
-      userType: user.type as 'user' | 'restaurant',
-      isAlive: true
-    });
-
-    // Set up client event handlers
-    ws.on('pong', () => {
-      const client = clients.get(ws);
-      if (client) {
-        client.isAlive = true;
+    try {
+      const user = (req as any).user;
+      if (!user?.id || !user?.type || !['user', 'restaurant'].includes(user.type)) {
+        console.log('WebSocket connection rejected: Invalid user data');
+        ws.close(1008, 'Invalid user data');
+        return;
       }
-    });
 
-    ws.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString()) as WebSocketMessage;
-        if (data.type === 'heartbeat') {
-          const client = clients.get(ws);
-          if (client) {
-            client.isAlive = true;
-            ws.send(JSON.stringify({ type: 'heartbeat' }));
-          }
+      const cookies = req.headers.cookie ? parseCookie(req.headers.cookie) : null;
+      if (!cookies?.['connect.sid']) {
+        console.log('WebSocket connection rejected: No session found');
+        ws.close(1008, 'No session found');
+        return;
+      }
+
+      const sessionID = cookies['connect.sid'];
+      const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
+
+      console.log('WebSocket connection established for user:', {
+        id: user.id,
+        type: user.type
+      });
+
+      // Add client to tracked connections
+      clients.set(ws, {
+        sessionID: cleanSessionId,
+        userId: user.id,
+        userType: user.type as 'user' | 'restaurant',
+        isAlive: true
+      });
+
+      // Set up client event handlers
+      ws.on('pong', () => {
+        const client = clients.get(ws);
+        if (client) {
+          client.isAlive = true;
         }
-      } catch (error) {
-        console.error('WebSocket message parsing error:', error);
-      }
-    });
+      });
 
-    ws.on('close', () => {
-      clients.delete(ws);
-    });
+      ws.on('message', (message) => {
+        try {
+          const data = JSON.parse(message.toString()) as WebSocketMessage;
+          if (data.type === 'heartbeat') {
+            const client = clients.get(ws);
+            if (client) {
+              client.isAlive = true;
+              ws.send(JSON.stringify({ type: 'heartbeat' }));
+            }
+          }
+        } catch (error) {
+          console.error('WebSocket message parsing error:', error);
+        }
+      });
 
-    // Send initial connection success message
-    ws.send(JSON.stringify({
-      type: 'connection_established',
-      data: { userId: user.id, userType: user.type }
-    }));
+      ws.on('close', () => {
+        console.log('WebSocket connection closed for user:', {
+          id: user.id,
+          type: user.type
+        });
+        clients.delete(ws);
+      });
+
+      // Send initial connection success message
+      ws.send(JSON.stringify({
+        type: 'connection_established',
+        data: { userId: user.id, userType: user.type }
+      }));
+    } catch (error) {
+      console.error('Error in WebSocket connection handler:', error);
+      ws.close(1011, 'Internal server error');
+    }
   });
 
   // Add authentication middleware for all /api routes
@@ -658,7 +688,7 @@ export function registerRoutes(app: Express): Server {
           )
         );
 
-      res.status(200).json({ message: "Restaurant removed from saved list" });
+      res.json({ message: "Restaurant removed from saved list" });
     } catch (error) {
       next(error);
     }

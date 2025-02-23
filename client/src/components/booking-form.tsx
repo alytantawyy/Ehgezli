@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
@@ -28,9 +28,74 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CalendarIcon } from "lucide-react";
-import { format, startOfToday } from "date-fns";
+import { format, startOfToday, addHours, isWithinInterval } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
+
+// Add the generateTimeSlots function back after imports
+const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
+  if (!openingTime || !closingTime) return [];
+
+  const slots: string[] = [];
+  const [openHour, openMinute] = openingTime.split(':').map(Number);
+  const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+
+  let startHour = openHour;
+  let startMinute = openMinute;
+
+  const now = new Date();
+  if (bookingDate &&
+    bookingDate.getDate() === now.getDate() &&
+    bookingDate.getMonth() === now.getMonth() &&
+    bookingDate.getFullYear() === now.getFullYear()) {
+    startHour = now.getHours();
+    startMinute = now.getMinutes();
+
+    if (startMinute > 30) {
+      startHour += 1;
+      startMinute = 0;
+    } else if (startMinute > 0) {
+      startMinute = 30;
+    }
+
+    if (startHour < openHour || (startHour === openHour && startMinute < openMinute)) {
+      startHour = openHour;
+      startMinute = openMinute;
+    }
+  }
+
+  let lastSlotHour = closeHour;
+  let lastSlotMinute = closeMinute;
+
+  // Don't allow bookings in the last hour
+  lastSlotHour = lastSlotHour - 1;
+
+  for (let hour = startHour; hour <= lastSlotHour; hour++) {
+    for (let minute of [0, 30]) {
+      if (hour === openHour && minute < openMinute) continue;
+      if (hour === lastSlotHour && minute > lastSlotMinute) continue;
+      if (hour === startHour && minute < startMinute) continue;
+
+      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      slots.push(time);
+    }
+  }
+  return slots;
+};
+
+// Fix TypeScript errors by adding proper types
+interface Booking {
+  id: number;
+  date: string;
+  partySize: number;
+  confirmed: boolean;
+  completed: boolean;
+}
+
+interface Branch {
+  id: number;
+  seatsCount: number;
+}
 
 const bookingSchema = z.object({
   date: z.date(),
@@ -39,52 +104,6 @@ const bookingSchema = z.object({
 });
 
 type BookingFormData = z.infer<typeof bookingSchema>;
-
-const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
-  const slots = [];
-  const [openHour, openMinute] = openingTime.split(':').map(Number);
-  const [closeHour, closeMinute] = closingTime.split(':').map(Number);
-
-  let startHour = openHour;
-  let startMinute = openMinute;
-
-  // If booking is for today, start from current time
-  const now = new Date();
-  if (bookingDate &&
-      bookingDate.getDate() === now.getDate() &&
-      bookingDate.getMonth() === now.getMonth() &&
-      bookingDate.getFullYear() === now.getFullYear()) {
-    startHour = now.getHours();
-    startMinute = now.getMinutes();
-
-    // Round up to the next 30-minute slot
-    if (startMinute > 30) {
-      startHour += 1;
-      startMinute = 0;
-    } else if (startMinute > 0) {
-      startMinute = 30;
-    }
-  }
-
-  let lastSlotHour = closeHour;
-  let lastSlotMinute = closeMinute;
-  if (lastSlotMinute >= 60) {
-    lastSlotHour += Math.floor(lastSlotMinute / 60);
-    lastSlotMinute = lastSlotMinute % 60;
-  }
-  lastSlotHour = lastSlotHour - 1; // One hour before closing
-
-  for (let hour = startHour; hour <= lastSlotHour; hour++) {
-    for (let minute of [0, 30]) {
-      if (hour === startHour && minute < startMinute) continue;
-      if (hour === lastSlotHour && minute > lastSlotMinute) continue;
-
-      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-      slots.push(time);
-    }
-  }
-  return slots;
-};
 
 interface BookingFormProps {
   restaurantId: number;
@@ -97,6 +116,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const { toast } = useToast();
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
+  const [availableSeats, setAvailableSeats] = useState<{ [key: string]: number }>({});
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
@@ -105,33 +125,83 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     },
   });
 
-  // Fetch branch information
-  useEffect(() => {
-    const fetchBranch = async () => {
-      try {
-        const response = await fetch(`/api/restaurants/${restaurantId}/branches`, {
-          credentials: 'include'
-        });
-        if (!response.ok) throw new Error('Failed to fetch branches');
-        const branches = await response.json();
-        if (branches[branchIndex]) {
-          setBranchId(branches[branchIndex].id);
-        }
-      } catch (error) {
-        console.error('Error fetching branch:', error);
+  // Fetch branch information and bookings
+  const { data: branch } = useQuery({
+    queryKey: ["/api/restaurants", restaurantId, "branches", branchIndex],
+    queryFn: async () => {
+      const response = await fetch(`/api/restaurants/${restaurantId}/branches`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch branches');
+      const branches = await response.json();
+      if (branches[branchIndex]) {
+        setBranchId(branches[branchIndex].id);
+        return branches[branchIndex];
       }
-    };
-    fetchBranch();
-  }, [restaurantId, branchIndex]);
+      throw new Error('Branch not found');
+    },
+  });
 
-  // Update time slots when date changes
+  const { data: bookings } = useQuery({
+    queryKey: ["/api/restaurant/bookings", restaurantId],
+    queryFn: async () => {
+      const response = await fetch(`/api/restaurant/bookings/${restaurantId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch bookings');
+      return response.json();
+    },
+    enabled: !!restaurantId,
+  });
+
+  // Calculate available seats for a given time
+  const calculateAvailableSeats = (date: Date, timeStr: string) => {
+    if (!branch || !bookings) return 0;
+
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const selectedDateTime = new Date(date);
+    selectedDateTime.setHours(hours, minutes, 0, 0);
+
+    const relevantBookings = bookings.filter(booking => {
+      if (!booking.confirmed || booking.completed) return false;
+
+      const bookingStart = new Date(booking.date);
+      const bookingEnd = addHours(bookingStart, 2); // 2-hour reservation window
+
+      return isWithinInterval(selectedDateTime, { start: bookingStart, end: bookingEnd });
+    });
+
+    const seatsOccupied = relevantBookings.reduce((sum, booking) => sum + booking.partySize, 0);
+    return branch.seatsCount - seatsOccupied;
+  };
+
+  // Update time slots and available seats when date changes
   useEffect(() => {
     const selectedDate = form.getValues("date");
-    if (selectedDate) {
+    if (selectedDate && branch) {
       const slots = generateTimeSlots(openingTime, closingTime, selectedDate);
+      const seatsPerSlot: { [key: string]: number } = {};
+
+      slots.forEach(slot => {
+        seatsPerSlot[slot] = calculateAvailableSeats(selectedDate, slot);
+      });
+
       setTimeSlots(slots);
+      setAvailableSeats(seatsPerSlot);
+
+      // Reset time if current selection has no availability
+      const currentTime = form.getValues("time");
+      if (currentTime && seatsPerSlot[currentTime] < form.getValues("partySize")) {
+        form.setValue("time", "");
+      }
     }
-  }, [openingTime, closingTime, form.watch("date")]);
+  }, [openingTime, closingTime, form.watch("date"), branch, bookings]);
+
+  // Check if the selected time has enough seats for the party size
+  const hasAvailability = (time: string) => {
+    const partySize = form.getValues("partySize");
+    return availableSeats[time] >= partySize;
+  };
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
@@ -140,7 +210,12 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           throw new Error('Invalid branch selection');
         }
 
-        // Create the booking
+        // Verify availability one last time before booking
+        const selectedTime = data.time;
+        if (!hasAvailability(selectedTime)) {
+          throw new Error('No availability for the selected time and party size');
+        }
+
         const bookingDate = new Date(
           data.date.getFullYear(),
           data.date.getMonth(),
@@ -191,6 +266,15 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       });
     },
   });
+
+  // Update party size effect
+  useEffect(() => {
+    const partySize = form.watch("partySize");
+    const currentTime = form.getValues("time");
+    if (currentTime && availableSeats[currentTime] < partySize) {
+      form.setValue("time", "");
+    }
+  }, [form.watch("partySize")]);
 
   return (
     <Form {...form}>
@@ -259,11 +343,20 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                 </FormControl>
                 <SelectContent>
                   {timeSlots.length > 0 ? (
-                    timeSlots.map((time) => (
-                      <SelectItem key={time} value={time}>
-                        {time}
-                      </SelectItem>
-                    ))
+                    timeSlots.map((time) => {
+                      const available = hasAvailability(time);
+                      const seats = availableSeats[time];
+                      return (
+                        <SelectItem
+                          key={time}
+                          value={time}
+                          disabled={!available}
+                          className={cn(!available && "text-muted-foreground")}
+                        >
+                          {time} {available ? `(${seats} seats available)` : "(No availability)"}
+                        </SelectItem>
+                      );
+                    })
                   ) : (
                     <SelectItem key="no-slots" value="no-slots" disabled>
                       Select a date first
@@ -288,7 +381,10 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                   min="1"
                   max="20"
                   {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10);
+                    field.onChange(value);
+                  }}
                   value={field.value || ""}
                 />
               </FormControl>
@@ -300,7 +396,12 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         <Button
           type="submit"
           className="w-full"
-          disabled={bookingMutation.isPending}
+          disabled={
+            bookingMutation.isPending ||
+            !form.getValues("time") ||
+            !form.getValues("date") ||
+            !hasAvailability(form.getValues("time"))
+          }
         >
           {bookingMutation.isPending ? "Submitting..." : "Submit Booking"}
         </Button>
