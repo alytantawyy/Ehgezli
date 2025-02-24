@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
@@ -30,14 +30,7 @@ import {
 import { CalendarIcon } from "lucide-react";
 import { format, startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useEffect, useState, useCallback } from "react";
-
-interface AvailabilityResponse {
-  branchId: number;
-  date: string;
-  availability: { [timeSlot: string]: number };
-  totalSeats: number;
-}
+import { useEffect, useState } from "react";
 
 const bookingSchema = z.object({
   date: z.date(),
@@ -46,6 +39,52 @@ const bookingSchema = z.object({
 });
 
 type BookingFormData = z.infer<typeof bookingSchema>;
+
+const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
+  const slots = [];
+  const [openHour, openMinute] = openingTime.split(':').map(Number);
+  const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+
+  let startHour = openHour;
+  let startMinute = openMinute;
+
+  // If booking is for today, start from current time
+  const now = new Date();
+  if (bookingDate &&
+      bookingDate.getDate() === now.getDate() &&
+      bookingDate.getMonth() === now.getMonth() &&
+      bookingDate.getFullYear() === now.getFullYear()) {
+    startHour = now.getHours();
+    startMinute = now.getMinutes();
+
+    // Round up to the next 30-minute slot
+    if (startMinute > 30) {
+      startHour += 1;
+      startMinute = 0;
+    } else if (startMinute > 0) {
+      startMinute = 30;
+    }
+  }
+
+  let lastSlotHour = closeHour;
+  let lastSlotMinute = closeMinute;
+  if (lastSlotMinute >= 60) {
+    lastSlotHour += Math.floor(lastSlotMinute / 60);
+    lastSlotMinute = lastSlotMinute % 60;
+  }
+  lastSlotHour = lastSlotHour - 1; // One hour before closing
+
+  for (let hour = startHour; hour <= lastSlotHour; hour++) {
+    for (let minute of [0, 30]) {
+      if (hour === startHour && minute < startMinute) continue;
+      if (hour === lastSlotHour && minute > lastSlotMinute) continue;
+
+      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      slots.push(time);
+    }
+  }
+  return slots;
+};
 
 interface BookingFormProps {
   restaurantId: number;
@@ -56,7 +95,6 @@ interface BookingFormProps {
 
 export function BookingForm({ restaurantId, branchIndex, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
 
@@ -67,123 +105,82 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     },
   });
 
-  // Reset form and clear cache when branch changes
+  // Fetch branch information
   useEffect(() => {
-    // Reset form
-    form.reset({ partySize: 2 });
-
-    // Clear availability data for previous branch
-    if (branchId) {
-      queryClient.removeQueries({
-        queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
-      });
-    }
-    setBranchId(null);
-  }, [branchIndex, restaurantId]);
-
-  // Get branch information
-  const { data: branch } = useQuery({
-    queryKey: ["/api/restaurants", restaurantId, "branches", branchIndex],
-    queryFn: async () => {
-      const response = await fetch(`/api/restaurants/${restaurantId}/branches`, {
-        credentials: 'include'
-      });
-      if (!response.ok) throw new Error('Failed to fetch branches');
-      const branches = await response.json();
-      if (branches[branchIndex]) {
-        setBranchId(branches[branchIndex].id);
-        return branches[branchIndex];
+    const fetchBranch = async () => {
+      try {
+        const response = await fetch(`/api/restaurants/${restaurantId}/branches`, {
+          credentials: 'include'
+        });
+        if (!response.ok) throw new Error('Failed to fetch branches');
+        const branches = await response.json();
+        if (branches[branchIndex]) {
+          setBranchId(branches[branchIndex].id);
+        }
+      } catch (error) {
+        console.error('Error fetching branch:', error);
       }
-      throw new Error('Branch not found');
-    },
-  });
-
-  // Fetch availability data
-  const { data: availabilityData } = useQuery<AvailabilityResponse>({
-    queryKey: ["/api/restaurants", restaurantId, "availability", branchId, form.watch("date")?.toISOString()],
-    queryFn: async () => {
-      if (!branchId || !form.watch("date")) return null;
-      const response = await fetch(
-        `/api/restaurants/${restaurantId}/branches/${branchId}/availability?date=${form.watch("date").toISOString()}`,
-        { credentials: 'include' }
-      );
-      if (!response.ok) throw new Error('Failed to fetch availability');
-      return response.json();
-    },
-    enabled: !!branchId && !!form.watch("date"),
-    staleTime: 0, // Always fetch fresh data
-    cacheTime: 0, // Don't cache availability data
-  });
+    };
+    fetchBranch();
+  }, [restaurantId, branchIndex]);
 
   // Update time slots when date changes
   useEffect(() => {
-    if (form.watch("date")) {
-      const slots = generateTimeSlots(openingTime, closingTime);
+    const selectedDate = form.getValues("date");
+    if (selectedDate) {
+      const slots = generateTimeSlots(openingTime, closingTime, selectedDate);
       setTimeSlots(slots);
-      form.setValue("time", ""); // Reset time selection when date changes
     }
   }, [openingTime, closingTime, form.watch("date")]);
 
-  // Check if the selected time has enough seats for the party size
-  const hasAvailability = useCallback((time: string) => {
-    if (!availabilityData?.availability) return false;
-    const partySize = form.getValues("partySize");
-    return availabilityData.availability[time] >= partySize;
-  }, [availabilityData, form]);
-
-  // Reset time selection if it becomes unavailable
-  useEffect(() => {
-    const currentTime = form.getValues("time");
-    if (currentTime && !hasAvailability(currentTime)) {
-      form.setValue("time", "");
-    }
-  }, [form.watch("partySize"), availabilityData]);
-
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
-      if (!branchId) {
-        throw new Error('Invalid branch selection');
+      try {
+        if (!branchId) {
+          throw new Error('Invalid branch selection');
+        }
+
+        // Create the booking
+        const bookingDate = new Date(
+          data.date.getFullYear(),
+          data.date.getMonth(),
+          data.date.getDate(),
+          parseInt(data.time.split(':')[0]),
+          parseInt(data.time.split(':')[1])
+        );
+
+        const bookingResponse = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            branchId,
+            date: bookingDate.toISOString(),
+            partySize: data.partySize,
+          }),
+        });
+
+        if (!bookingResponse.ok) {
+          const errorData = await bookingResponse.json().catch(() => ({ message: 'Failed to create booking' }));
+          throw new Error(errorData.message || 'Failed to create booking');
+        }
+
+        return bookingResponse.json();
+      } catch (error) {
+        if (error instanceof Error) {
+          throw error;
+        }
+        throw new Error('An unexpected error occurred');
       }
-
-      const selectedTime = data.time;
-      if (!hasAvailability(selectedTime)) {
-        throw new Error('No availability for the selected time and party size');
-      }
-
-      const bookingDate = new Date(data.date);
-      bookingDate.setHours(parseInt(data.time.split(':')[0]), parseInt(data.time.split(':')[1]));
-
-      const response = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          branchId,
-          date: bookingDate.toISOString(),
-          partySize: data.partySize,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create booking');
-      }
-
-      return response.json();
     },
     onSuccess: () => {
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({
-        queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
-      });
-
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       toast({
         title: "Booking Submitted",
         description: "Your booking request has been submitted successfully.",
       });
-
       form.reset();
     },
     onError: (error: Error) => {
@@ -194,25 +191,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       });
     },
   });
-
-  const generateTimeSlots = (openingTime: string, closingTime: string) => {
-    if (!openingTime || !closingTime) return [];
-
-    const slots: string[] = [];
-    const [openHour, openMinute] = openingTime.split(':').map(Number);
-    const [closeHour, closeMinute] = closingTime.split(':').map(Number);
-
-    for (let hour = openHour; hour < closeHour; hour++) {
-      for (let minute of [0, 30]) {
-        if (hour === openHour && minute < openMinute) continue;
-        if (hour === closeHour && minute > closeMinute) continue;
-
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        slots.push(time);
-      }
-    }
-    return slots;
-  };
 
   return (
     <Form {...form}>
@@ -249,13 +227,10 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                   <Calendar
                     mode="single"
                     selected={field.value}
-                    onSelect={(date) => {
-                      field.onChange(date);
-                      form.setValue("time", "");
-                    }}
+                    onSelect={field.onChange}
                     disabled={(date) => {
                       const today = startOfToday();
-                      return date < today;
+                      return date < today || date > new Date(2025, 10, 1);
                     }}
                     initialFocus
                   />
@@ -284,20 +259,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                 </FormControl>
                 <SelectContent>
                   {timeSlots.length > 0 ? (
-                    timeSlots.map((time) => {
-                      const available = hasAvailability(time);
-                      const seats = availabilityData?.availability[time] || 0;
-                      return (
-                        <SelectItem
-                          key={time}
-                          value={time}
-                          disabled={!available}
-                          className={cn(!available && "text-muted-foreground")}
-                        >
-                          {time} {available ? `(${seats} seats available)` : "(No availability)"}
-                        </SelectItem>
-                      );
-                    })
+                    timeSlots.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))
                   ) : (
                     <SelectItem key="no-slots" value="no-slots" disabled>
                       Select a date first
@@ -322,10 +288,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                   min="1"
                   max="20"
                   {...field}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value, 10);
-                    field.onChange(value);
-                  }}
+                  onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
                   value={field.value || ""}
                 />
               </FormControl>
@@ -337,12 +300,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         <Button
           type="submit"
           className="w-full"
-          disabled={
-            bookingMutation.isPending ||
-            !form.getValues("time") ||
-            !form.getValues("date") ||
-            !hasAvailability(form.getValues("time"))
-          }
+          disabled={bookingMutation.isPending}
         >
           {bookingMutation.isPending ? "Submitting..." : "Submit Booking"}
         </Button>

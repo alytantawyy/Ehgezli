@@ -21,7 +21,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     function connect() {
       try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        // Add explicit credentials mode
         const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
         wsRef.current = ws;
 
@@ -44,10 +43,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           if (reconnectAttempts.current < maxReconnectAttempts) {
             reconnectAttempts.current++;
             const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 10000);
-            // Clear any existing reconnect timeout
-            if (reconnectTimeoutRef.current) {
-              clearTimeout(reconnectTimeoutRef.current);
-            }
             reconnectTimeoutRef.current = setTimeout(connect, delay);
           } else {
             toast({
@@ -60,7 +55,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
         ws.onerror = (error) => {
           console.error('WebSocket error:', error);
-          // Don't show error toast here as onclose will handle reconnection
         };
 
         ws.onmessage = (event) => {
@@ -74,18 +68,11 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         };
       } catch (error) {
         console.error('Error creating WebSocket connection:', error);
-        // If we can't even create the WebSocket, try to reconnect
-        if (reconnectAttempts.current < maxReconnectAttempts) {
-          reconnectAttempts.current++;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 10000);
-          reconnectTimeoutRef.current = setTimeout(connect, delay);
-        }
       }
     }
 
     connect();
 
-    // Cleanup function
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
