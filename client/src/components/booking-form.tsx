@@ -37,12 +37,6 @@ interface AvailabilityResponse {
   date: string;
   availability: { [timeSlot: string]: number };
   totalSeats: number;
-  reservationDuration: number;
-}
-
-interface WebSocketMessage {
-  type: 'new_booking' | 'booking_cancelled' | 'connection_established' | 'heartbeat';
-  data: any;
 }
 
 const bookingSchema = z.object({
@@ -65,7 +59,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const queryClient = useQueryClient();
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
@@ -76,13 +69,16 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
   // Reset form and clear cache when branch changes
   useEffect(() => {
+    // Reset form
     form.reset({ partySize: 2 });
+
+    // Clear availability data for previous branch
     if (branchId) {
       queryClient.removeQueries({
         queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
       });
-      setBranchId(null);
     }
+    setBranchId(null);
   }, [branchIndex, restaurantId]);
 
   // Get branch information
@@ -102,86 +98,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     },
   });
 
-  // WebSocket connection with reconnection logic
-  useEffect(() => {
-    if (!branchId) return;
-
-    let ws: WebSocket | null = null;
-    let reconnectTimer: NodeJS.Timeout | null = null;
-    let heartbeatTimer: NodeJS.Timeout | null = null;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 5;
-
-    const connect = () => {
-      if (reconnectAttempts >= maxReconnectAttempts) {
-        console.log('Max reconnection attempts reached');
-        setWsConnected(false);
-        return;
-      }
-
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        setWsConnected(true);
-        reconnectAttempts = 0;
-
-        if (heartbeatTimer) clearInterval(heartbeatTimer);
-        heartbeatTimer = setInterval(() => {
-          if (ws?.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'heartbeat' }));
-          }
-        }, 30000);
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data) as WebSocketMessage;
-          if (message.type === 'connection_established') {
-            console.log('WebSocket connection confirmed:', message);
-          } else if (message.type === 'new_booking' || message.type === 'booking_cancelled') {
-            console.log('Received booking update:', message);
-            queryClient.invalidateQueries({
-              queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
-            });
-          }
-        } catch (error) {
-          console.error('WebSocket message parsing error:', error);
-        }
-      };
-
-      ws.onclose = (event) => {
-        console.log('WebSocket disconnected:', event);
-        setWsConnected(false);
-        if (heartbeatTimer) clearInterval(heartbeatTimer);
-
-        if (reconnectTimer) clearTimeout(reconnectTimer);
-        const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-        reconnectTimer = setTimeout(() => {
-          reconnectAttempts++;
-          connect();
-        }, backoffDelay);
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        // Close the connection on error to trigger reconnect
-        ws?.close();
-      };
-    };
-
-    connect();
-
-    return () => {
-      if (heartbeatTimer) clearInterval(heartbeatTimer);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-    };
-  }, [branchId]);
-
   // Fetch availability data
   const { data: availabilityData } = useQuery<AvailabilityResponse>({
     queryKey: ["/api/restaurants", restaurantId, "availability", branchId, form.watch("date")?.toISOString()],
@@ -195,8 +111,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       return response.json();
     },
     enabled: !!branchId && !!form.watch("date"),
-    staleTime: 0,
-    cacheTime: 0,
+    staleTime: 0, // Always fetch fresh data
+    cacheTime: 0, // Don't cache availability data
   });
 
   // Update time slots when date changes
@@ -204,11 +120,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     if (form.watch("date")) {
       const slots = generateTimeSlots(openingTime, closingTime);
       setTimeSlots(slots);
-      form.setValue("time", "");
+      form.setValue("time", ""); // Reset time selection when date changes
     }
   }, [openingTime, closingTime, form.watch("date")]);
 
-  // Check if the selected time has enough seats
+  // Check if the selected time has enough seats for the party size
   const hasAvailability = useCallback((time: string) => {
     if (!availabilityData?.availability) return false;
     const partySize = form.getValues("partySize");
@@ -225,51 +141,40 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
-      try {
-        if (!branchId) {
-          throw new Error('Invalid branch selection');
-        }
-
-        const selectedTime = data.time;
-        if (!hasAvailability(selectedTime)) {
-          throw new Error('No availability for the selected time and party size');
-        }
-
-        const bookingDate = new Date(
-          data.date.getFullYear(),
-          data.date.getMonth(),
-          data.date.getDate(),
-          parseInt(data.time.split(':')[0]),
-          parseInt(data.time.split(':')[1])
-        );
-
-        const response = await fetch('/api/bookings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            branchId,
-            date: bookingDate.toISOString(),
-            partySize: data.partySize,
-          }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to create booking');
-        }
-
-        return response.json();
-      } catch (error) {
-        if (error instanceof Error) {
-          throw error;
-        }
-        throw new Error('An unexpected error occurred');
+      if (!branchId) {
+        throw new Error('Invalid branch selection');
       }
+
+      const selectedTime = data.time;
+      if (!hasAvailability(selectedTime)) {
+        throw new Error('No availability for the selected time and party size');
+      }
+
+      const bookingDate = new Date(data.date);
+      bookingDate.setHours(parseInt(data.time.split(':')[0]), parseInt(data.time.split(':')[1]));
+
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          branchId,
+          date: bookingDate.toISOString(),
+          partySize: data.partySize,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create booking');
+      }
+
+      return response.json();
     },
     onSuccess: () => {
+      // Invalidate queries to refresh data
       queryClient.invalidateQueries({
         queryKey: ["/api/restaurants", restaurantId, "availability", branchId]
       });
@@ -436,8 +341,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
             bookingMutation.isPending ||
             !form.getValues("time") ||
             !form.getValues("date") ||
-            !hasAvailability(form.getValues("time")) ||
-            !wsConnected
+            !hasAvailability(form.getValues("time"))
           }
         >
           {bookingMutation.isPending ? "Submitting..." : "Submit Booking"}
