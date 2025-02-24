@@ -430,8 +430,8 @@ export default function RestaurantDashboard() {
     .filter(booking => {
       const bookingDate = new Date(booking.date);
       const now = new Date();
-      // Include bookings from today onwards
-      return isSameDay(bookingDate, now) || isAfter(bookingDate, now);
+      // Include bookings from today onwards that haven't arrived yet
+      return (!booking.arrived && (isSameDay(bookingDate, now) || isAfter(bookingDate, now)));
     })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
