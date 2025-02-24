@@ -401,41 +401,41 @@ export default function RestaurantDashboard() {
 
 
   const filteredBookings = bookings?.filter(booking => {
-    // Don't show arrived bookings in the filtered list
-    if (booking.arrived) {
+    // Skip completed bookings
+    if (booking.completed) {
       return false;
     }
 
+    // Apply date filter
     if (selectedDate && !isSameDay(new Date(booking.date), selectedDate)) {
       return false;
     }
 
-    if (selectedTime !== "all") {
-      const bookingTime = format(new Date(booking.date), 'HH:mm');
-      const bookingDateTime = new Date(booking.date);
-      const bookingEnd = addHours(bookingDateTime, 2); // Add 2 hours for reservation period
-
-      // If current time is selected, check if booking is within its 2-hour window
-      if (selectedTime === getCurrentTimeSlot()) {
-        const currentDateTime = new Date();
-        return isWithinInterval(currentDateTime, { start: bookingDateTime, end: bookingEnd });
-      } else {
-        // For other times, check exact time match
-        return bookingTime === selectedTime;
-      }
-    }
-
+    // Apply branch filter if selected
     if (selectedBranch !== "all") {
       if (booking.branchId.toString() !== selectedBranch) {
         return false;
       }
     }
 
+    // Only show confirmed bookings that haven't arrived yet
+    if (!booking.confirmed || booking.arrived) {
+      return false;
+    }
+
     return true;
   }) || [];
 
+  const upcomingBookings = filteredBookings
+    .filter(booking => {
+      const bookingDate = new Date(booking.date);
+      return isAfter(bookingDate, new Date());
+    })
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
   const futureBookings = bookings?.filter(booking => {
-    if (!booking.confirmed || booking.completed) {
+    // Skip unconfirmed, completed or arrived bookings
+    if (!booking.confirmed || booking.completed || booking.arrived) {
       return false;
     }
 
@@ -456,14 +456,6 @@ export default function RestaurantDashboard() {
 
     return true;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
-
-  const upcomingBookings = filteredBookings
-    .filter(booking => {
-      const bookingDate = new Date(booking.date);
-      return isAfter(bookingDate, new Date()) && booking.confirmed;
-    })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
 
   const getTotalSeats = () => {
     if (!restaurant?.locations) return 0;
