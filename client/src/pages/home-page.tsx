@@ -61,6 +61,7 @@ export default function HomePage() {
   const handleClearFilters = () => {
     setSelectedCuisine(undefined);
     setSelectedPriceRange(undefined);
+    setSelectedCity(undefined);
   };
 
   return (
@@ -75,21 +76,6 @@ export default function HomePage() {
               className="h-10 w-auto object-contain"
             />
           </div>
-          <div className="flex items-center gap-4">
-            <Select
-              value={selectedCity}
-              onValueChange={setSelectedCity}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Select city" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Cities</SelectItem>
-                <SelectItem value="Alexandria">Alexandria</SelectItem>
-                <SelectItem value="Cairo">Cairo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
       </header>
 
@@ -102,9 +88,9 @@ export default function HomePage() {
                 <Button variant="outline" className="gap-2">
                   <FilterIcon className="h-4 w-4" />
                   Filters
-                  {(selectedCuisine || selectedPriceRange) && (
+                  {(selectedCity || selectedCuisine || selectedPriceRange) && (
                     <span className="ml-2 h-4 w-4 rounded-full bg-primary text-[0.6rem] text-primary-foreground inline-flex items-center justify-center">
-                      {[selectedCuisine, selectedPriceRange].filter(Boolean).length}
+                      {[selectedCity, selectedCuisine, selectedPriceRange].filter(Boolean).length}
                     </span>
                   )}
                 </Button>
@@ -114,10 +100,26 @@ export default function HomePage() {
                   <DrawerHeader>
                     <DrawerTitle>Filters</DrawerTitle>
                     <DrawerDescription>
-                      Filter restaurants by cuisine and price range
+                      Filter restaurants by location, cuisine and price range
                     </DrawerDescription>
                   </DrawerHeader>
                   <div className="p-4 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">City</label>
+                      <Select
+                        value={selectedCity}
+                        onValueChange={setSelectedCity}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select city" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Cities</SelectItem>
+                          <SelectItem value="Alexandria">Alexandria</SelectItem>
+                          <SelectItem value="Cairo">Cairo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Cuisine</label>
                       <Select
