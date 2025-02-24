@@ -57,68 +57,82 @@ const generateTimeSlots = async (
   restaurantId: number,
   branchId: number | null
 ): Promise<TimeSlot[]> => {
-  if (!bookingDate || !branchId) return [];
-
-  const slots: TimeSlot[] = [];
-  const [openHour, openMinute] = openingTime.split(':').map(Number);
-  const [closeHour, closeMinute] = closingTime.split(':').map(Number);
-
-  let startHour = openHour;
-  let startMinute = openMinute;
-
-  // If booking is for today, start from current time
-  const now = new Date();
-  if (bookingDate.getDate() === now.getDate() &&
-      bookingDate.getMonth() === now.getMonth() &&
-      bookingDate.getFullYear() === now.getFullYear()) {
-    startHour = now.getHours();
-    startMinute = now.getMinutes();
-
-    // Round up to the next 30-minute slot
-    if (startMinute > 30) {
-      startHour += 1;
-      startMinute = 0;
-    } else if (startMinute > 0) {
-      startMinute = 30;
-    }
+  if (!bookingDate || !branchId) {
+    console.log('Missing required parameters:', { bookingDate, branchId });
+    return [];
   }
 
-  let lastSlotHour = closeHour;
-  let lastSlotMinute = closeMinute;
-  if (lastSlotMinute >= 60) {
-    lastSlotHour += Math.floor(lastSlotMinute / 60);
-    lastSlotMinute = lastSlotMinute % 60;
-  }
-  lastSlotHour = lastSlotHour - 1; // One hour before closing
-
-  // Fetch availability for all time slots
   try {
-    const response = await fetch(`/api/restaurants/${restaurantId}/branches/${branchId}/availability?date=${bookingDate.toISOString()}`, {
-      credentials: 'include'
+    console.log('Fetching availability for:', { 
+      restaurantId, 
+      branchId, 
+      date: bookingDate.toISOString() 
     });
-    if (!response.ok) throw new Error('Failed to fetch availability');
-    const availability = await response.json();
 
-    for (let hour = startHour; hour <= lastSlotHour; hour++) {
-      for (let minute of [0, 30]) {
-        if (hour === startHour && minute < startMinute) continue;
-        if (hour === lastSlotHour && minute > lastSlotMinute) continue;
+    const response = await fetch(
+      `/api/restaurants/${restaurantId}/branches/${branchId}/availability?date=${bookingDate.toISOString()}`,
+      { credentials: 'include' }
+    );
 
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        const availableSeats = availability[time] || 0;
-
-        slots.push({
-          time,
-          available: availableSeats > 0,
-          availableSeats
-        });
-      }
+    if (!response.ok) {
+      console.error('Failed to fetch availability:', response.status, response.statusText);
+      throw new Error('Failed to fetch availability');
     }
-  } catch (error) {
-    console.error('Error fetching availability:', error);
-  }
 
-  return slots;
+    const availability = await response.json();
+    console.log('Received availability data:', availability);
+
+    const slots: TimeSlot[] = [];
+    const [openHour, openMinute] = openingTime.split(':').map(Number);
+    const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+
+    let currentTime = new Date(bookingDate);
+    currentTime.setHours(openHour, openMinute, 0, 0);
+
+    const endTime = new Date(bookingDate);
+    endTime.setHours(closeHour, closeMinute, 0, 0);
+
+    // If booking is for today, start from current time
+    const now = new Date();
+    if (
+      bookingDate.getDate() === now.getDate() &&
+      bookingDate.getMonth() === now.getMonth() &&
+      bookingDate.getFullYear() === now.getFullYear()
+    ) {
+      let startHour = now.getHours();
+      let startMinute = now.getMinutes();
+
+      // Round up to the next 30-minute slot
+      if (startMinute > 30) {
+        startHour += 1;
+        startMinute = 0;
+      } else if (startMinute > 0) {
+        startMinute = 30;
+      }
+
+      currentTime.setHours(startHour, startMinute, 0, 0);
+    }
+
+    while (currentTime < endTime) {
+      const timeSlot = format(currentTime, 'HH:mm');
+      const availableSeats = availability[timeSlot] || 0;
+
+      slots.push({
+        time: timeSlot,
+        available: availableSeats > 0,
+        availableSeats
+      });
+
+      // Move to next time slot (30 minutes)
+      currentTime.setMinutes(currentTime.getMinutes() + 30);
+    }
+
+    console.log('Generated time slots:', slots);
+    return slots;
+  } catch (error) {
+    console.error('Error generating time slots:', error);
+    return [];
+  }
 };
 
 interface BookingFormProps {
@@ -144,25 +158,39 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   useEffect(() => {
     const fetchBranch = async () => {
       try {
+        console.log('Fetching branch information:', { restaurantId, branchIndex });
         const response = await fetch(`/api/restaurants/${restaurantId}/branches`, {
           credentials: 'include'
         });
-        if (!response.ok) throw new Error('Failed to fetch branches');
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch branches');
+        }
+
         const branches = await response.json();
+        console.log('Received branches:', branches);
+
         if (branches[branchIndex]) {
           setBranchId(branches[branchIndex].id);
         }
       } catch (error) {
         console.error('Error fetching branch:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load branch information. Please try again.",
+          variant: "destructive",
+        });
       }
     };
     fetchBranch();
-  }, [restaurantId, branchIndex]);
+  }, [restaurantId, branchIndex, toast]);
 
   // Update time slots when date changes
   useEffect(() => {
-    const selectedDate = form.getValues("date");
     const updateTimeSlots = async () => {
+      const selectedDate = form.getValues("date");
+      console.log('Updating time slots:', { selectedDate, branchId });
+
       if (selectedDate && branchId) {
         const slots = await generateTimeSlots(
           openingTime,
@@ -189,7 +217,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       }
     };
     updateTimeSlots();
-  }, [openingTime, closingTime, form.watch("date"), branchId, restaurantId]);
+  }, [form, openingTime, closingTime, branchId, restaurantId]);
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {

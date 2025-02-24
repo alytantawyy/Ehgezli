@@ -56,6 +56,32 @@ export class DatabaseStorage implements IStorage {
     this._sessionStore = store;
   }
 
+  async getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined> {
+    try {
+      const [auth] = await db
+        .select()
+        .from(restaurantAuth)
+        .where(eq(restaurantAuth.email, email));
+      return auth;
+    } catch (error) {
+      console.error('Error getting restaurant by email:', error);
+      return undefined;
+    }
+  }
+
+  async getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined> {
+    try {
+      const [auth] = await db
+        .select()
+        .from(restaurantAuth)
+        .where(eq(restaurantAuth.id, id));
+      return auth;
+    } catch (error) {
+      console.error('Error getting restaurant by id:', error);
+      return undefined;
+    }
+  }
+
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -317,16 +343,6 @@ export class DatabaseStorage implements IStorage {
       console.error('Error fetching restaurant bookings:', error);
       throw error;
     }
-  }
-
-  async getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined> {
-    const [auth] = await db.select().from(restaurantAuth).where(eq(restaurantAuth.id, id));
-    return auth;
-  }
-
-  async getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined> {
-    const [auth] = await db.select().from(restaurantAuth).where(eq(restaurantAuth.email, email));
-    return auth;
   }
 
   async createRestaurantAuth(auth: InsertRestaurantAuth): Promise<RestaurantAuth> {

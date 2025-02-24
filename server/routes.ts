@@ -8,7 +8,7 @@ import { db } from "./db";
 import { and, eq, sql } from "drizzle-orm";
 import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles } from "@shared/schema";
 import { parse as parseCookie } from 'cookie';
-import passport from 'passport'; //Import passport
+import { format, parseISO, addMinutes } from 'date-fns';
 
 // Define WebSocket message types
 type WebSocketMessage = {
@@ -35,28 +35,95 @@ export function registerRoutes(app: Express): Server {
     next(err);
   });
 
-  // Restaurant login endpoint - add before general auth middleware
-  app.post("/api/restaurant/login", async (req, res, next) => {
-    passport.authenticate('restaurant-local', (err: any, user: any, info: any) => {
-      if (err) {
-        return res.status(500).json({ message: "Authentication error occurred" });
-      }
-      if (!user) {
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-
-      req.login(user, (err) => {
-        if (err) {
-          return res.status(500).json({ message: "Login error occurred" });
-        }
-        res.status(200).json(user);
-      });
-    })(req, res, next);
-  });
-
-
   // Set up authentication first to ensure session is available for WebSocket
   setupAuth(app);
+
+  // Add availability endpoint
+  app.get("/api/restaurants/:restaurantId/branches/:branchId/availability", async (req, res) => {
+    try {
+      const restaurantId = parseInt(req.params.restaurantId);
+      const branchId = parseInt(req.params.branchId);
+      const dateStr = req.query.date as string;
+
+      console.log('Calculating availability:', { restaurantId, branchId, dateStr });
+
+      if (!dateStr) {
+        return res.status(400).json({ message: "Date parameter is required" });
+      }
+
+      // Get branch details
+      const [branch] = await db
+        .select()
+        .from(restaurantBranches)
+        .where(
+          and(
+            eq(restaurantBranches.id, branchId),
+            eq(restaurantBranches.restaurantId, restaurantId)
+          )
+        );
+
+      if (!branch) {
+        console.log('Branch not found:', { branchId, restaurantId });
+        return res.status(404).json({ message: "Branch not found" });
+      }
+
+      // Parse the requested date
+      const date = parseISO(dateStr);
+
+      // Get all bookings for this branch on the requested date
+      const existingBookings = await db
+        .select()
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.branchId, branchId),
+            eq(bookings.confirmed, true),
+            sql`DATE(${bookings.date}) = DATE(${date})`
+          )
+        );
+
+      console.log('Found existing bookings:', existingBookings);
+
+      // Calculate availability for each time slot
+      const availability: Record<string, number> = {};
+      const openingTime = branch.openingTime;
+      const closingTime = branch.closingTime;
+
+      // Generate all possible time slots
+      const [openHour, openMinute] = openingTime.split(':').map(Number);
+      const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+
+      let currentTime = new Date(date);
+      currentTime.setHours(openHour, openMinute, 0, 0);
+
+      const endTime = new Date(date);
+      endTime.setHours(closeHour, closeMinute, 0, 0);
+
+      while (currentTime < endTime) {
+        const timeSlot = format(currentTime, 'HH:mm');
+
+        // Calculate booked seats for this time slot
+        const bookedSeats = existingBookings
+          .filter(booking => {
+            const bookingTime = new Date(booking.date);
+            return format(bookingTime, 'HH:mm') === timeSlot;
+          })
+          .reduce((total, booking) => total + booking.partySize, 0);
+
+        // Calculate available seats
+        availability[timeSlot] = branch.seatsCount - bookedSeats;
+
+        // Move to next time slot (30 minutes)
+        currentTime = addMinutes(currentTime, 30);
+      }
+
+      console.log('Calculated availability:', availability);
+      res.json(availability);
+    } catch (error) {
+      console.error('Error calculating availability:', error);
+      res.status(500).json({ message: "Failed to calculate availability" });
+    }
+  });
 
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ 

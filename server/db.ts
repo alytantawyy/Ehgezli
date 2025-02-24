@@ -7,7 +7,7 @@ import * as schema from "@shared/schema";
 neonConfig.webSocketConstructor = ws;
 neonConfig.useSecureWebSocket = true; // Enable secure WebSocket
 neonConfig.pipelineTLS = true; // Enable TLS pipeline
-neonConfig.pipelineConnect = true; // Enable connection pipelining
+neonConfig.pipelineConnect = false; // Don't enable connection pipelining to avoid issues
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -16,4 +16,4 @@ if (!process.env.DATABASE_URL) {
 }
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+export const db = drizzle(pool, { schema });
