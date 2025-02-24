@@ -11,36 +11,21 @@ import { format, isSameDay, addHours, isWithinInterval, isAfter } from "date-fns
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import { ErrorBoundary } from "@/components/error-boundary";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import { useState, useEffect } from "react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
 import { Calendar as Datepicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AddReservationModal } from "@/components/add-reservation-modal";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { CurrentlySeatedBooking } from "@/components/currently-seated-booking";
+import { 
+  getCurrentTimeSlot, 
+  generateTimeSlots, 
+  getBookingsForSeatCalculation,
+  getAvailableSeats
+} from "@/lib/utils/time-utils";
 
 interface BookingWithDetails {
   id: number;
@@ -61,80 +46,8 @@ interface BookingWithDetails {
   };
 }
 
-const formatElapsedTime = (startTime: string) => {
-  const start = new Date(startTime);
-  const now = new Date();
-  const hours = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60));
-  const minutes = Math.floor((now.getTime() - start.getTime()) / (1000 * 60)) % 60;
-  return `${hours}h ${minutes}m`;
-};
-
-// Create a new CurrentlySeatedBooking component to handle the timer logic
-const CurrentlySeatedBooking = ({ 
-  booking,
-  markBookingCompleteMutation 
-}: { 
-  booking: BookingWithDetails;
-  markBookingCompleteMutation: any;
-}) => {
-  const [elapsedTime, setElapsedTime] = useState(
-    booking.arrivedAt ? formatElapsedTime(booking.arrivedAt) : ''
-  );
-
-  useEffect(() => {
-    if (!booking.arrivedAt) return;
-
-    const timer = setInterval(() => {
-      setElapsedTime(formatElapsedTime(booking.arrivedAt!));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [booking.arrivedAt]);
-
-  return (
-    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
-      <div>
-        <div className="font-medium">
-          {booking.user ?
-            `${booking.user.firstName} ${booking.user.lastName}` :
-            `Guest Booking #${booking.id}`
-          }
-        </div>
-        <div className="text-sm text-muted-foreground">
-          Seated at: {booking.arrivedAt ? format(new Date(booking.arrivedAt), "h:mm a") : 'Unknown'}
-        </div>
-        {booking.arrivedAt && (
-          <div className="text-sm font-medium text-primary">
-            Time seated: {elapsedTime}
-          </div>
-        )}
-        <div className="text-sm">
-          Party size: {booking.partySize}
-        </div>
-        <div className="text-sm text-muted-foreground">
-          Branch: {booking.branch.address}, {booking.branch.city}
-        </div>
-      </div>
-      <div className="flex items-center">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (window.confirm('Are you sure you want to mark this booking as complete?')) {
-              markBookingCompleteMutation.mutate(booking.id);
-            }
-          }}
-          disabled={markBookingCompleteMutation.isPending}
-          className="text-primary hover:text-primary-foreground hover:bg-primary"
-        >
-          Booking Over
-        </Button>
-      </div>
-    </div>
-  );
-};
-
 function RestaurantDashboardContent() {
+  // All hooks at the top level
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -144,11 +57,9 @@ function RestaurantDashboardContent() {
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
-  const now = new Date();
 
   // Early return if no auth
   if (!auth) {
-    console.log("RestaurantDashboard: No auth found, redirecting");
     setLocation('/auth');
     return null;
   }
@@ -156,7 +67,6 @@ function RestaurantDashboardContent() {
   const { data: restaurant, isLoading: isRestaurantLoading, error: restaurantError } = useQuery<Restaurant>({
     queryKey: ["/api/restaurants", auth.id],
     queryFn: async () => {
-      console.log("RestaurantDashboard: Fetching restaurant data for ID:", auth.id);
       const response = await fetch(`/api/restaurants/${auth.id}`, {
         credentials: 'include'
       });
@@ -164,48 +74,15 @@ function RestaurantDashboardContent() {
         const error = await response.json();
         throw new Error(error.message || 'Failed to fetch restaurant');
       }
-      const data = await response.json();
-      console.log("RestaurantDashboard: Restaurant data received:", data);
-      return data;
+      return response.json();
     },
     enabled: !!auth.id,
     retry: 1
   });
 
-
-  if (isRestaurantLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-border" />
-      </div>
-    );
-  }
-
-  if (restaurantError) {
-    console.error("RestaurantDashboard: Error loading restaurant:", restaurantError);
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <div className="text-xl text-destructive">Failed to load restaurant data</div>
-        <div className="text-sm text-muted-foreground">{restaurantError.message}</div>
-        <Button onClick={() => setLocation('/auth')}>Return to Login</Button>
-      </div>
-    );
-  }
-
-  if (!restaurant || !restaurant.locations) {
-    console.error("RestaurantDashboard: No restaurant data available");
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <div className="text-xl text-destructive">Restaurant data not found</div>
-        <Button onClick={() => setLocation('/auth')}>Return to Login</Button>
-      </div>
-    );
-  }
-
   const { data: bookings, isLoading: isBookingsLoading } = useQuery<BookingWithDetails[]>({
     queryKey: ["/api/restaurant/bookings", auth.id],
     queryFn: async () => {
-      if (!auth.id) throw new Error("No restaurant ID");
       const response = await fetch(`/api/restaurant/bookings/${auth.id}`, {
         credentials: 'include'
       });
@@ -293,7 +170,7 @@ function RestaurantDashboardContent() {
       queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth.id] });
       toast({
         title: "Booking Completed",
-        description: "The booking has been marked as complete and moved to Previous Bookings.",
+        description: "The booking has been marked as complete.",
       });
     },
     onError: (error: Error) => {
@@ -324,156 +201,30 @@ function RestaurantDashboardContent() {
     }
   }, [selectedDate, selectedBranch, restaurant, selectedTime]);
 
-  const isLoading = isRestaurantLoading || isBookingsLoading;
 
-  const isCurrentTimeWithinBranchHours = () => {
-    if (selectedBranch === "all") return false;
-
-    const branch = restaurant.locations.find(
-      loc => loc.id.toString() === selectedBranch
-    );
-
-    if (!branch) return false;
-
-    const currentTime = getCurrentTimeSlot();
-    const [currentHour, currentMinute] = currentTime.split(':').map(Number);
-    const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
-    const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
-
-    // Convert to minutes for easier comparison
-    const current = currentHour * 60 + currentMinute;
-    const open = openHour * 60 + openMinute;
-    const close = closeHour * 60 + closeMinute;
-
-    return current >= open && current <= close;
-  };
-
-  const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
-    if (!openingTime || !closingTime) return [];
-
-    const slots = [];
-    const [openHour, openMinute] = openingTime.split(':').map(Number);
-    const [closeHour, closeMinute] = closingTime.split(':').map(Number);
-
-    let startHour = openHour;
-    let startMinute = openMinute;
-
-    const now = new Date();
-    if (bookingDate &&
-      bookingDate.getDate() === now.getDate() &&
-      bookingDate.getMonth() === now.getMonth() &&
-      bookingDate.getFullYear() === now.getFullYear()) {
-      startHour = now.getHours();
-      startMinute = now.getMinutes();
-
-      if (startMinute > 30) {
-        startHour += 1;
-        startMinute = 0;
-      } else if (startMinute > 0) {
-        startMinute = 30;
-      }
-
-      if (startHour < openHour || (startHour === openHour && startMinute < openMinute)) {
-        startHour = openHour;
-        startMinute = openMinute;
-      }
-    }
-
-    let lastSlotHour = closeHour;
-    let lastSlotMinute = closeMinute;
-
-    // Don't allow bookings in the last hour
-    lastSlotHour = lastSlotHour - 1;
-
-    for (let hour = startHour; hour <= lastSlotHour; hour++) {
-      for (let minute of [0, 30]) {
-        if (hour === openHour && minute < openMinute) continue;
-        if (hour === lastSlotHour && minute > lastSlotMinute) continue;
-        if (hour === startHour && minute < startMinute) continue;
-
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        slots.push(time);
-      }
-    }
-    return slots;
-  };
-
-  const getBookingsForSeatCalculation = (bookings: BookingWithDetails[] | undefined, selectedDate: Date | undefined, selectedBranch: string) => {
-    return bookings?.filter(booking => {
-      // Skip completed bookings
-      if (booking.completed) {
-        return false;
-      }
-
-      // Apply date filter
-      if (selectedDate && !isSameDay(new Date(booking.date), selectedDate)) {
-        return false;
-      }
-
-      // Apply branch filter if selected
-      if (selectedBranch !== "all") {
-        if (booking.branchId.toString() !== selectedBranch) {
-          return false;
-        }
-      }
-
-      return true;
-    }) || [];
-  };
-
-  const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefined, bookings: BookingWithDetails[] | undefined, selectedBranch: string, totalSeats: number) => {
-    if (!selectedDate || !selectedTimeStr || selectedTimeStr === "all") {
-      return "-";
-    }
-
-    // Get all relevant bookings for seat calculation
-    const relevantBookings = getBookingsForSeatCalculation(bookings, selectedDate, selectedBranch);
-
-    // Convert selected time to a Date object
-    const [hours, minutes] = selectedTimeStr.split(':').map(Number);
-    const selectedDateTime = new Date(selectedDate);
-    selectedDateTime.setHours(hours, minutes, 0, 0);
-
-    // Check if we're looking at current time slot
-    const isCurrentTimeSlot = selectedTimeStr === getCurrentTimeSlot();
-
-    // Check if the booking is for today
-    const isToday = isSameDay(selectedDateTime, new Date());
-
-    // Count seats taken by bookings and currently seated parties
-    const takenSeats = relevantBookings.reduce((sum, booking) => {
-      // Skip cancelled bookings
-      if (!booking.confirmed) {
-        return sum;
-      }
-
-      // For current time slot, include all arrived bookings regardless of their original time
-      if (isCurrentTimeSlot && isToday && booking.arrived && !booking.completed) {
-        return sum + booking.partySize;
-      }
-
-      // For upcoming bookings in the selected time slot
-      const bookingStart = new Date(booking.date);
-      const bookingEnd = addHours(bookingStart, 2); // 2-hour reservation period
-
-      // Check if selected time falls within booking's time window
-      if (isWithinInterval(selectedDateTime, { start: bookingStart, end: bookingEnd })) {
-        // For non-current time slots, only count non-arrived bookings
-        if (!isCurrentTimeSlot || !booking.arrived) {
-          return sum + booking.partySize;
-        }
-      }
-
-      return sum;
-    }, 0);
-
-    return totalSeats - takenSeats;
-  };
-
-  if (isLoading) {
+  if (isRestaurantLoading || isBookingsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-border" />
+      </div>
+    );
+  }
+
+  if (restaurantError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <div className="text-xl text-destructive">Failed to load restaurant data</div>
+        <div className="text-sm text-muted-foreground">{restaurantError.message}</div>
+        <Button onClick={() => setLocation('/auth')}>Return to Login</Button>
+      </div>
+    );
+  }
+
+  if (!restaurant || !restaurant.locations) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <div className="text-xl text-destructive">Restaurant data not found</div>
+        <Button onClick={() => setLocation('/auth')}>Return to Login</Button>
       </div>
     );
   }
@@ -493,7 +244,6 @@ function RestaurantDashboardContent() {
 
     return true;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
 
   const filteredBookings = bookings?.filter(booking => {
     // Skip completed bookings and arrived bookings
@@ -554,23 +304,6 @@ function RestaurantDashboardContent() {
     return true;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
-  const getCurrentTimeSlot = () => {
-    const now = new Date();
-    let hours = now.getHours();
-    let minutes = now.getMinutes();
-    // Round up to next 30 minutes
-    if (minutes > 0 && minutes < 30) {
-      minutes = 30;
-    } else if (minutes > 30) {
-      minutes = 0;
-      hours = hours + 1;
-    }
-    // Handle hour wrapping
-    if (hours >= 24) {
-      hours = 0;
-    }
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  };
 
   const getTotalSeats = () => {
     if (!restaurant.locations) return 0;
@@ -742,7 +475,7 @@ function RestaurantDashboardContent() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Times</SelectItem>
-                    {isCurrentTimeWithinBranchHours() && (
+                    {getCurrentTimeSlot() && (
                       <SelectItem value={getCurrentTimeSlot()}>Now ({getCurrentTimeSlot()})</SelectItem>
                     )}
                     {timeSlots.length > 0 ? (
@@ -928,7 +661,7 @@ function RestaurantDashboardContent() {
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle>Future Bookings</CardTitle>
                 <div className="flex items-center gap-4">
-                  <Select                  value={selectedBranch} onValueChange={setSelectedBranch}>
+                  <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                     <SelectTrigger className="w-[200px]">
                       <SelectValue placeholder="All Branches" />
                     </SelectTrigger>
