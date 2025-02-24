@@ -3,6 +3,24 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+// Add WebSocket message types
+export interface SeatAvailabilityUpdate {
+  type: 'seatAvailability';
+  branchId: number;
+  date: string;
+  time: string;
+  availableSeats: number;
+}
+
+export interface BookingUpdate {
+  type: 'bookingUpdate';
+  branchId: number;
+  action: 'created' | 'cancelled' | 'completed';
+  booking: Booking;
+}
+
+export type WebSocketMessage = SeatAvailabilityUpdate | BookingUpdate;
+
 // Add loginSchema for authentication
 export const loginSchema = z.object({
   email: z.string().email("Invalid email format"),

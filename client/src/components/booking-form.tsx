@@ -30,7 +30,8 @@ import {
 import { CalendarIcon } from "lucide-react";
 import { format, startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { WebSocketMessage, SeatAvailabilityUpdate } from "@shared/schema";
 
 const bookingSchema = z.object({
   date: z.date(),
@@ -86,6 +87,12 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
   return slots;
 };
 
+interface AvailabilityMap {
+  [key: string]: {
+    [key: string]: number;
+  };
+}
+
 interface BookingFormProps {
   restaurantId: number;
   branchIndex: number;
@@ -97,6 +104,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const { toast } = useToast();
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
+  const [availabilityMap, setAvailabilityMap] = useState<AvailabilityMap>({});
+  const socketRef = useRef<WebSocket | null>(null);
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
@@ -104,6 +113,41 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       partySize: 2,
     },
   });
+
+  // WebSocket connection setup
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    socketRef.current = new WebSocket(wsUrl);
+
+    socketRef.current.onmessage = (event) => {
+      const message = JSON.parse(event.data) as WebSocketMessage;
+      if (message.type === 'seatAvailability' && message.branchId === branchId) {
+        setAvailabilityMap(prev => ({
+          ...prev,
+          [message.date]: {
+            ...(prev[message.date] || {}),
+            [message.time]: message.availableSeats
+          }
+        }));
+      }
+    };
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.close();
+      }
+    };
+  }, [branchId]);
+
+  // Update time slots when date changes
+  useEffect(() => {
+    const selectedDate = form.getValues("date");
+    if (selectedDate) {
+      const slots = generateTimeSlots(openingTime, closingTime, selectedDate);
+      setTimeSlots(slots);
+    }
+  }, [openingTime, closingTime, form.watch("date")]);
 
   // Fetch branch information
   useEffect(() => {
@@ -124,14 +168,12 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     fetchBranch();
   }, [restaurantId, branchIndex]);
 
-  // Update time slots when date changes
-  useEffect(() => {
-    const selectedDate = form.getValues("date");
-    if (selectedDate) {
-      const slots = generateTimeSlots(openingTime, closingTime, selectedDate);
-      setTimeSlots(slots);
-    }
-  }, [openingTime, closingTime, form.watch("date")]);
+  // Check if a time slot is available
+  const isTimeSlotAvailable = (date: Date, time: string, partySize: number) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const availability = availabilityMap[dateStr]?.[time];
+    return typeof availability === 'number' && availability >= partySize;
+  };
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
@@ -140,7 +182,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           throw new Error('Invalid branch selection');
         }
 
-        // Create the booking
         const bookingDate = new Date(
           data.date.getFullYear(),
           data.date.getMonth(),
@@ -148,6 +189,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           parseInt(data.time.split(':')[0]),
           parseInt(data.time.split(':')[1])
         );
+
+        // Check availability before submitting
+        if (!isTimeSlotAvailable(data.date, data.time, data.partySize)) {
+          throw new Error('No available seats for this time slot');
+        }
 
         const bookingResponse = await fetch('/api/bookings', {
           method: 'POST',
@@ -213,6 +259,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                         "w-full pl-3 text-left font-normal",
                         !field.value && "text-muted-foreground"
                       )}
+                      disabled={!branchId}
                     >
                       {field.value ? (
                         format(field.value, "PPP")
@@ -230,7 +277,9 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                     onSelect={field.onChange}
                     disabled={(date) => {
                       const today = startOfToday();
-                      return date < today || date > new Date(2025, 10, 1);
+                      const dateStr = format(date, 'yyyy-MM-dd');
+                      const hasAvailability = Object.values(availabilityMap[dateStr] || {}).some(seats => seats > 0);
+                      return date < today || !hasAvailability;
                     }}
                     initialFocus
                   />
@@ -259,11 +308,24 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                 </FormControl>
                 <SelectContent>
                   {timeSlots.length > 0 ? (
-                    timeSlots.map((time) => (
-                      <SelectItem key={time} value={time}>
-                        {time}
-                      </SelectItem>
-                    ))
+                    timeSlots.map((time) => {
+                      const isAvailable = form.getValues("date") && 
+                        isTimeSlotAvailable(
+                          form.getValues("date"),
+                          time,
+                          form.getValues("partySize") || 2
+                        );
+                      return (
+                        <SelectItem
+                          key={time}
+                          value={time}
+                          disabled={!isAvailable}
+                          className={!isAvailable ? "opacity-50" : ""}
+                        >
+                          {time} {!isAvailable && "(No availability)"}
+                        </SelectItem>
+                      );
+                    })
                   ) : (
                     <SelectItem key="no-slots" value="no-slots" disabled>
                       Select a date first
@@ -288,7 +350,19 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                   min="1"
                   max="20"
                   {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10);
+                    field.onChange(value);
+                    // Re-check availability when party size changes
+                    const date = form.getValues("date");
+                    const time = form.getValues("time");
+                    if (date && time) {
+                      const isAvailable = isTimeSlotAvailable(date, time, value);
+                      if (!isAvailable) {
+                        form.setValue("time", "");
+                      }
+                    }
+                  }}
                   value={field.value || ""}
                 />
               </FormControl>
