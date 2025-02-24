@@ -1,15 +1,16 @@
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Booking, Restaurant } from "@shared/schema";
+import { Restaurant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Loader2, LogOut, Settings, CalendarIcon, Clock, Menu,
-  History, Calendar, MoreVertical, ClipboardList
+  History, Calendar, MoreVertical
 } from "lucide-react";
-import { format, isBefore, isSameDay, addHours, isWithinInterval, parse, isAfter, formatDistance } from "date-fns";
+import { format, isSameDay, addHours, isWithinInterval, isAfter } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
+import { ErrorBoundary } from "@/components/error-boundary";
 import {
   Sheet,
   SheetContent,
@@ -41,7 +42,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface BookingWithDetails extends Booking {
+interface BookingWithDetails {
+  id: number;
+  branchId: number;
+  date: string;
+  partySize: number;
+  confirmed: boolean;
+  arrived: boolean;
+  completed: boolean;
+  arrivedAt?: string;
   user?: {
     firstName: string;
     lastName: string;
@@ -50,8 +59,6 @@ interface BookingWithDetails extends Booking {
     address: string;
     city: string;
   };
-  arrived: boolean;
-  arrivedAt?: string; // Add arrivedAt timestamp
 }
 
 const formatElapsedTime = (startTime: string) => {
@@ -203,7 +210,13 @@ const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefin
 };
 
 // Create a new CurrentlySeatedBooking component to handle the timer logic
-const CurrentlySeatedBooking = ({ booking }: { booking: BookingWithDetails }) => {
+const CurrentlySeatedBooking = ({ 
+  booking,
+  markBookingCompleteMutation 
+}: { 
+  booking: BookingWithDetails;
+  markBookingCompleteMutation: any;
+}) => {
   const [elapsedTime, setElapsedTime] = useState(
     booking.arrivedAt ? formatElapsedTime(booking.arrivedAt) : ''
   );
@@ -261,7 +274,9 @@ const CurrentlySeatedBooking = ({ booking }: { booking: BookingWithDetails }) =>
   );
 };
 
-export default function RestaurantDashboard() {
+function RestaurantDashboardContent() {
+  console.log("RestaurantDashboard: Component starting to render");
+
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -273,52 +288,69 @@ export default function RestaurantDashboard() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const now = new Date();
 
-  const isCurrentTimeWithinBranchHours = () => {
-    if (selectedBranch === "all") return false;
+  console.log("RestaurantDashboard: Auth state:", auth);
 
-    const branch = restaurant?.locations.find(
-      loc => loc.id.toString() === selectedBranch
-    );
+  // Early return if no auth
+  if (!auth) {
+    console.log("RestaurantDashboard: No auth found, redirecting");
+    setLocation('/auth');
+    return null;
+  }
 
-    if (!branch) return false;
-
-    const currentTime = getCurrentTimeSlot();
-    const [currentHour, currentMinute] = currentTime.split(':').map(Number);
-    const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
-    const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
-
-    // Convert to minutes for easier comparison
-    const current = currentHour * 60 + currentMinute;
-    const open = openHour * 60 + openMinute;
-    const close = closeHour * 60 + closeMinute;
-
-    return current >= open && current <= close;
-  };
-
-  useEffect(() => {
-    if (!auth) {
-      setLocation('/auth');
-      return;
-    }
-  }, [auth, setLocation]);
-
-  const { data: restaurant, isLoading: isRestaurantLoading } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants", auth?.id],
+  const { data: restaurant, isLoading: isRestaurantLoading, error: restaurantError } = useQuery<Restaurant>({
+    queryKey: ["/api/restaurants", auth.id],
     queryFn: async () => {
-      if (!auth?.id) throw new Error("No restaurant ID");
+      console.log("RestaurantDashboard: Fetching restaurant data for ID:", auth.id);
       const response = await fetch(`/api/restaurants/${auth.id}`, {
         credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to fetch restaurant');
-      return response.json();
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch restaurant');
+      }
+      const data = await response.json();
+      console.log("RestaurantDashboard: Restaurant data received:", data);
+      return data;
     },
-    enabled: !!auth?.id,
+    enabled: !!auth.id,
+    retry: 1
   });
 
+  console.log("RestaurantDashboard: Restaurant data state:", { restaurant, isLoading: isRestaurantLoading, error: restaurantError });
+
+  if (isRestaurantLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-border" />
+      </div>
+    );
+  }
+
+  if (restaurantError) {
+    console.error("RestaurantDashboard: Error loading restaurant:", restaurantError);
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <div className="text-xl text-destructive">Failed to load restaurant data</div>
+        <div className="text-sm text-muted-foreground">{restaurantError.message}</div>
+        <Button onClick={() => setLocation('/auth')}>Return to Login</Button>
+      </div>
+    );
+  }
+
+  if (!restaurant || !restaurant.locations) {
+    console.error("RestaurantDashboard: No restaurant data available");
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <div className="text-xl text-destructive">Restaurant data not found</div>
+        <Button onClick={() => setLocation('/auth')}>Return to Login</Button>
+      </div>
+    );
+  }
+
   const { data: bookings, isLoading: isBookingsLoading } = useQuery<BookingWithDetails[]>({
-    queryKey: ["/api/restaurant/bookings", auth?.id],
+    queryKey: ["/api/restaurant/bookings", auth.id],
     queryFn: async () => {
-      if (!auth?.id) throw new Error("No restaurant ID");
+      if (!auth.id) throw new Error("No restaurant ID");
       const response = await fetch(`/api/restaurant/bookings/${auth.id}`, {
         credentials: 'include'
       });
@@ -328,7 +360,7 @@ export default function RestaurantDashboard() {
       }
       return response.json();
     },
-    enabled: !!auth?.id,
+    enabled: !!auth.id,
   });
 
   const cancelBookingMutation = useMutation({
@@ -347,7 +379,7 @@ export default function RestaurantDashboard() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth.id] });
       toast({
         title: "Booking Cancelled",
         description: "The booking has been cancelled successfully.",
@@ -375,7 +407,7 @@ export default function RestaurantDashboard() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth.id] });
       toast({
         title: "Party Marked as Arrived",
         description: "The booking has been moved to Currently Seated.",
@@ -403,7 +435,7 @@ export default function RestaurantDashboard() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth.id] });
       toast({
         title: "Booking Completed",
         description: "The booking has been marked as complete and moved to Previous Bookings.",
@@ -419,7 +451,7 @@ export default function RestaurantDashboard() {
   });
 
   useEffect(() => {
-    if (restaurant?.locations && selectedBranch !== "all") {
+    if (restaurant.locations && selectedBranch !== "all") {
       const selectedLocation = restaurant.locations.find(
         loc => loc.id.toString() === selectedBranch
       );
@@ -439,9 +471,28 @@ export default function RestaurantDashboard() {
 
   const isLoading = isRestaurantLoading || isBookingsLoading;
 
-  if (!auth) {
-    return null;
-  }
+  const isCurrentTimeWithinBranchHours = () => {
+    if (selectedBranch === "all") return false;
+
+    const branch = restaurant.locations.find(
+      loc => loc.id.toString() === selectedBranch
+    );
+
+    if (!branch) return false;
+
+    const currentTime = getCurrentTimeSlot();
+    const [currentHour, currentMinute] = currentTime.split(':').map(Number);
+    const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
+    const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
+
+    // Convert to minutes for easier comparison
+    const current = currentHour * 60 + currentMinute;
+    const open = openHour * 60 + openMinute;
+    const close = closeHour * 60 + closeMinute;
+
+    return current >= open && current <= close;
+  };
+
 
   if (isLoading) {
     return (
@@ -528,7 +579,7 @@ export default function RestaurantDashboard() {
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
   const getTotalSeats = () => {
-    if (!restaurant?.locations) return 0;
+    if (!restaurant.locations) return 0;
     if (selectedBranch === "all") {
       return restaurant.locations.reduce((total, loc) => total + loc.seatsCount, 0);
     }
@@ -592,7 +643,7 @@ export default function RestaurantDashboard() {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              Welcome back, {auth?.name}
+              Welcome back, {auth.name}
             </div>
             <div className="hidden lg:flex gap-4">
               <Button
@@ -634,7 +685,7 @@ export default function RestaurantDashboard() {
 
           <TabsContent value="dashboard" className="space-y-6">
             <div className="flex">
-              <AddReservationModal branches={restaurant?.locations || []} />
+              <AddReservationModal branches={restaurant.locations} />
             </div>
 
             <div className="grid grid-cols-3 gap-6">
@@ -648,13 +699,13 @@ export default function RestaurantDashboard() {
                       <div className="flex items-center">
                         <Calendar className="mr-2 h-4 w-4" />
                         {selectedBranch === "all" ? "All Branches" :
-                          restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
+                          restaurant.locations.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
                       </div>
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Branches</SelectItem>
-                    {restaurant?.locations?.map((location) => (
+                    {restaurant.locations.map((location) => (
                       <SelectItem key={location.id} value={location.id.toString()}>
                         {location.address}, {location.city}
                       </SelectItem>
@@ -753,7 +804,7 @@ export default function RestaurantDashboard() {
                   <p className="text-sm text-muted-foreground">
                     {selectedBranch === "all"
                       ? "Across all branches"
-                      : `In ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address}`}
+                      : `In ${restaurant.locations.find(loc => loc.id.toString() === selectedBranch)?.address}`}
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -862,9 +913,10 @@ export default function RestaurantDashboard() {
                 {currentlySeatedBookings && currentlySeatedBookings.length > 0 ? (
                   <div className="space-y-4">
                     {currentlySeatedBookings.map((booking) => (
-                      <CurrentlySeatedBooking 
-                        key={booking.id} 
-                        booking={booking} 
+                      <CurrentlySeatedBooking
+                        key={booking.id}
+                        booking={booking}
+                        markBookingCompleteMutation={markBookingCompleteMutation}
                       />
                     ))}
                   </div>
@@ -888,7 +940,7 @@ export default function RestaurantDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Branches</SelectItem>
-                      {restaurant?.locations?.map((location) => (
+                      {restaurant.locations.map((location) => (
                         <SelectItem key={location.id} value={location.id.toString()}>
                           {location.address}, {location.city}
                         </SelectItem>
@@ -957,5 +1009,13 @@ export default function RestaurantDashboard() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+export default function RestaurantDashboard() {
+  return (
+    <ErrorBoundary>
+      <RestaurantDashboardContent />
+    </ErrorBoundary>
   );
 }

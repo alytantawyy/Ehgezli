@@ -23,6 +23,8 @@ export const RestaurantAuthContext = createContext<RestaurantAuthContextType | n
 export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
+  console.log("RestaurantAuthProvider: Initializing");
+
   const {
     data: restaurant,
     error,
@@ -33,9 +35,11 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     retry: false,
   });
 
+  console.log("RestaurantAuthProvider: Auth state:", { restaurant, error, isLoading });
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
+      console.log("RestaurantAuthProvider: Attempting login");
       const res = await apiRequest("POST", "/api/restaurant/login", credentials);
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ message: "Login failed" }));
@@ -44,6 +48,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: (restaurant: RestaurantAuth) => {
+      console.log("RestaurantAuthProvider: Login successful");
       queryClient.setQueryData(["/api/restaurant"], restaurant);
       toast({
         title: "Login successful",
@@ -51,6 +56,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
       });
     },
     onError: (error: Error) => {
+      console.error("RestaurantAuthProvider: Login failed:", error);
       toast({
         title: "Login failed",
         description: error.message,
