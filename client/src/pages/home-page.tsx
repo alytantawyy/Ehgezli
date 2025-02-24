@@ -91,11 +91,6 @@ export default function HomePage() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <UserNav />
-            <img
-              src="/Ehgezli-logo-white.png"
-              alt="Ehgezli Logo"
-              className="h-10 w-auto object-contain"
-            />
           </div>
           {user && (
             <div className="text-sm">
