@@ -69,146 +69,6 @@ const formatElapsedTime = (startTime: string) => {
   return `${hours}h ${minutes}m`;
 };
 
-const getCurrentTimeSlot = () => {
-  const now = new Date();
-  let hours = now.getHours();
-  let minutes = now.getMinutes();
-  // Round up to next 30 minutes
-  if (minutes > 0 && minutes < 30) {
-    minutes = 30;
-  } else if (minutes > 30) {
-    minutes = 0;
-    hours = hours + 1;
-  }
-  // Handle hour wrapping
-  if (hours >= 24) {
-    hours = 0;
-  }
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-};
-
-const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
-  if (!openingTime || !closingTime) return [];
-
-  const slots = [];
-  const [openHour, openMinute] = openingTime.split(':').map(Number);
-  const [closeHour, closeMinute] = closingTime.split(':').map(Number);
-
-  let startHour = openHour;
-  let startMinute = openMinute;
-
-  const now = new Date();
-  if (bookingDate &&
-    bookingDate.getDate() === now.getDate() &&
-    bookingDate.getMonth() === now.getMonth() &&
-    bookingDate.getFullYear() === now.getFullYear()) {
-    startHour = now.getHours();
-    startMinute = now.getMinutes();
-
-    if (startMinute > 30) {
-      startHour += 1;
-      startMinute = 0;
-    } else if (startMinute > 0) {
-      startMinute = 30;
-    }
-
-    if (startHour < openHour || (startHour === openHour && startMinute < openMinute)) {
-      startHour = openHour;
-      startMinute = openMinute;
-    }
-  }
-
-  let lastSlotHour = closeHour;
-  let lastSlotMinute = closeMinute;
-
-  // Don't allow bookings in the last hour
-  lastSlotHour = lastSlotHour - 1;
-
-  for (let hour = startHour; hour <= lastSlotHour; hour++) {
-    for (let minute of [0, 30]) {
-      if (hour === openHour && minute < openMinute) continue;
-      if (hour === lastSlotHour && minute > lastSlotMinute) continue;
-      if (hour === startHour && minute < startMinute) continue;
-
-      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-      slots.push(time);
-    }
-  }
-  return slots;
-};
-
-const getBookingsForSeatCalculation = (bookings: BookingWithDetails[] | undefined, selectedDate: Date | undefined, selectedBranch: string) => {
-  return bookings?.filter(booking => {
-    // Skip completed bookings
-    if (booking.completed) {
-      return false;
-    }
-
-    // Apply date filter
-    if (selectedDate && !isSameDay(new Date(booking.date), selectedDate)) {
-      return false;
-    }
-
-    // Apply branch filter if selected
-    if (selectedBranch !== "all") {
-      if (booking.branchId.toString() !== selectedBranch) {
-        return false;
-      }
-    }
-
-    return true;
-  }) || [];
-};
-
-const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefined, bookings: BookingWithDetails[] | undefined, selectedBranch: string, totalSeats: number) => {
-  if (!selectedDate || !selectedTimeStr || selectedTimeStr === "all") {
-    return "-";
-  }
-
-  // Get all relevant bookings for seat calculation
-  const relevantBookings = getBookingsForSeatCalculation(bookings, selectedDate, selectedBranch);
-
-  // Convert selected time to a Date object
-  const [hours, minutes] = selectedTimeStr.split(':').map(Number);
-  const selectedDateTime = new Date(selectedDate);
-  selectedDateTime.setHours(hours, minutes, 0, 0);
-
-  // Check if we're looking at current time slot
-  const isCurrentTimeSlot = selectedTimeStr === getCurrentTimeSlot();
-
-  // Check if the booking is for today
-  const isToday = isSameDay(selectedDateTime, new Date());
-
-  // Count seats taken by bookings and currently seated parties
-  const takenSeats = relevantBookings.reduce((sum, booking) => {
-    // Skip cancelled bookings
-    if (!booking.confirmed) {
-      return sum;
-    }
-
-    // For current time slot, include all arrived bookings regardless of their original time
-    if (isCurrentTimeSlot && isToday && booking.arrived && !booking.completed) {
-      return sum + booking.partySize;
-    }
-
-    // For upcoming bookings in the selected time slot
-    const bookingStart = new Date(booking.date);
-    const bookingEnd = addHours(bookingStart, 2); // 2-hour reservation period
-
-    // Check if selected time falls within booking's time window
-    if (isWithinInterval(selectedDateTime, { start: bookingStart, end: bookingEnd })) {
-      // For non-current time slots, only count non-arrived bookings
-      if (!isCurrentTimeSlot || !booking.arrived) {
-        return sum + booking.partySize;
-      }
-    }
-
-    return sum;
-  }, 0);
-
-  return totalSeats - takenSeats;
-};
-
 // Create a new CurrentlySeatedBooking component to handle the timer logic
 const CurrentlySeatedBooking = ({ 
   booking,
@@ -275,8 +135,6 @@ const CurrentlySeatedBooking = ({
 };
 
 function RestaurantDashboardContent() {
-  console.log("RestaurantDashboard: Component starting to render");
-
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -287,8 +145,6 @@ function RestaurantDashboardContent() {
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const now = new Date();
-
-  console.log("RestaurantDashboard: Auth state:", auth);
 
   // Early return if no auth
   if (!auth) {
@@ -316,7 +172,6 @@ function RestaurantDashboardContent() {
     retry: 1
   });
 
-  console.log("RestaurantDashboard: Restaurant data state:", { restaurant, isLoading: isRestaurantLoading, error: restaurantError });
 
   if (isRestaurantLoading) {
     return (
@@ -493,6 +348,127 @@ function RestaurantDashboardContent() {
     return current >= open && current <= close;
   };
 
+  const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
+    if (!openingTime || !closingTime) return [];
+
+    const slots = [];
+    const [openHour, openMinute] = openingTime.split(':').map(Number);
+    const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+
+    let startHour = openHour;
+    let startMinute = openMinute;
+
+    const now = new Date();
+    if (bookingDate &&
+      bookingDate.getDate() === now.getDate() &&
+      bookingDate.getMonth() === now.getMonth() &&
+      bookingDate.getFullYear() === now.getFullYear()) {
+      startHour = now.getHours();
+      startMinute = now.getMinutes();
+
+      if (startMinute > 30) {
+        startHour += 1;
+        startMinute = 0;
+      } else if (startMinute > 0) {
+        startMinute = 30;
+      }
+
+      if (startHour < openHour || (startHour === openHour && startMinute < openMinute)) {
+        startHour = openHour;
+        startMinute = openMinute;
+      }
+    }
+
+    let lastSlotHour = closeHour;
+    let lastSlotMinute = closeMinute;
+
+    // Don't allow bookings in the last hour
+    lastSlotHour = lastSlotHour - 1;
+
+    for (let hour = startHour; hour <= lastSlotHour; hour++) {
+      for (let minute of [0, 30]) {
+        if (hour === openHour && minute < openMinute) continue;
+        if (hour === lastSlotHour && minute > lastSlotMinute) continue;
+        if (hour === startHour && minute < startMinute) continue;
+
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        slots.push(time);
+      }
+    }
+    return slots;
+  };
+
+  const getBookingsForSeatCalculation = (bookings: BookingWithDetails[] | undefined, selectedDate: Date | undefined, selectedBranch: string) => {
+    return bookings?.filter(booking => {
+      // Skip completed bookings
+      if (booking.completed) {
+        return false;
+      }
+
+      // Apply date filter
+      if (selectedDate && !isSameDay(new Date(booking.date), selectedDate)) {
+        return false;
+      }
+
+      // Apply branch filter if selected
+      if (selectedBranch !== "all") {
+        if (booking.branchId.toString() !== selectedBranch) {
+          return false;
+        }
+      }
+
+      return true;
+    }) || [];
+  };
+
+  const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefined, bookings: BookingWithDetails[] | undefined, selectedBranch: string, totalSeats: number) => {
+    if (!selectedDate || !selectedTimeStr || selectedTimeStr === "all") {
+      return "-";
+    }
+
+    // Get all relevant bookings for seat calculation
+    const relevantBookings = getBookingsForSeatCalculation(bookings, selectedDate, selectedBranch);
+
+    // Convert selected time to a Date object
+    const [hours, minutes] = selectedTimeStr.split(':').map(Number);
+    const selectedDateTime = new Date(selectedDate);
+    selectedDateTime.setHours(hours, minutes, 0, 0);
+
+    // Check if we're looking at current time slot
+    const isCurrentTimeSlot = selectedTimeStr === getCurrentTimeSlot();
+
+    // Check if the booking is for today
+    const isToday = isSameDay(selectedDateTime, new Date());
+
+    // Count seats taken by bookings and currently seated parties
+    const takenSeats = relevantBookings.reduce((sum, booking) => {
+      // Skip cancelled bookings
+      if (!booking.confirmed) {
+        return sum;
+      }
+
+      // For current time slot, include all arrived bookings regardless of their original time
+      if (isCurrentTimeSlot && isToday && booking.arrived && !booking.completed) {
+        return sum + booking.partySize;
+      }
+
+      // For upcoming bookings in the selected time slot
+      const bookingStart = new Date(booking.date);
+      const bookingEnd = addHours(bookingStart, 2); // 2-hour reservation period
+
+      // Check if selected time falls within booking's time window
+      if (isWithinInterval(selectedDateTime, { start: bookingStart, end: bookingEnd })) {
+        // For non-current time slots, only count non-arrived bookings
+        if (!isCurrentTimeSlot || !booking.arrived) {
+          return sum + booking.partySize;
+        }
+      }
+
+      return sum;
+    }, 0);
+
+    return totalSeats - takenSeats;
+  };
 
   if (isLoading) {
     return (
@@ -577,6 +553,24 @@ function RestaurantDashboardContent() {
 
     return true;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
+
+  const getCurrentTimeSlot = () => {
+    const now = new Date();
+    let hours = now.getHours();
+    let minutes = now.getMinutes();
+    // Round up to next 30 minutes
+    if (minutes > 0 && minutes < 30) {
+      minutes = 30;
+    } else if (minutes > 30) {
+      minutes = 0;
+      hours = hours + 1;
+    }
+    // Handle hour wrapping
+    if (hours >= 24) {
+      hours = 0;
+    }
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  };
 
   const getTotalSeats = () => {
     if (!restaurant.locations) return 0;
@@ -934,7 +928,7 @@ function RestaurantDashboardContent() {
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle>Future Bookings</CardTitle>
                 <div className="flex items-center gap-4">
-                  <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                  <Select                  value={selectedBranch} onValueChange={setSelectedBranch}>
                     <SelectTrigger className="w-[200px]">
                       <SelectValue placeholder="All Branches" />
                     </SelectTrigger>
