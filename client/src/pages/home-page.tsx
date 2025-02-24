@@ -70,7 +70,7 @@ export default function HomePage() {
           <div className="flex items-center gap-4">
             <UserNav />
             <img 
-              src="/attached_assets/Ehgezli-logo.png" 
+              src="/Ehgezli-logo.png" 
               alt="Ehgezli Logo" 
               className="h-8 w-auto"
             />
