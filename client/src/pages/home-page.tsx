@@ -92,13 +92,13 @@ export default function HomePage() {
           <div className="flex items-center gap-4">
             <UserNav />
             <img
-              src="/public/Ehgezli-logo-white.png"
+              src="/Ehgezli-logo-white.png"
               alt="Ehgezli Logo"
               className="h-10 w-auto object-contain"
             />
           </div>
           {user && (
-            <div className="text-base">
+            <div className="text-sm">
               {getTimeBasedGreeting(user.firstName)}
             </div>
           )}
