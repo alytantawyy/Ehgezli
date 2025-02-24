@@ -30,7 +30,7 @@ export interface IStorage {
   setSessionStore(store: session.Store): void;
   searchRestaurants(query: string, city?: string): Promise<Restaurant[]>;
   isRestaurantProfileComplete(restaurantId: number): Promise<boolean>;
-  markBookingArrived(bookingId: number): Promise<void>;
+  markBookingArrived(bookingId: number, arrivedAt: string): Promise<void>;
   markBookingComplete(bookingId: number): Promise<void>;
   cancelBooking(bookingId: number): Promise<void>;
 }
@@ -464,10 +464,13 @@ export class DatabaseStorage implements IStorage {
       return matchesName || matchesCuisine || matchesLocation;
     });
   }
-  async markBookingArrived(bookingId: number): Promise<void> {
+  async markBookingArrived(bookingId: number, arrivedAt: string): Promise<void> {
     try {
       await db.update(bookings)
-        .set({ arrived: true })
+        .set({ 
+          arrived: true,
+          arrivedAt: new Date(arrivedAt)
+        })
         .where(eq(bookings.id, bookingId));
     } catch (error) {
       console.error('Error marking booking as arrived:', error);

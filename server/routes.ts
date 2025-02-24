@@ -331,14 +331,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "Booking not found or unauthorized" });
       }
 
-      await storage.markBookingArrived(bookingId);
+      // Add arrivedAt timestamp
+      const arrivedAt = new Date().toISOString();
+      await storage.markBookingArrived(bookingId, arrivedAt);
 
       // Notify connected clients about the arrival update
       clients.forEach((client, ws) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'booking_arrived',
-            data: { bookingId, restaurantId: userId }
+            data: { bookingId, restaurantId: userId, arrivedAt }
           }));
         }
       });

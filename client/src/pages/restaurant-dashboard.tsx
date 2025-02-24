@@ -7,7 +7,7 @@ import {
   Loader2, LogOut, Settings, CalendarIcon, Clock, Menu,
   History, Calendar, MoreVertical, ClipboardList
 } from "lucide-react";
-import { format, isBefore, isSameDay, addHours, isWithinInterval, parse, isAfter } from "date-fns";
+import { format, isBefore, isSameDay, addHours, isWithinInterval, parse, isAfter, formatDistance } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import {
@@ -51,7 +51,16 @@ interface BookingWithDetails extends Booking {
     city: string;
   };
   arrived: boolean;
+  arrivedAt?: string; // Add arrivedAt timestamp
 }
+
+const formatElapsedTime = (startTime: string) => {
+  const start = new Date(startTime);
+  const now = new Date();
+  const hours = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60));
+  const minutes = Math.floor((now.getTime() - start.getTime()) / (1000 * 60)) % 60;
+  return `${hours}h ${minutes}m`;
+};
 
 const getCurrentTimeSlot = () => {
   const now = new Date();
@@ -793,45 +802,66 @@ export default function RestaurantDashboard() {
               <CardContent>
                 {currentlySeatedBookings && currentlySeatedBookings.length > 0 ? (
                   <div className="space-y-4">
-                    {currentlySeatedBookings.map((booking) => (
-                      <div
-                        key={booking.id}
-                        className="flex items-center justify-between p-4 border rounded-lg bg-muted/50"
-                      >
-                        <div>
-                          <div className="font-medium">
-                            {booking.user ?
-                              `${booking.user.firstName} ${booking.user.lastName}` :
-                              `Guest Booking #${booking.id}`
-                            }
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Seated at: {format(new Date(booking.date), "h:mm a")}
-                          </div>
-                          <div className="text-sm">
-                            Party size: {booking.partySize}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Branch: {booking.branch.address}, {booking.branch.city}
-                          </div>
-                        </div>
-                        <div className="flex items-center">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              if (window.confirm('Are you sure you want to mark this booking as complete?')) {
-                                markBookingCompleteMutation.mutate(booking.id);
+                    {currentlySeatedBookings.map((booking) => {
+                      const [elapsedTime, setElapsedTime] = useState(
+                        booking.arrivedAt ? formatElapsedTime(booking.arrivedAt) : ''
+                      );
+
+                      useEffect(() => {
+                        if (!booking.arrivedAt) return;
+
+                        const timer = setInterval(() => {
+                          setElapsedTime(formatElapsedTime(booking.arrivedAt!));
+                        }, 1000);
+
+                        return () => clearInterval(timer);
+                      }, [booking.arrivedAt]);
+
+                      return (
+                        <div
+                          key={booking.id}
+                          className="flex items-center justify-between p-4 border rounded-lg bg-muted/50"
+                        >
+                          <div>
+                            <div className="font-medium">
+                              {booking.user ?
+                                `${booking.user.firstName} ${booking.user.lastName}` :
+                                `Guest Booking #${booking.id}`
                               }
-                            }}
-                            disabled={markBookingCompleteMutation.isPending}
-                            className="text-primary hover:text-primary-foreground hover:bg-primary"
-                          >
-                            Booking Over
-                          </Button>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Seated at: {booking.arrivedAt ? format(new Date(booking.arrivedAt), "h:mm a") : 'Unknown'}
+                            </div>
+                            {booking.arrivedAt && (
+                              <div className="text-sm font-medium text-primary">
+                                Time seated: {elapsedTime}
+                              </div>
+                            )}
+                            <div className="text-sm">
+                              Party size: {booking.partySize}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Branch: {booking.branch.address}, {booking.branch.city}
+                            </div>
+                          </div>
+                          <div className="flex items-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to mark this booking as complete?')) {
+                                  markBookingCompleteMutation.mutate(booking.id);
+                                }
+                              }}
+                              disabled={markBookingCompleteMutation.isPending}
+                              className="text-primary hover:text-primary-foreground hover:bg-primary"
+                            >
+                              Booking Over
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
@@ -887,7 +917,7 @@ export default function RestaurantDashboard() {
                             Branch: {booking.branch.address}, {booking.branch.city}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap2">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
