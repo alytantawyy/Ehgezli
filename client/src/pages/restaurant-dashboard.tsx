@@ -436,8 +436,8 @@ export default function RestaurantDashboard() {
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const futureBookings = bookings?.filter(booking => {
-    // Skip unconfirmed or completed bookings
-    if (!booking.confirmed || booking.completed) {
+    // Skip unconfirmed, completed, or arrived bookings
+    if (!booking.confirmed || booking.completed || booking.arrived) {
       return false;
     }
 
