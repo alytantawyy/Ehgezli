@@ -418,8 +418,8 @@ export default function RestaurantDashboard() {
       }
     }
 
-    // Only show confirmed bookings that haven't arrived yet
-    if (!booking.confirmed || booking.arrived) {
+    // Only show confirmed bookings that haven't been completed
+    if (!booking.confirmed) {
       return false;
     }
 
@@ -429,21 +429,23 @@ export default function RestaurantDashboard() {
   const upcomingBookings = filteredBookings
     .filter(booking => {
       const bookingDate = new Date(booking.date);
-      return isAfter(bookingDate, new Date());
+      const now = new Date();
+      // Include bookings from today onwards
+      return isSameDay(bookingDate, now) || isAfter(bookingDate, now);
     })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const futureBookings = bookings?.filter(booking => {
-    // Skip unconfirmed, completed or arrived bookings
-    if (!booking.confirmed || booking.completed || booking.arrived) {
+    // Skip unconfirmed or completed bookings
+    if (!booking.confirmed || booking.completed) {
       return false;
     }
 
     const bookingDate = new Date(booking.date);
     const now = new Date();
 
-    // Only show future bookings
-    if (!isAfter(bookingDate, now)) {
+    // Show bookings from today onwards
+    if (!isSameDay(bookingDate, now) && !isAfter(bookingDate, now)) {
       return false;
     }
 
