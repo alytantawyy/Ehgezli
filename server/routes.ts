@@ -8,7 +8,7 @@ import { db } from "./db";
 import { and, eq, sql } from "drizzle-orm";
 import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles } from "@shared/schema";
 import { parse as parseCookie } from 'cookie';
-import { format, parseISO, addMinutes } from 'date-fns';
+import { format, parseISO, addMinutes, isWithinInterval } from 'date-fns';
 
 // Define WebSocket message types
 type WebSocketMessage = {
@@ -122,9 +122,18 @@ export function registerRoutes(app: Express): Server {
       while (currentTime < endTime) {
         const timeSlot = format(currentTime, 'HH:mm');
 
-        // Calculate booked seats for this time slot
+        // Calculate booked seats for this time slot considering 2-hour window
         const bookedSeats = existingBookings
-          .filter(booking => format(new Date(booking.date), 'HH:mm') === timeSlot)
+          .filter(booking => {
+            const bookingTime = new Date(booking.date);
+            const bookingEnd = addMinutes(bookingTime, 120); // 2-hour window
+
+            // Check if current time slot falls within any booking's 2-hour window
+            return isWithinInterval(currentTime, {
+              start: bookingTime,
+              end: bookingEnd
+            });
+          })
           .reduce((total, booking) => total + booking.partySize, 0);
 
         // Calculate available seats
