@@ -98,7 +98,7 @@ export default function HomePage() {
             />
           </div>
           {user && (
-            <div className="text-lg font-medium">
+            <div className="text-base">
               {getTimeBasedGreeting(user.firstName)}
             </div>
           )}
