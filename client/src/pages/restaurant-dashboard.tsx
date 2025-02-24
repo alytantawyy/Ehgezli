@@ -7,27 +7,22 @@ import {
   Loader2, LogOut, Settings, CalendarIcon, Clock, Menu,
   History, Calendar, MoreVertical
 } from "lucide-react";
-import { format, isSameDay, addHours, isWithinInterval, isAfter } from "date-fns";
+import { format, isSameDay, isAfter } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar as Datepicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AddReservationModal } from "@/components/add-reservation-modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CurrentlySeatedBooking } from "@/components/currently-seated-booking";
-import { 
-  getCurrentTimeSlot, 
-  generateTimeSlots, 
-  getBookingsForSeatCalculation,
-  getAvailableSeats
-} from "@/lib/utils/time-utils";
+import { getCurrentTimeSlot, generateTimeSlots, getBookingsForSeatCalculation, getAvailableSeats } from "@/lib/utils/time-utils";
 
-interface BookingWithDetails {
+export interface BookingWithDetails {
   id: number;
   branchId: number;
   date: string;
@@ -183,7 +178,7 @@ function RestaurantDashboardContent() {
   });
 
   useEffect(() => {
-    if (restaurant.locations && selectedBranch !== "all") {
+    if (restaurant?.locations && selectedBranch !== "all") {
       const selectedLocation = restaurant.locations.find(
         loc => loc.id.toString() === selectedBranch
       );

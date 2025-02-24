@@ -1,8 +1,26 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { BookingWithDetails } from "@shared/schema";
 import { formatElapsedTime } from "@/lib/utils/time-utils";
+
+interface BookingWithDetails {
+  id: number;
+  branchId: number;
+  date: string;
+  partySize: number;
+  confirmed: boolean;
+  arrived: boolean;
+  completed: boolean;
+  arrivedAt?: string;
+  user?: {
+    firstName: string;
+    lastName: string;
+  } | null;
+  branch: {
+    address: string;
+    city: string;
+  };
+}
 
 interface CurrentlySeatedBookingProps {
   booking: BookingWithDetails;
