@@ -69,9 +69,11 @@ export default function HomePage() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <UserNav />
-            <h1 className="text-2xl font-bold text-primary">
-              Ehgezli
-            </h1>
+            <img 
+              src="/attached_assets/Ehgezli-logo.png" 
+              alt="Ehgezli Logo" 
+              className="h-8 w-auto"
+            />
           </div>
           <div className="flex items-center gap-4">
             <Select
