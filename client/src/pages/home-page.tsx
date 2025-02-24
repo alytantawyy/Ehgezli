@@ -93,7 +93,7 @@ export default function HomePage() {
             <UserNav />
           </div>
           {user && (
-            <div className="text-sm">
+            <div className="text-sm text-muted-foreground">
               {getTimeBasedGreeting(user.firstName)}
             </div>
           )}
