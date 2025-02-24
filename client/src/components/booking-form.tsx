@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
@@ -40,8 +40,22 @@ const bookingSchema = z.object({
 
 type BookingFormData = z.infer<typeof bookingSchema>;
 
-const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate?: Date) => {
-  const slots = [];
+interface TimeSlot {
+  time: string;
+  available: boolean;
+  availableSeats: number;
+}
+
+const generateTimeSlots = async (
+  openingTime: string,
+  closingTime: string,
+  bookingDate: Date | undefined,
+  restaurantId: number,
+  branchId: number | null
+): Promise<TimeSlot[]> => {
+  if (!bookingDate || !branchId) return [];
+
+  const slots: TimeSlot[] = [];
   const [openHour, openMinute] = openingTime.split(':').map(Number);
   const [closeHour, closeMinute] = closingTime.split(':').map(Number);
 
@@ -50,8 +64,7 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
 
   // If booking is for today, start from current time
   const now = new Date();
-  if (bookingDate &&
-      bookingDate.getDate() === now.getDate() &&
+  if (bookingDate.getDate() === now.getDate() &&
       bookingDate.getMonth() === now.getMonth() &&
       bookingDate.getFullYear() === now.getFullYear()) {
     startHour = now.getHours();
@@ -74,15 +87,31 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
   }
   lastSlotHour = lastSlotHour - 1; // One hour before closing
 
-  for (let hour = startHour; hour <= lastSlotHour; hour++) {
-    for (let minute of [0, 30]) {
-      if (hour === startHour && minute < startMinute) continue;
-      if (hour === lastSlotHour && minute > lastSlotMinute) continue;
+  // Fetch availability for all time slots
+  try {
+    const response = await fetch(`/api/restaurants/${restaurantId}/branches/${branchId}/availability?date=${bookingDate.toISOString()}`);
+    if (!response.ok) throw new Error('Failed to fetch availability');
+    const availability = await response.json();
 
-      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-      slots.push(time);
+    for (let hour = startHour; hour <= lastSlotHour; hour++) {
+      for (let minute of [0, 30]) {
+        if (hour === startHour && minute < startMinute) continue;
+        if (hour === lastSlotHour && minute > lastSlotMinute) continue;
+
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        const availableSeats = availability[time] || 0;
+
+        slots.push({
+          time,
+          available: availableSeats > 0,
+          availableSeats
+        });
+      }
     }
+  } catch (error) {
+    console.error('Error fetching availability:', error);
   }
+
   return slots;
 };
 
@@ -95,7 +124,7 @@ interface BookingFormProps {
 
 export function BookingForm({ restaurantId, branchIndex, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
-  const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
 
   const form = useForm<BookingFormData>({
@@ -127,11 +156,20 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   // Update time slots when date changes
   useEffect(() => {
     const selectedDate = form.getValues("date");
-    if (selectedDate) {
-      const slots = generateTimeSlots(openingTime, closingTime, selectedDate);
-      setTimeSlots(slots);
-    }
-  }, [openingTime, closingTime, form.watch("date")]);
+    const updateTimeSlots = async () => {
+      if (selectedDate && branchId) {
+        const slots = await generateTimeSlots(
+          openingTime,
+          closingTime,
+          selectedDate,
+          restaurantId,
+          branchId
+        );
+        setTimeSlots(slots);
+      }
+    };
+    updateTimeSlots();
+  }, [openingTime, closingTime, form.watch("date"), branchId, restaurantId]);
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
@@ -148,6 +186,12 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           parseInt(data.time.split(':')[0]),
           parseInt(data.time.split(':')[1])
         );
+
+        // Check if there are enough seats available
+        const selectedTimeSlot = timeSlots.find(slot => slot.time === data.time);
+        if (!selectedTimeSlot?.available || selectedTimeSlot.availableSeats < data.partySize) {
+          throw new Error('Not enough seats available for this time slot');
+        }
 
         const bookingResponse = await fetch('/api/bookings', {
           method: 'POST',
@@ -259,9 +303,18 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                 </FormControl>
                 <SelectContent>
                   {timeSlots.length > 0 ? (
-                    timeSlots.map((time) => (
-                      <SelectItem key={time} value={time}>
-                        {time}
+                    timeSlots.map((slot) => (
+                      <SelectItem
+                        key={slot.time}
+                        value={slot.time}
+                        disabled={!slot.available}
+                        className={cn(
+                          !slot.available && "text-muted-foreground opacity-50"
+                        )}
+                      >
+                        {slot.time} {slot.available ? 
+                          `(${slot.availableSeats} seats available)` : 
+                          '(No seats available)'}
                       </SelectItem>
                     ))
                   ) : (
@@ -300,7 +353,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         <Button
           type="submit"
           className="w-full"
-          disabled={bookingMutation.isPending}
+          disabled={bookingMutation.isPending || !form.formState.isValid || !form.getValues("time") || !form.getValues("date") }
         >
           {bookingMutation.isPending ? "Submitting..." : "Submit Booking"}
         </Button>

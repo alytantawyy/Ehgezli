@@ -35,7 +35,7 @@ async function comparePasswords(supplied: string, stored: string) {
 export function setupAuth(app: Express) {
   app.set("trust proxy", 1);
 
-  // Enhanced session store configuration with better error handling
+  // Enhanced session store configuration
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     pool,
@@ -73,23 +73,21 @@ export function setupAuth(app: Express) {
     });
   });
 
-  // Use the setter method to update storage
   storage.setSessionStore(sessionStore);
 
-  // Enhanced cookie settings for better security and WebSocket compatibility
+  // Updated cookie settings to work with both HTTP and WebSocket
   const cookieSettings = {
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax' as const,
     path: '/',
-    domain: process.env.NODE_ENV === 'production' ? undefined : undefined // Let browser set appropriate domain
   };
 
-  // Updated session configuration with enhanced security
+  // Updated session configuration
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID!,
-    resave: true,
+    resave: false, // Changed to false to prevent race conditions
     saveUninitialized: false,
     store: sessionStore,
     cookie: cookieSettings,
@@ -120,42 +118,23 @@ export function setupAuth(app: Express) {
       serialized,
       timestamp: new Date().toISOString()
     });
+
     try {
-      if (!serialized || !serialized.id || !serialized.type) {
-        console.error('Invalid serialized user data:', {
-          serialized,
-          timestamp: new Date().toISOString()
-        });
-        return done(new Error('Invalid session data'));
+      if (!serialized?.id || !serialized?.type) {
+        throw new Error('Invalid session data');
       }
 
-      if (serialized.type === 'restaurant') {
-        const restaurant = await storage.getRestaurantAuth(serialized.id);
-        if (!restaurant) {
-          console.error('Restaurant not found:', {
-            id: serialized.id,
-            timestamp: new Date().toISOString()
-          });
-          return done(new Error('Restaurant not found'));
-        }
-        return done(null, { ...restaurant, type: 'restaurant' });
-      } else {
-        const user = await storage.getUser(serialized.id);
-        if (!user) {
-          console.error('User not found:', {
-            id: serialized.id,
-            timestamp: new Date().toISOString()
-          });
-          return done(new Error('User not found'));
-        }
-        return done(null, { ...user, type: 'user' });
+      const user = serialized.type === 'restaurant' 
+        ? await storage.getRestaurantAuth(serialized.id)
+        : await storage.getUser(serialized.id);
+
+      if (!user) {
+        throw new Error(`${serialized.type} not found`);
       }
+
+      done(null, { ...user, type: serialized.type });
     } catch (error) {
-      console.error('Error deserializing user:', {
-        error,
-        serialized,
-        timestamp: new Date().toISOString()
-      });
+      console.error('Deserialization error:', error);
       done(error);
     }
   });
@@ -163,159 +142,63 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Enhanced session debugging middleware
-  app.use((req, res, next) => {
-    const debugInfo = {
-      path: req.path,
-      method: req.method,
-      isAuthenticated: req.isAuthenticated(),
-      sessionID: req.sessionID,
-      user: req.user ? {
-        id: req.user.id,
-        type: req.user.type,
-        timestamp: new Date().toISOString()
-      } : null,
-      cookie: req.headers.cookie,
-      session: req.session ? {
-        ...req.session,
-        passport: req.session.passport ? {
-          ...req.session.passport,
-          user: req.session.passport.user ? {
-            id: req.session.passport.user.id,
-            type: req.session.passport.user.type
-          } : null
-        } : null
-      } : null
-    };
-    console.log('Session Debug -', debugInfo);
-    next();
-  });
-
-  // Restaurant authentication strategy with detailed logging
+  // Authentication strategies setup
   passport.use('restaurant-local', new LocalStrategy({
     usernameField: 'email',
     passwordField: 'password'
   }, async (email, password, done) => {
     try {
-      console.log('Restaurant auth attempt:', email);
       const restaurant = await storage.getRestaurantAuthByEmail(email);
-
       if (!restaurant) {
-        console.log('Restaurant not found:', email);
         return done(null, false, { message: 'Restaurant not found' });
       }
 
       const isPasswordValid = await comparePasswords(password, restaurant.password);
       if (!isPasswordValid) {
-        console.log('Invalid password for restaurant:', email);
         return done(null, false, { message: 'Invalid password' });
       }
 
-      console.log('Restaurant authenticated successfully:', restaurant.id);
       return done(null, { ...restaurant, type: 'restaurant' });
     } catch (err) {
-      console.error('Restaurant authentication error:', err);
       return done(err);
     }
   }));
 
-  // Restaurant Login Endpoint
-  app.post("/api/restaurant/login", (req, res, next) => {
-    console.log('Restaurant login attempt:', {
-      email: req.body.email,
-      sessionID: req.sessionID,
-      headers: req.headers
-    });
-
-    passport.authenticate('restaurant-local', (err: any, user: any, info: any) => {
-      if (err) {
-        console.error('Restaurant authentication error:', err);
-        return res.status(500).json({ message: "Authentication error occurred" });
-      }
-      if (!user) {
-        console.log('Restaurant authentication failed:', info?.message);
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-
-      req.login(user, (err) => {
-        if (err) {
-          console.error('Restaurant login error:', err);
-          return res.status(500).json({ message: "Login error occurred" });
-        }
-
-        console.log('Restaurant login successful:', {
-          id: user.id,
-          type: user.type,
-          sessionID: req.sessionID
-        });
-
-        // Set session cookie with consistent settings
-        res.cookie('connect.sid', req.sessionID, cookieSettings);
-        res.status(200).json(user);
-      });
-    })(req, res, next);
-  });
-
-  // User authentication strategy with detailed logging
   passport.use('local', new LocalStrategy({
     usernameField: 'email',
     passwordField: 'password'
   }, async (email, password, done) => {
     try {
-      console.log('User auth attempt:', email);
       const user = await storage.getUserByEmail(email);
-
       if (!user) {
-        console.log('User not found:', email);
         return done(null, false, { message: 'User not found' });
       }
 
       const isPasswordValid = await comparePasswords(password, user.password);
       if (!isPasswordValid) {
-        console.log('Invalid password for user:', email);
         return done(null, false, { message: 'Invalid password' });
       }
 
-      console.log('User authenticated successfully:', user.id);
       return done(null, { ...user, type: 'user' });
     } catch (err) {
-      console.error('User authentication error:', err);
       return done(err);
     }
   }));
 
-  // Unified login endpoint with better error handling
+  // Authentication endpoints
   app.post("/api/login", (req, res, next) => {
-    console.log('Login attempt:', {
-      email: req.body.email,
-      sessionID: req.sessionID,
-      headers: req.headers
-    });
-
     passport.authenticate(['local', 'restaurant-local'], (err: any, user: any, info: any) => {
       if (err) {
-        console.error('Authentication error:', err);
         return res.status(500).json({ message: "Authentication error occurred" });
       }
       if (!user) {
-        console.log('Authentication failed:', info?.message);
         return res.status(401).json({ message: info?.message || "Invalid credentials" });
       }
 
       req.login(user, (err) => {
         if (err) {
-          console.error('Login error:', err);
           return res.status(500).json({ message: "Login error occurred" });
         }
-
-        console.log('Login successful:', {
-          id: user.id,
-          type: user.type,
-          sessionID: req.sessionID
-        });
-
-        // Set session cookie with consistent settings
-        res.cookie('connect.sid', req.sessionID, cookieSettings);
         res.status(200).json(user);
       });
     })(req, res, next);

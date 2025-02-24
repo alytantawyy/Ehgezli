@@ -1,3 +1,58 @@
+import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Booking, Restaurant } from "@shared/schema";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Loader2, LogOut, Settings, CalendarIcon, Clock, Menu,
+  History, Calendar, MoreVertical, ClipboardList
+} from "lucide-react";
+import { format, isBefore, isSameDay, addHours, isWithinInterval, parse, isAfter } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { Link, useLocation } from "wouter";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { useState, useEffect } from "react";
+import { Calendar as Datepicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AddReservationModal } from "@/components/add-reservation-modal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+interface BookingWithDetails extends Booking {
+  user?: {
+    firstName: string;
+    lastName: string;
+  } | null;
+  branch: {
+    address: string;
+    city: string;
+  };
+  arrived: boolean;
+}
+
 const getCurrentTimeSlot = () => {
   const now = new Date();
   let hours = now.getHours();
@@ -65,52 +120,6 @@ const generateTimeSlots = (openingTime: string, closingTime: string, bookingDate
   }
   return slots;
 };
-
-import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Booking, Restaurant } from "@shared/schema";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogOut, Settings, CalendarIcon, Clock, Menu, History, Calendar, MoreVertical } from "lucide-react";
-import { format, isBefore, isSameDay, addHours, isWithinInterval, parse } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
-import { Link, useLocation } from "wouter";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useState, useEffect } from "react";
-import { Calendar as Datepicker } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { AddReservationModal } from "@/components/add-reservation-modal";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
-interface BookingWithDetails extends Booking {
-  user?: {
-    firstName: string;
-    lastName: string;
-  } | null;
-  branch: {
-    address: string;
-    city: string;
-  };
-  arrived: boolean; // Added: arrived is now a required field
-}
 
 const getBookingsForSeatCalculation = (bookings: BookingWithDetails[] | undefined, selectedDate: Date | undefined, selectedBranch: string) => {
   return bookings?.filter(booking => {
@@ -193,9 +202,9 @@ export default function RestaurantDashboard() {
   const [selectedTime, setSelectedTime] = useState<string>("all");
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
   const now = new Date();
 
-  // Add isCurrentTimeWithinBranchHours function
   const isCurrentTimeWithinBranchHours = () => {
     if (selectedBranch === "all") return false;
 
@@ -326,7 +335,6 @@ export default function RestaurantDashboard() {
       return response.json();
     },
     onSuccess: () => {
-      // Invalidate both the bookings query and previous bookings query
       queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth?.id] });
       toast({
         title: "Booking Completed",
@@ -341,7 +349,6 @@ export default function RestaurantDashboard() {
       });
     },
   });
-
 
   useEffect(() => {
     if (restaurant?.locations && selectedBranch !== "all") {
@@ -392,7 +399,7 @@ export default function RestaurantDashboard() {
     return true;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Update the filtered bookings logic to handle current time properly
+
   const filteredBookings = bookings?.filter(booking => {
     // Don't show arrived bookings in the filtered list
     if (booking.arrived) {
@@ -427,8 +434,36 @@ export default function RestaurantDashboard() {
     return true;
   }) || [];
 
+  const futureBookings = bookings?.filter(booking => {
+    if (!booking.confirmed || booking.completed) {
+      return false;
+    }
+
+    const bookingDate = new Date(booking.date);
+    const now = new Date();
+
+    // Only show future bookings
+    if (!isAfter(bookingDate, now)) {
+      return false;
+    }
+
+    // Apply branch filter if selected
+    if (selectedBranch !== "all") {
+      if (booking.branchId.toString() !== selectedBranch) {
+        return false;
+      }
+    }
+
+    return true;
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
+
   const upcomingBookings = filteredBookings
+    .filter(booking => {
+      const bookingDate = new Date(booking.date);
+      return isAfter(bookingDate, new Date()) && booking.confirmed;
+    })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
 
   const getTotalSeats = () => {
     if (!restaurant?.locations) return 0;
@@ -529,285 +564,368 @@ export default function RestaurantDashboard() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="flex">
-            <AddReservationModal
-              branches={restaurant?.locations || []}
-            />
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="future">Future Bookings</TabsTrigger>
+          </TabsList>
 
-          <div className="grid grid-cols-3 gap-6">
-            <div>
-              <Select
-                value={selectedBranch}
-                onValueChange={setSelectedBranch}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Branch">
-                    <div className="flex items-center">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {selectedBranch === "all" ? "All Branches" :
-                        restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
-                    </div>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Branches</SelectItem>
-                  {restaurant?.locations?.map((location) => (
-                    <SelectItem key={location.id} value={location.id.toString()}>
-                      {location.address}, {location.city}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <TabsContent value="dashboard" className="space-y-6">
+            <div className="flex">
+              <AddReservationModal branches={restaurant?.locations || []} />
             </div>
 
-            <div>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <Datepicker
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Select
-                value={selectedTime}
-                onValueChange={setSelectedTime}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Time">
-                    <div className="flex items-center">
-                      <Clock className="mr-2 h-4 w-4" />
-                      {selectedTime === "all" ? "Select Time" : selectedTime}
-                    </div>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Times</SelectItem>
-                  {isCurrentTimeWithinBranchHours() && (
-                    <SelectItem value={getCurrentTimeSlot()}>Now ({getCurrentTimeSlot()})</SelectItem>
-                  )}
-                  {timeSlots.length > 0 ? (
-                    timeSlots.map((time) => (
-                      <SelectItem key={time} value={time}>
-                        {time}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="no-slots" disabled>
-                      No available time slots
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-
-              {(selectedDate || selectedTime !== "all" || selectedBranch !== "all") && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setSelectedDate(undefined);
-                    setSelectedTime("all");
-                    setSelectedBranch("all");
-                  }}
-                  className="px-2"
+            <div className="grid grid-cols-3 gap-6">
+              <div>
+                <Select
+                  value={selectedBranch}
+                  onValueChange={setSelectedBranch}
                 >
-                  Clear
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>Bookings</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {selectedDate && selectedTime === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
-                  {selectedTime !== "all" && `Bookings at ${selectedTime}${selectedDate ? ` on ${format(selectedDate, "MMMM d, yyyy")}` : ''}`}
-                  {!selectedDate && selectedTime === "all" && "Total upcoming bookings"}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {filteredBookings.length}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Total Seats</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {selectedBranch === "all"
-                    ? "Across all branches"
-                    : `In ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address}`}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {getTotalSeats()}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Seats</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {(!selectedDate || selectedTime === "all")
-                    ? "Select date and time to view availability"
-                    : `On ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {getAvailableSeats(selectedTime, selectedDate, bookings, selectedBranch, getTotalSeats())}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle>Latest Bookings</CardTitle>
-              {selectedDate && (
-                <span className="text-sm text-muted-foreground">
-                  Showing bookings for {format(selectedDate, "MMMM d, yyyy")}
-                </span>
-              )}
-            </CardHeader>
-            <CardContent>
-              {upcomingBookings && upcomingBookings.length > 0 ? (
-                <div className="space-y-4">
-                  {upcomingBookings.map((booking) => (
-                    <div
-                      key={booking.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div>
-                        <div className="font-medium">
-                          {booking.user ?
-                            `${booking.user.firstName} ${booking.user.lastName}` :
-                            `Guest Booking #${booking.id}`
-                          }
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {format(new Date(booking.date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-                        </div>
-                        <div className="text-sm">
-                          Party size: {booking.partySize}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Branch: {booking.branch.address}, {booking.branch.city}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                if (window.confirm('Are you sure you want to cancel this booking?')) {
-                                  cancelBookingMutation.mutate(booking.id);
-                                }
-                              }}
-                              className="text-destructive"
-                            >
-                              Cancel Booking
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => markPartyArrivedMutation.mutate(booking.id)}
-                            >
-                              Party Arrived
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  {selectedDate ? "No bookings for this date" : "No upcoming bookings"}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle>Currently Seated</CardTitle>
-              <span className="text-sm text-muted-foreground">
-                Showing active bookings for today
-              </span>
-            </CardHeader>
-            <CardContent>
-              {currentlySeatedBookings && currentlySeatedBookings.length > 0 ? (
-                <div className="space-y-4">
-                  {currentlySeatedBookings.map((booking) => (
-                    <div
-                      key={booking.id}
-                      className="flex items-center justify-between p-4 border rounded-lg bg-muted/50"
-                    >
-                      <div>
-                        <div className="font-medium">
-                          {booking.user ?
-                            `${booking.user.firstName} ${booking.user.lastName}` :
-                            `Guest Booking #${booking.id}`
-                          }
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Seated at: {format(new Date(booking.date), "h:mm a")}
-                        </div>
-                        <div className="text-sm">
-                          Party size: {booking.partySize}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Branch: {booking.branch.address}, {booking.branch.city}
-                        </div>
-                      </div>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Branch">
                       <div className="flex items-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (window.confirm('Are you sure you want to mark this booking as complete?')) {
-                              markBookingCompleteMutation.mutate(booking.id);
-                            }
-                          }}
-                          disabled={markBookingCompleteMutation.isPending}
-                          className="text-primary hover:text-primary-foreground hover:bg-primary"
-                        >
-                          Booking Over
-                        </Button>
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {selectedBranch === "all" ? "All Branches" :
+                          restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
                       </div>
-                    </div>
-                  ))}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Branches</SelectItem>
+                    {restaurant?.locations?.map((location) => (
+                      <SelectItem key={location.id} value={location.id.toString()}>
+                        {location.address}, {location.city}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Datepicker
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Select
+                  value={selectedTime}
+                  onValueChange={setSelectedTime}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Time">
+                      <div className="flex items-center">
+                        <Clock className="mr-2 h-4 w-4" />
+                        {selectedTime === "all" ? "Select Time" : selectedTime}
+                      </div>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Times</SelectItem>
+                    {isCurrentTimeWithinBranchHours() && (
+                      <SelectItem value={getCurrentTimeSlot()}>Now ({getCurrentTimeSlot()})</SelectItem>
+                    )}
+                    {timeSlots.length > 0 ? (
+                      timeSlots.map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-slots" disabled>
+                        No available time slots
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                {(selectedDate || selectedTime !== "all" || selectedBranch !== "all") && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setSelectedDate(undefined);
+                      setSelectedTime("all");
+                      setSelectedBranch("all");
+                    }}
+                    className="px-2"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Bookings</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedDate && selectedTime === "all" && `Bookings on ${format(selectedDate, "MMMM d, yyyy")}`}
+                    {selectedTime !== "all" && `Bookings at ${selectedTime}${selectedDate ? ` on ${format(selectedDate, "MMMM d, yyyy")}` : ''}`}
+                    {!selectedDate && selectedTime === "all" && "Total upcoming bookings"}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">
+                    {filteredBookings.length}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Total Seats</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedBranch === "all"
+                      ? "Across all branches"
+                      : `In ${restaurant?.locations?.find(loc => loc.id.toString() === selectedBranch)?.address}`}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">
+                    {getTotalSeats()}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Available Seats</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {(!selectedDate || selectedTime === "all")
+                      ? "Select date and time to view availability"
+                      : `On ${format(selectedDate, "MMMM d, yyyy")} at ${selectedTime}`}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">
+                    {getAvailableSeats(selectedTime, selectedDate, bookings, selectedBranch, getTotalSeats())}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle>Latest Bookings</CardTitle>
+                {selectedDate && (
+                  <span className="text-sm text-muted-foreground">
+                    Showing bookings for {format(selectedDate, "MMMM d, yyyy")}
+                  </span>
+                )}
+              </CardHeader>
+              <CardContent>
+                {upcomingBookings && upcomingBookings.length > 0 ? (
+                  <div className="space-y-4">
+                    {upcomingBookings.map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="flex items-center justify-between p-4 border rounded-lg"
+                      >
+                        <div>
+                          <div className="font-medium">
+                            {booking.user ?
+                              `${booking.user.firstName} ${booking.user.lastName}` :
+                              `Guest Booking #${booking.id}`
+                            }
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {format(new Date(booking.date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
+                          </div>
+                          <div className="text-sm">
+                            Party size: {booking.partySize}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Branch: {booking.branch.address}, {booking.branch.city}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (window.confirm('Are you sure you want to cancel this booking?')) {
+                                    cancelBookingMutation.mutate(booking.id);
+                                  }
+                                }}
+                                className="text-destructive"
+                              >
+                                Cancel Booking
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => markPartyArrivedMutation.mutate(booking.id)}
+                              >
+                                Party Arrived
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {selectedDate ? "No bookings for this date" : "No upcoming bookings"}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle>Currently Seated</CardTitle>
+                <span className="text-sm text-muted-foreground">
+                  Showing active bookings for today
+                </span>
+              </CardHeader>
+              <CardContent>
+                {currentlySeatedBookings && currentlySeatedBookings.length > 0 ? (
+                  <div className="space-y-4">
+                    {currentlySeatedBookings.map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="flex items-center justify-between p-4 border rounded-lg bg-muted/50"
+                      >
+                        <div>
+                          <div className="font-medium">
+                            {booking.user ?
+                              `${booking.user.firstName} ${booking.user.lastName}` :
+                              `Guest Booking #${booking.id}`
+                            }
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Seated at: {format(new Date(booking.date), "h:mm a")}
+                          </div>
+                          <div className="text-sm">
+                            Party size: {booking.partySize}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Branch: {booking.branch.address}, {booking.branch.city}
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (window.confirm('Are you sure you want to mark this booking as complete?')) {
+                                markBookingCompleteMutation.mutate(booking.id);
+                              }
+                            }}
+                            disabled={markBookingCompleteMutation.isPending}
+                            className="text-primary hover:text-primary-foreground hover:bg-primary"
+                          >
+                            Booking Over
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No customers currently seated
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="future" className="space-y-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle>Future Bookings</CardTitle>
+                <div className="flex items-center gap-4">
+                  <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="All Branches" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Branches</SelectItem>
+                      {restaurant?.locations?.map((location) => (
+                        <SelectItem key={location.id} value={location.id.toString()}>
+                          {location.address}, {location.city}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No customers currently seated
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </CardHeader>
+              <CardContent>
+                {futureBookings.length > 0 ? (
+                  <div className="space-y-4">
+                    {futureBookings.map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="flex items-center justify-between p-4 border rounded-lg"
+                      >
+                        <div>
+                          <div className="font-medium">
+                            {booking.user ?
+                              `${booking.user.firstName} ${booking.user.lastName}` :
+                              `Guest Booking #${booking.id}`
+                            }
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {format(new Date(booking.date), "EEEE, MMMM d, yyyy 'at' h:mm a")}
+                          </div>
+                          <div className="text-sm">
+                            Party size: {booking.partySize}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Branch: {booking.branch.address}, {booking.branch.city}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (window.confirm('Are you sure you want to cancel this booking?')) {
+                                    cancelBookingMutation.mutate(booking.id);
+                                  }
+                                }}
+                                className="text-destructive"
+                              >
+                                Cancel Booking
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No future bookings found
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

@@ -18,9 +18,20 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const reconnectAttempts = useRef(0);
 
   useEffect(() => {
-    function connect() {
+    async function connect() {
       try {
+        // First verify authentication status
+        const authResponse = await fetch('/api/user', {
+          credentials: 'include'
+        });
+
+        if (!authResponse.ok) {
+          console.log('User not authenticated, skipping WebSocket connection');
+          return;
+        }
+
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Create WebSocket connection with full URL to ensure proper cookie handling
         const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
         wsRef.current = ws;
 
@@ -43,6 +54,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           if (reconnectAttempts.current < maxReconnectAttempts) {
             reconnectAttempts.current++;
             const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 10000);
+            console.log(`Attempting reconnect in ${delay}ms (attempt ${reconnectAttempts.current})`);
             reconnectTimeoutRef.current = setTimeout(connect, delay);
           } else {
             toast({
@@ -55,6 +67,11 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
         ws.onerror = (error) => {
           console.error('WebSocket error:', error);
+          toast({
+            title: "Connection Error",
+            description: "Failed to establish real-time connection. Some features may be limited.",
+            variant: "destructive",
+          });
         };
 
         ws.onmessage = (event) => {
@@ -68,6 +85,11 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         };
       } catch (error) {
         console.error('Error creating WebSocket connection:', error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to establish real-time connection. Some features may be limited.",
+          variant: "destructive",
+        });
       }
     }
 
