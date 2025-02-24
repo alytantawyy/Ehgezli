@@ -202,6 +202,65 @@ const getAvailableSeats = (selectedTimeStr: string, selectedDate: Date | undefin
   return totalSeats - takenSeats;
 };
 
+// Create a new CurrentlySeatedBooking component to handle the timer logic
+const CurrentlySeatedBooking = ({ booking }: { booking: BookingWithDetails }) => {
+  const [elapsedTime, setElapsedTime] = useState(
+    booking.arrivedAt ? formatElapsedTime(booking.arrivedAt) : ''
+  );
+
+  useEffect(() => {
+    if (!booking.arrivedAt) return;
+
+    const timer = setInterval(() => {
+      setElapsedTime(formatElapsedTime(booking.arrivedAt!));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [booking.arrivedAt]);
+
+  return (
+    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+      <div>
+        <div className="font-medium">
+          {booking.user ?
+            `${booking.user.firstName} ${booking.user.lastName}` :
+            `Guest Booking #${booking.id}`
+          }
+        </div>
+        <div className="text-sm text-muted-foreground">
+          Seated at: {booking.arrivedAt ? format(new Date(booking.arrivedAt), "h:mm a") : 'Unknown'}
+        </div>
+        {booking.arrivedAt && (
+          <div className="text-sm font-medium text-primary">
+            Time seated: {elapsedTime}
+          </div>
+        )}
+        <div className="text-sm">
+          Party size: {booking.partySize}
+        </div>
+        <div className="text-sm text-muted-foreground">
+          Branch: {booking.branch.address}, {booking.branch.city}
+        </div>
+      </div>
+      <div className="flex items-center">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (window.confirm('Are you sure you want to mark this booking as complete?')) {
+              markBookingCompleteMutation.mutate(booking.id);
+            }
+          }}
+          disabled={markBookingCompleteMutation.isPending}
+          className="text-primary hover:text-primary-foreground hover:bg-primary"
+        >
+          Booking Over
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 export default function RestaurantDashboard() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -802,66 +861,12 @@ export default function RestaurantDashboard() {
               <CardContent>
                 {currentlySeatedBookings && currentlySeatedBookings.length > 0 ? (
                   <div className="space-y-4">
-                    {currentlySeatedBookings.map((booking) => {
-                      const [elapsedTime, setElapsedTime] = useState(
-                        booking.arrivedAt ? formatElapsedTime(booking.arrivedAt) : ''
-                      );
-
-                      useEffect(() => {
-                        if (!booking.arrivedAt) return;
-
-                        const timer = setInterval(() => {
-                          setElapsedTime(formatElapsedTime(booking.arrivedAt!));
-                        }, 1000);
-
-                        return () => clearInterval(timer);
-                      }, [booking.arrivedAt]);
-
-                      return (
-                        <div
-                          key={booking.id}
-                          className="flex items-center justify-between p-4 border rounded-lg bg-muted/50"
-                        >
-                          <div>
-                            <div className="font-medium">
-                              {booking.user ?
-                                `${booking.user.firstName} ${booking.user.lastName}` :
-                                `Guest Booking #${booking.id}`
-                              }
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              Seated at: {booking.arrivedAt ? format(new Date(booking.arrivedAt), "h:mm a") : 'Unknown'}
-                            </div>
-                            {booking.arrivedAt && (
-                              <div className="text-sm font-medium text-primary">
-                                Time seated: {elapsedTime}
-                              </div>
-                            )}
-                            <div className="text-sm">
-                              Party size: {booking.partySize}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              Branch: {booking.branch.address}, {booking.branch.city}
-                            </div>
-                          </div>
-                          <div className="flex items-center">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                if (window.confirm('Are you sure you want to mark this booking as complete?')) {
-                                  markBookingCompleteMutation.mutate(booking.id);
-                                }
-                              }}
-                              disabled={markBookingCompleteMutation.isPending}
-                              className="text-primary hover:text-primary-foreground hover:bg-primary"
-                            >
-                              Booking Over
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {currentlySeatedBookings.map((booking) => (
+                      <CurrentlySeatedBooking 
+                        key={booking.id} 
+                        booking={booking} 
+                      />
+                    ))}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
