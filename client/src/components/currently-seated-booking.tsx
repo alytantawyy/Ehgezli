@@ -34,18 +34,18 @@ export function CurrentlySeatedBooking({
   isMarkingComplete
 }: CurrentlySeatedBookingProps) {
   const [elapsedTime, setElapsedTime] = useState(
-    booking.arrivedAt ? formatElapsedTime(booking.arrivedAt) : ''
+    booking.date ? formatElapsedTime(booking.date) : ''
   );
 
   useEffect(() => {
-    if (!booking.arrivedAt) return;
+    if (!booking.date) return;
 
     const timer = setInterval(() => {
-      setElapsedTime(formatElapsedTime(booking.arrivedAt!));
+      setElapsedTime(formatElapsedTime(booking.date));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [booking.arrivedAt]);
+  }, [booking.date]);
 
   return (
     <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
@@ -57,11 +57,11 @@ export function CurrentlySeatedBooking({
           }
         </div>
         <div className="text-sm text-muted-foreground">
-          Seated at: {booking.arrivedAt ? format(new Date(booking.arrivedAt), "h:mm a") : 'Unknown'}
+          Booking Started: {booking.date ? format(new Date(booking.date), "h:mm:ss a") : 'Unknown'}
         </div>
-        {booking.arrivedAt && (
+        {booking.date && (
           <div className="text-sm font-medium text-primary">
-            Time seated: {elapsedTime}
+            Time Elapsed: {elapsedTime}
           </div>
         )}
         <div className="text-sm">

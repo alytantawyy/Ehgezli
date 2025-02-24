@@ -638,7 +638,8 @@ function RestaurantDashboardContent() {
                       <CurrentlySeatedBooking
                         key={booking.id}
                         booking={booking}
-                        markBookingCompleteMutation={markBookingCompleteMutation}
+                        onMarkComplete={(bookingId) => markBookingCompleteMutation.mutate(bookingId)}
+                        isMarkingComplete={markBookingCompleteMutation.isPending}
                       />
                     ))}
                   </div>
