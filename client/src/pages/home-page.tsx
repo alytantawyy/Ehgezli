@@ -72,7 +72,7 @@ export default function HomePage() {
             <img 
               src="/Ehgezli-logo.png" 
               alt="Ehgezli Logo" 
-              className="h-8 w-auto"
+              className="h-10 w-auto object-contain"
             />
           </div>
           <div className="flex items-center gap-4">
