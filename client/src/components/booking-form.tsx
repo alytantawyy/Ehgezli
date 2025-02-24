@@ -11,8 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -63,14 +62,12 @@ const generateTimeSlots = async (
   }
 
   try {
-    console.log('Fetching availability for:', { 
-      restaurantId, 
-      branchId, 
-      date: bookingDate.toISOString() 
-    });
+    // Format date as ISO string but only include the date part
+    const dateStr = format(bookingDate, 'yyyy-MM-dd');
+    console.log('Fetching availability for:', { restaurantId, branchId, dateStr });
 
     const response = await fetch(
-      `/api/restaurants/${restaurantId}/branches/${branchId}/availability?date=${bookingDate.toISOString()}`,
+      `/api/restaurants/${restaurantId}/branches/${branchId}/availability?date=${dateStr}`,
       { credentials: 'include' }
     );
 
@@ -86,32 +83,18 @@ const generateTimeSlots = async (
     const [openHour, openMinute] = openingTime.split(':').map(Number);
     const [closeHour, closeMinute] = closingTime.split(':').map(Number);
 
-    let currentTime = new Date(bookingDate);
+    let currentTime = new Date();
     currentTime.setHours(openHour, openMinute, 0, 0);
+    currentTime.setDate(bookingDate.getDate()); //Added to set correct date
+    currentTime.setMonth(bookingDate.getMonth()); //Added to set correct month
+    currentTime.setFullYear(bookingDate.getFullYear()); //Added to set correct year
 
-    const endTime = new Date(bookingDate);
+
+    const endTime = new Date();
     endTime.setHours(closeHour, closeMinute, 0, 0);
-
-    // If booking is for today, start from current time
-    const now = new Date();
-    if (
-      bookingDate.getDate() === now.getDate() &&
-      bookingDate.getMonth() === now.getMonth() &&
-      bookingDate.getFullYear() === now.getFullYear()
-    ) {
-      let startHour = now.getHours();
-      let startMinute = now.getMinutes();
-
-      // Round up to the next 30-minute slot
-      if (startMinute > 30) {
-        startHour += 1;
-        startMinute = 0;
-      } else if (startMinute > 0) {
-        startMinute = 30;
-      }
-
-      currentTime.setHours(startHour, startMinute, 0, 0);
-    }
+    endTime.setDate(bookingDate.getDate()); //Added to set correct date
+    endTime.setMonth(bookingDate.getMonth()); //Added to set correct month
+    endTime.setFullYear(bookingDate.getFullYear()); //Added to set correct year
 
     while (currentTime < endTime) {
       const timeSlot = format(currentTime, 'HH:mm');
@@ -131,7 +114,7 @@ const generateTimeSlots = async (
     return slots;
   } catch (error) {
     console.error('Error generating time slots:', error);
-    return [];
+    throw error;
   }
 };
 
@@ -146,6 +129,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const { toast } = useToast();
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
@@ -172,6 +156,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
         if (branches[branchIndex]) {
           setBranchId(branches[branchIndex].id);
+        } else {
+          throw new Error('Branch not found');
         }
       } catch (error) {
         console.error('Error fetching branch:', error);
@@ -192,24 +178,38 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       console.log('Updating time slots:', { selectedDate, branchId });
 
       if (selectedDate && branchId) {
-        const slots = await generateTimeSlots(
-          openingTime,
-          closingTime,
-          selectedDate,
-          restaurantId,
-          branchId
-        );
-        setTimeSlots(slots);
-
-        // Clear time selection if the previously selected time is no longer available
-        const currentTime = form.getValues("time");
-        if (currentTime) {
-          const isTimeStillAvailable = slots.some(
-            slot => slot.time === currentTime && slot.available
+        setIsLoadingSlots(true);
+        try {
+          const slots = await generateTimeSlots(
+            openingTime,
+            closingTime,
+            selectedDate,
+            restaurantId,
+            branchId
           );
-          if (!isTimeStillAvailable) {
-            form.setValue("time", "", { shouldValidate: true });
+          setTimeSlots(slots);
+
+          // Clear time selection if the previously selected time is no longer available
+          const currentTime = form.getValues("time");
+          if (currentTime) {
+            const isTimeStillAvailable = slots.some(
+              slot => slot.time === currentTime && slot.available
+            );
+            if (!isTimeStillAvailable) {
+              form.setValue("time", "", { shouldValidate: true });
+            }
           }
+        } catch (error) {
+          console.error('Error updating time slots:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load available time slots. Please try again.",
+            variant: "destructive",
+          });
+          setTimeSlots([]);
+          form.setValue("time", "", { shouldValidate: true });
+        } finally {
+          setIsLoadingSlots(false);
         }
       } else {
         setTimeSlots([]);
@@ -217,7 +217,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       }
     };
     updateTimeSlots();
-  }, [form, openingTime, closingTime, branchId, restaurantId]);
+  }, [form.watch("date"), branchId, openingTime, closingTime, restaurantId, toast]);
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
@@ -268,7 +268,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       toast({
         title: "Booking Submitted",
         description: "Your booking request has been submitted successfully.",
@@ -357,6 +356,10 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                   {!form.getValues("date") ? (
                     <SelectItem value="no-date" disabled>
                       Please select a date first
+                    </SelectItem>
+                  ) : isLoadingSlots ? (
+                    <SelectItem value="loading" disabled>
+                      Loading available times...
                     </SelectItem>
                   ) : timeSlots.length > 0 ? (
                     timeSlots.map((slot) => (
