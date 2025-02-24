@@ -33,8 +33,12 @@ import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
 const bookingSchema = z.object({
-  date: z.date(),
-  time: z.string(),
+  date: z.date({
+    required_error: "Please select a date",
+  }),
+  time: z.string({
+    required_error: "Please select a time",
+  }),
   partySize: z.number().min(1, "Party size must be at least 1").max(20, "Party size cannot exceed 20")
 });
 
@@ -89,7 +93,9 @@ const generateTimeSlots = async (
 
   // Fetch availability for all time slots
   try {
-    const response = await fetch(`/api/restaurants/${restaurantId}/branches/${branchId}/availability?date=${bookingDate.toISOString()}`);
+    const response = await fetch(`/api/restaurants/${restaurantId}/branches/${branchId}/availability?date=${bookingDate.toISOString()}`, {
+      credentials: 'include'
+    });
     if (!response.ok) throw new Error('Failed to fetch availability');
     const availability = await response.json();
 
@@ -166,6 +172,20 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           branchId
         );
         setTimeSlots(slots);
+
+        // Clear time selection if the previously selected time is no longer available
+        const currentTime = form.getValues("time");
+        if (currentTime) {
+          const isTimeStillAvailable = slots.some(
+            slot => slot.time === currentTime && slot.available
+          );
+          if (!isTimeStillAvailable) {
+            form.setValue("time", "", { shouldValidate: true });
+          }
+        }
+      } else {
+        setTimeSlots([]);
+        form.setValue("time", "", { shouldValidate: true });
       }
     };
     updateTimeSlots();
@@ -178,7 +198,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           throw new Error('Invalid branch selection');
         }
 
-        // Create the booking
+        // Create the booking date
         const bookingDate = new Date(
           data.date.getFullYear(),
           data.date.getMonth(),
@@ -271,7 +291,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                   <Calendar
                     mode="single"
                     selected={field.value}
-                    onSelect={field.onChange}
+                    onSelect={(date) => {
+                      field.onChange(date);
+                      // Clear time when date changes
+                      form.setValue("time", "", { shouldValidate: true });
+                    }}
                     disabled={(date) => {
                       const today = startOfToday();
                       return date < today || date > new Date(2025, 10, 1);
@@ -302,7 +326,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {timeSlots.length > 0 ? (
+                  {!form.getValues("date") ? (
+                    <SelectItem value="no-date" disabled>
+                      Please select a date first
+                    </SelectItem>
+                  ) : timeSlots.length > 0 ? (
                     timeSlots.map((slot) => (
                       <SelectItem
                         key={slot.time}
@@ -318,8 +346,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem key="no-slots" value="no-slots" disabled>
-                      Select a date first
+                    <SelectItem value="no-slots" disabled>
+                      No available time slots
                     </SelectItem>
                   )}
                 </SelectContent>
@@ -353,7 +381,12 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         <Button
           type="submit"
           className="w-full"
-          disabled={bookingMutation.isPending || !form.formState.isValid || !form.getValues("time") || !form.getValues("date") }
+          disabled={
+            bookingMutation.isPending || 
+            !form.formState.isValid || 
+            !form.getValues("time") || 
+            !form.getValues("date")
+          }
         >
           {bookingMutation.isPending ? "Submitting..." : "Submit Booking"}
         </Button>

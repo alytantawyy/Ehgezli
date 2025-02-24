@@ -8,6 +8,7 @@ import { db } from "./db";
 import { and, eq, sql } from "drizzle-orm";
 import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles } from "@shared/schema";
 import { parse as parseCookie } from 'cookie';
+import passport from 'passport'; //Import passport
 
 // Define WebSocket message types
 type WebSocketMessage = {
@@ -33,6 +34,26 @@ export function registerRoutes(app: Express): Server {
     }
     next(err);
   });
+
+  // Restaurant login endpoint - add before general auth middleware
+  app.post("/api/restaurant/login", async (req, res, next) => {
+    passport.authenticate('restaurant-local', (err: any, user: any, info: any) => {
+      if (err) {
+        return res.status(500).json({ message: "Authentication error occurred" });
+      }
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      }
+
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({ message: "Login error occurred" });
+        }
+        res.status(200).json(user);
+      });
+    })(req, res, next);
+  });
+
 
   // Set up authentication first to ensure session is available for WebSocket
   setupAuth(app);
