@@ -2,6 +2,7 @@ import { RestaurantGrid } from "@/components/restaurant-grid";
 import { UserNav } from "@/components/user-nav";
 import { SearchBar } from "@/components/SearchBar";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -43,12 +44,32 @@ const PRICE_RANGES = [
   { value: "$$$$", label: "$$$$" }
 ];
 
+const getTimeBasedGreeting = (firstName: string) => {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour <= 11) {
+    return `Good morning, ${firstName}`;
+  } else if (hour > 11 && hour <= 18) {
+    return `Good afternoon, ${firstName}`;
+  } else {
+    return `Good evening, ${firstName}`;
+  }
+};
+
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
   const [selectedCuisine, setSelectedCuisine] = useState<string | undefined>(undefined);
   const [selectedPriceRange, setSelectedPriceRange] = useState<string | undefined>(undefined);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const { data: user } = useQuery({
+    queryKey: ["/api/user"],
+    queryFn: async () => {
+      const response = await fetch("/api/user", { credentials: 'include' });
+      if (!response.ok) return null;
+      return response.json();
+    },
+  });
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -71,11 +92,16 @@ export default function HomePage() {
           <div className="flex items-center gap-4">
             <UserNav />
             <img 
-              src="/Ehgezli-logo.png" 
+              src="/Ehgezli-logo-white.png" 
               alt="Ehgezli Logo" 
               className="h-10 w-auto object-contain"
             />
           </div>
+          {user && (
+            <div className="text-lg font-medium">
+              {getTimeBasedGreeting(user.firstName)}
+            </div>
+          )}
         </div>
       </header>
 
