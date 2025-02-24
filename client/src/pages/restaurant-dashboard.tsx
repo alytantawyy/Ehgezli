@@ -401,8 +401,8 @@ export default function RestaurantDashboard() {
 
 
   const filteredBookings = bookings?.filter(booking => {
-    // Skip completed bookings
-    if (booking.completed) {
+    // Skip completed bookings and arrived bookings
+    if (booking.completed || booking.arrived) {
       return false;
     }
 
