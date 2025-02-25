@@ -269,8 +269,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     },
     onSuccess: () => {
       toast({
-        title: "Booking Submitted",
-        description: "Your booking request has been submitted successfully.",
+        title: "Booking Confirmed",
+        description: "Your booking has been confirmed successfully.",
       });
       form.reset();
     },
