@@ -148,7 +148,7 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
 
       toast({
         title: "Booking Confirmed",
-        description: "The reservation has been confirmed successfully.",
+        description: "You're booking is confirmed, have fun! :)",
       });
 
       triggerConfetti();

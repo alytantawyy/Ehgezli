@@ -270,7 +270,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     onSuccess: () => {
       toast({
         title: "Booking Confirmed",
-        description: "Your booking has been confirmed successfully.",
+        description: "You're booking is confirmed, have fun! :)",
       });
       form.reset();
     },
