@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import confetti from 'canvas-confetti';
 import {
   Form,
   FormControl,
@@ -130,6 +131,53 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+
+  const triggerConfetti = () => {
+    const count = 200;
+    const defaults = {
+      origin: { y: 0.7 },
+      spread: 360,
+      ticks: 50,
+      gravity: 0,
+      decay: 0.94,
+      startVelocity: 30,
+    };
+
+    function fire(particleRatio: number, opts: any) {
+      confetti({
+        ...defaults,
+        ...opts,
+        particleCount: Math.floor(count * particleRatio),
+      });
+    }
+
+    fire(0.25, {
+      spread: 26,
+      startVelocity: 55,
+    });
+
+    fire(0.2, {
+      spread: 60,
+    });
+
+    fire(0.35, {
+      spread: 100,
+      decay: 0.91,
+      scalar: 0.8,
+    });
+
+    fire(0.1, {
+      spread: 120,
+      startVelocity: 25,
+      decay: 0.92,
+      scalar: 1.2,
+    });
+
+    fire(0.1, {
+      spread: 120,
+      startVelocity: 45,
+    });
+  };
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
@@ -272,6 +320,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         title: "Booking Confirmed",
         description: "You're booking is confirmed, have fun! :)",
       });
+      triggerConfetti();
       form.reset();
     },
     onError: (error: Error) => {
@@ -371,8 +420,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                           !slot.available && "text-muted-foreground opacity-50"
                         )}
                       >
-                        {slot.time} {slot.available ? 
-                          `(${slot.availableSeats} seats available)` : 
+                        {slot.time} {slot.available ?
+                          `(${slot.availableSeats} seats available)` :
                           '(No seats available)'}
                       </SelectItem>
                     ))
@@ -413,9 +462,9 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           type="submit"
           className="w-full"
           disabled={
-            bookingMutation.isPending || 
-            !form.formState.isValid || 
-            !form.getValues("time") || 
+            bookingMutation.isPending ||
+            !form.formState.isValid ||
+            !form.getValues("time") ||
             !form.getValues("date")
           }
         >
