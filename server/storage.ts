@@ -250,7 +250,9 @@ export class DatabaseStorage implements IStorage {
           date: date,
           partySize: booking.partySize,
           confirmed: true,
-          arrived: false
+          arrived: false,
+          arrivedAt: null,
+          completed: false
         })
         .returning();
 
