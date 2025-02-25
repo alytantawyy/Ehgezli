@@ -73,7 +73,12 @@ export function registerRoutes(app: Express): Server {
 
       // Get all confirmed bookings for this branch on the requested date
       const existingBookings = await db
-        .select()
+        .select({
+          id: bookings.id,
+          date: bookings.date,
+          partySize: bookings.partySize,
+          confirmed: bookings.confirmed
+        })
         .from(bookings)
         .where(
           and(
