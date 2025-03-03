@@ -21,6 +21,7 @@ import { AddReservationModal } from "@/components/add-reservation-modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CurrentlySeatedBooking } from "@/components/currently-seated-booking";
 import { getCurrentTimeSlot, generateTimeSlots, getBookingsForSeatCalculation, getAvailableSeats } from "@/lib/utils/time-utils";
+import { Input } from "@/components/ui/input";
 
 export interface BookingWithDetails {
   id: number;
@@ -52,6 +53,7 @@ function RestaurantDashboardContent() {
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Early return if no auth
   if (!auth) {
@@ -299,6 +301,14 @@ function RestaurantDashboardContent() {
     return true;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
+  const filteredFutureBookings = futureBookings?.filter(booking => {
+    if (!searchQuery) return true;
+
+    const searchLower = searchQuery.toLowerCase();
+    const fullName = `${booking.user?.firstName || ''} ${booking.user?.lastName || ''}`.toLowerCase();
+
+    return fullName.includes(searchLower);
+  }) || [];
 
   const getTotalSeats = () => {
     if (!restaurant.locations) return 0;
@@ -657,6 +667,14 @@ function RestaurantDashboardContent() {
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle>Future Bookings</CardTitle>
                 <div className="flex items-center gap-4">
+                  <div className="w-[300px]">
+                    <Input
+                      placeholder="Search by customer name..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="max-w-sm"
+                    />
+                  </div>
                   <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                     <SelectTrigger className="w-[200px]">
                       <SelectValue placeholder="All Branches" />
@@ -673,9 +691,9 @@ function RestaurantDashboardContent() {
                 </div>
               </CardHeader>
               <CardContent>
-                {futureBookings.length > 0 ? (
+                {filteredFutureBookings.length > 0 ? (
                   <div className="space-y-4">
-                    {futureBookings.map((booking) => (
+                    {filteredFutureBookings.map((booking) => (
                       <div
                         key={booking.id}
                         className="flex items-center justify-between p-4 border rounded-lg"
@@ -697,7 +715,7 @@ function RestaurantDashboardContent() {
                             Branch: {booking.branch.address}, {booking.branch.city}
                           </div>
                         </div>
-                        <div className="flex items-center gap2">
+                        <div className="flex items-center gap-2">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
