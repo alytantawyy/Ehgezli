@@ -248,9 +248,18 @@ function RestaurantDashboardContent() {
       return false;
     }
 
-    // Apply date filter
-    if (selectedDate && !isSameDay(new Date(booking.date), selectedDate)) {
-      return false;
+    // Apply date filter if selected
+    if (selectedDate) {
+      if (!isSameDay(new Date(booking.date), selectedDate)) {
+        return false;
+      }
+    } else {
+      // If no date is selected, only show upcoming bookings
+      const bookingDate = new Date(booking.date);
+      const now = new Date();
+      if (!isSameDay(bookingDate, now) && !isAfter(bookingDate, now)) {
+        return false;
+      }
     }
 
     // Apply branch filter if selected
@@ -260,12 +269,19 @@ function RestaurantDashboardContent() {
       }
     }
 
+    // Apply time filter if selected
+    if (selectedTime !== "all") {
+      const bookingTime = format(new Date(booking.date), 'HH:mm');
+      if (bookingTime !== selectedTime) {
+        return false;
+      }
+    }
+
     // Only show confirmed bookings
     if (!booking.confirmed) {
       return false;
     }
 
-    // For Latest Bookings, we want to show both arrived and not arrived bookings
     return true;
   }) || [];
 
