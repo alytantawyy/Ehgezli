@@ -243,8 +243,8 @@ function RestaurantDashboardContent() {
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const filteredBookings = bookings?.filter(booking => {
-    // Skip completed bookings and arrived bookings
-    if (booking.completed || booking.arrived) {
+    // Skip completed bookings
+    if (booking.completed) {
       return false;
     }
 
@@ -260,11 +260,12 @@ function RestaurantDashboardContent() {
       }
     }
 
-    // Only show confirmed bookings that haven't been completed
+    // Only show confirmed bookings
     if (!booking.confirmed) {
       return false;
     }
 
+    // For Latest Bookings, we want to show both arrived and not arrived bookings
     return true;
   }) || [];
 
