@@ -136,39 +136,25 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
         partySize: data.partySize,
         branchId: parseInt(data.branchId),
         date: dateTime.toISOString(),
-        confirmed: true, // Ensure manually added bookings are confirmed
+        confirmed: true,
         arrived: false,
         completed: false
       };
 
-      console.log("Creating new booking:", bookingData);
-
-      const response = await fetch("/api/restaurant/bookings", {
+      const response = await fetch(`/api/restaurant/bookings/${auth?.id}`, {
         method: "POST",
+        credentials: 'include',
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json"
         },
-        credentials: 'include',
         body: JSON.stringify(bookingData),
       });
 
-      let responseData;
-      try {
-        // Try to parse JSON response first
-        responseData = await response.json();
-      } catch (e) {
-        // If JSON parsing fails, get text response
-        const textResponse = await response.text();
-        console.error("Failed to parse response as JSON:", textResponse);
-        throw new Error("Server Error: Please try again later");
-      }
+      const responseData = await response.json();
 
       if (!response.ok) {
         throw new Error(responseData.message || "Failed to create reservation");
       }
-
-      console.log("New booking created:", responseData);
 
       toast({
         title: "Booking Confirmed",
@@ -179,14 +165,12 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
 
       // Invalidate queries to ensure all views are updated
       if (auth?.id) {
-        console.log("Invalidating queries for restaurant:", auth.id);
         queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth.id] });
       }
 
       setOpen(false);
       form.reset();
     } catch (error) {
-      console.error("Error creating booking:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to create reservation. Please try again.",
