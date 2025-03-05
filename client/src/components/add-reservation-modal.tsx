@@ -137,6 +137,8 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
         branchId: parseInt(data.branchId),
         date: dateTime.toISOString(),
         confirmed: true, // Ensure manually added bookings are confirmed
+        arrived: false,
+        completed: false
       };
 
       console.log("Creating new booking:", bookingData);
@@ -145,18 +147,28 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json"
         },
         credentials: 'include',
         body: JSON.stringify(bookingData),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create reservation");
+      let responseData;
+      try {
+        // Try to parse JSON response first
+        responseData = await response.json();
+      } catch (e) {
+        // If JSON parsing fails, get text response
+        const textResponse = await response.text();
+        console.error("Failed to parse response as JSON:", textResponse);
+        throw new Error("Server Error: Please try again later");
       }
 
-      const newBooking = await response.json();
-      console.log("New booking created:", newBooking);
+      if (!response.ok) {
+        throw new Error(responseData.message || "Failed to create reservation");
+      }
+
+      console.log("New booking created:", responseData);
 
       toast({
         title: "Booking Confirmed",
