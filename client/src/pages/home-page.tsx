@@ -44,16 +44,6 @@ const PRICE_RANGES = [
   { value: "$$$$", label: "$$$$" }
 ];
 
-const getTimeBasedGreeting = (firstName: string) => {
-  const hour = new Date().getHours();
-  if (hour >= 6 && hour <= 11) {
-    return `Good morning, ${firstName}`;
-  } else if (hour > 11 && hour <= 18) {
-    return `Good afternoon, ${firstName}`;
-  } else {
-    return `Good evening, ${firstName}`;
-  }
-};
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -94,7 +84,7 @@ export default function HomePage() {
           </div>
           {user && (
             <div className="text-sm text-muted-foreground">
-              {getTimeBasedGreeting(user.firstName)}
+              Hey, {user.firstName}!
             </div>
           )}
         </div>
