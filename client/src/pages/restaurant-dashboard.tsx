@@ -257,7 +257,7 @@ function RestaurantDashboardContent() {
       // If no date is selected, only show upcoming bookings
       const bookingDate = new Date(booking.date);
       const now = new Date();
-      if (!isSameDay(bookingDate, now) && !isAfter(bookingDate, now)) {
+      if (!isAfter(bookingDate, now) && !isSameDay(bookingDate, now)) {
         return false;
       }
     }
@@ -278,33 +278,35 @@ function RestaurantDashboardContent() {
     }
 
     // Only show confirmed bookings
-    if (!booking.confirmed) {
-      return false;
-    }
-
-    return true;
+    return booking.confirmed;
   }) || [];
 
   const upcomingBookings = filteredBookings
     .filter(booking => {
+      // Show all confirmed bookings that haven't been completed
+      if (!booking.confirmed || booking.completed) {
+        return false;
+      }
+
       const bookingDate = new Date(booking.date);
       const now = new Date();
-      // Include bookings from today onwards that haven't arrived yet
-      return (!booking.arrived && (isSameDay(bookingDate, now) || isAfter(bookingDate, now)));
+
+      // Include all future bookings and today's bookings
+      return isAfter(bookingDate, now) || isSameDay(bookingDate, now);
     })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const futureBookings = bookings?.filter(booking => {
-    // Skip unconfirmed, completed, or arrived bookings
-    if (!booking.confirmed || booking.completed || booking.arrived) {
+    // Only show confirmed bookings that haven't been completed
+    if (!booking.confirmed || booking.completed) {
       return false;
     }
 
     const bookingDate = new Date(booking.date);
     const now = new Date();
 
-    // Show bookings from today onwards
-    if (!isSameDay(bookingDate, now) && !isAfter(bookingDate, now)) {
+    // Show all future bookings and today's bookings
+    if (!isAfter(bookingDate, now) && !isSameDay(bookingDate, now)) {
       return false;
     }
 
