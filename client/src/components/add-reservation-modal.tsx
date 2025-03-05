@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import confetti from 'canvas-confetti';
 import {
   Dialog,
@@ -63,6 +64,7 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { restaurant: auth } = useRestaurantAuth();
 
   const form = useForm<AddReservationFormData>({
     resolver: zodResolver(addReservationSchema),
@@ -128,38 +130,54 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
       const [hours, minutes] = data.time.split(":");
       dateTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
 
+      const bookingData = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        partySize: data.partySize,
+        branchId: parseInt(data.branchId),
+        date: dateTime.toISOString(),
+        confirmed: true, // Ensure manually added bookings are confirmed
+      };
+
+      console.log("Creating new booking:", bookingData);
+
       const response = await fetch("/api/restaurant/bookings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          firstName: data.firstName,
-          lastName: data.lastName,
-          partySize: data.partySize,
-          branchId: parseInt(data.branchId),
-          date: dateTime.toISOString(),
-        }),
+        credentials: 'include',
+        body: JSON.stringify(bookingData),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create reservation");
+        const error = await response.json();
+        throw new Error(error.message || "Failed to create reservation");
       }
+
+      const newBooking = await response.json();
+      console.log("New booking created:", newBooking);
 
       toast({
         title: "Booking Confirmed",
-        description: "You're booking is confirmed, have fun! :)",
+        description: "The booking has been confirmed successfully!",
       });
 
       triggerConfetti();
 
+      // Invalidate queries to ensure all views are updated
+      if (auth?.id) {
+        console.log("Invalidating queries for restaurant:", auth.id);
+        queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth.id] });
+      }
+
       setOpen(false);
       form.reset();
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings"] });
     } catch (error) {
+      console.error("Error creating booking:", error);
       toast({
         title: "Error",
-        description: "Failed to create reservation. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create reservation. Please try again.",
         variant: "destructive",
       });
     }
