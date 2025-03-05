@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import confetti from 'canvas-confetti';
 import {
   Dialog,
@@ -64,7 +63,6 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { restaurant: auth } = useRestaurantAuth();
 
   const form = useForm<AddReservationFormData>({
     resolver: zodResolver(addReservationSchema),
@@ -130,50 +128,38 @@ export function AddReservationModal({ branches, selectedBranchId }: AddReservati
       const [hours, minutes] = data.time.split(":");
       dateTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
 
-      const bookingData = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        partySize: data.partySize,
-        branchId: parseInt(data.branchId),
-        date: dateTime.toISOString(),
-        confirmed: true,
-        arrived: false,
-        completed: false
-      };
-
-      const response = await fetch(`/api/restaurant/bookings/${auth?.id}`, {
+      const response = await fetch("/api/restaurant/bookings", {
         method: "POST",
-        credentials: 'include',
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(bookingData),
+        body: JSON.stringify({
+          firstName: data.firstName,
+          lastName: data.lastName,
+          partySize: data.partySize,
+          branchId: parseInt(data.branchId),
+          date: dateTime.toISOString(),
+        }),
       });
 
-      const responseData = await response.json();
-
       if (!response.ok) {
-        throw new Error(responseData.message || "Failed to create reservation");
+        throw new Error("Failed to create reservation");
       }
 
       toast({
         title: "Booking Confirmed",
-        description: "The booking has been confirmed successfully!",
+        description: "You're booking is confirmed, have fun! :)",
       });
 
       triggerConfetti();
 
-      // Invalidate queries to ensure all views are updated
-      if (auth?.id) {
-        queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings", auth.id] });
-      }
-
       setOpen(false);
       form.reset();
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/bookings"] });
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create reservation. Please try again.",
+        description: "Failed to create reservation. Please try again.",
         variant: "destructive",
       });
     }
