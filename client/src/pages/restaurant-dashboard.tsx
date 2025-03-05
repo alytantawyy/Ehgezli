@@ -248,16 +248,14 @@ function RestaurantDashboardContent() {
       return false;
     }
 
+    // Only show confirmed bookings
+    if (!booking.confirmed) {
+      return false;
+    }
+
     // Apply date filter if selected
     if (selectedDate) {
       if (!isSameDay(new Date(booking.date), selectedDate)) {
-        return false;
-      }
-    } else {
-      // If no date is selected, only show upcoming bookings
-      const bookingDate = new Date(booking.date);
-      const now = new Date();
-      if (!isAfter(bookingDate, now) && !isSameDay(bookingDate, now)) {
         return false;
       }
     }
@@ -277,60 +275,52 @@ function RestaurantDashboardContent() {
       }
     }
 
-    // Only show confirmed bookings
-    return booking.confirmed;
+    return true;
   }) || [];
 
-  const upcomingBookings = filteredBookings
-    .filter(booking => {
-      // Show all confirmed bookings that haven't been completed
-      if (!booking.confirmed) {
-        console.log("Filtering out booking due to not confirmed:", booking.id);
-        return false;
-      }
-      if (booking.completed) {
-        console.log("Filtering out booking due to completed:", booking.id);
-        return false;
-      }
+  const upcomingBookings = bookings?.filter(booking => {
+    // Only show confirmed bookings
+    if (!booking.confirmed) {
+      return false;
+    }
 
-      const bookingDate = new Date(booking.date);
-      const now = new Date();
+    const bookingDate = new Date(booking.date);
+    const now = new Date();
 
-      // Include all future bookings and today's bookings
-      const isValidDate = isAfter(bookingDate, now) || isSameDay(bookingDate, now);
-      if (!isValidDate) {
-        console.log("Filtering out booking due to date:", booking.id, bookingDate);
-      }
-      return isValidDate;
-    })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Show today's and future bookings only
+    if (!isAfter(bookingDate, now) && !isSameDay(bookingDate, now)) {
+      return false;
+    }
 
-  console.log("All bookings:", bookings?.length);
-  console.log("Filtered bookings:", filteredBookings.length);
-  console.log("Upcoming bookings:", upcomingBookings.length);
+    // Apply branch filter if selected
+    if (selectedBranch !== "all" && booking.branchId.toString() !== selectedBranch) {
+      return false;
+    }
+
+    return true;
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
   const futureBookings = bookings?.filter(booking => {
-      // Log the booking we're processing
-      console.log("Processing booking:", {
-        id: booking.id,
-        name: booking.user?.firstName,
-        date: booking.date,
-        confirmed: booking.confirmed,
-        completed: booking.completed
-      });
+    // Only show confirmed bookings
+    if (!booking.confirmed) {
+      return false;
+    }
 
-      // Only show confirmed bookings that haven't been completed
-      if (!booking.confirmed || booking.completed) {
-        return false;
-      }
+    const bookingDate = new Date(booking.date);
+    const now = new Date();
 
-      const bookingDate = new Date(booking.date);
-      const now = new Date();
+    // Show today's and future bookings only
+    if (!isAfter(bookingDate, now) && !isSameDay(bookingDate, now)) {
+      return false;
+    }
 
-      // Show all future bookings and today's bookings
-      return isAfter(bookingDate, now) || isSameDay(bookingDate, now);
-    })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
+    // Apply branch filter if selected
+    if (selectedBranch !== "all" && booking.branchId.toString() !== selectedBranch) {
+      return false;
+    }
+
+    return true;
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
   const filteredFutureBookings = futureBookings?.filter(booking => {
     if (!searchQuery) return true;
