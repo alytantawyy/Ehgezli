@@ -5,9 +5,11 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User as SelectUser, RestaurantAuth as SelectRestaurantAuth } from "@shared/schema";
+import { User as SelectUser, RestaurantAuth as SelectRestaurantAuth, passwordResetRequestSchema, passwordResetSchema, restaurantPasswordResetRequestSchema, restaurantPasswordResetSchema } from "@shared/schema";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
+import { setupEmailTransporter, sendPasswordResetEmail } from "./email";
+import nodemailer from 'nodemailer';
 
 declare global {
   namespace Express {
@@ -19,18 +21,27 @@ declare global {
 
 const scryptAsync = promisify(scrypt);
 
-async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
+export async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  const derivedKey = await scryptAsync(password, salt, 64) as Buffer;
+  return salt + ':' + derivedKey.toString('hex');
 }
 
-async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
+async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
+  const [salt, hashed] = stored.split(":");
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
+
+// Cookie settings
+export const cookieSettings = {
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  httpOnly: true,
+  secure: false, // Set to false for development
+  sameSite: 'lax' as const,
+  path: '/'
+};
 
 export function setupAuth(app: Express) {
   app.set("trust proxy", 1);
@@ -47,18 +58,9 @@ export function setupAuth(app: Express) {
 
   storage.setSessionStore(sessionStore);
 
-  // Cookie settings
-  const cookieSettings = {
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    httpOnly: true,
-    secure: false, // Set to false for development
-    sameSite: 'lax' as const,
-    path: '/'
-  };
-
   // Session configuration
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.REPL_ID!,
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: true,
     saveUninitialized: false,
     store: sessionStore,
@@ -69,6 +71,9 @@ export function setupAuth(app: Express) {
   };
 
   app.use(session(sessionSettings));
+
+  app.use(passport.initialize());
+  app.use(passport.session());
 
   passport.serializeUser((user, done) => {
     done(null, {
@@ -101,9 +106,6 @@ export function setupAuth(app: Express) {
       done(error);
     }
   });
-
-  app.use(passport.initialize());
-  app.use(passport.session());
 
   // Restaurant authentication strategy
   passport.use('restaurant-local', new LocalStrategy({
@@ -149,48 +151,6 @@ export function setupAuth(app: Express) {
     }
   }));
 
-  // Restaurant login endpoint
-  app.post("/api/restaurant/login", (req, res, next) => {
-    passport.authenticate('restaurant-local', (err: any, user: any, info: any) => {
-      if (err) {
-        return res.status(500).json({ message: "Authentication error occurred" });
-      }
-      if (!user) {
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-
-      req.login(user, (err) => {
-        if (err) {
-          return res.status(500).json({ message: "Login error occurred" });
-        }
-
-        res.cookie('connect.sid', req.sessionID, cookieSettings);
-        res.status(200).json({ ...user, type: 'restaurant' });
-      });
-    })(req, res, next);
-  });
-
-  // User login endpoint
-  app.post("/api/login", (req, res, next) => {
-    passport.authenticate('local', (err: any, user: any, info: any) => {
-      if (err) {
-        return res.status(500).json({ message: "Authentication error occurred" });
-      }
-      if (!user) {
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-
-      req.login(user, (err) => {
-        if (err) {
-          return res.status(500).json({ message: "Login error occurred" });
-        }
-
-        res.cookie('connect.sid', req.sessionID, cookieSettings);
-        res.status(200).json(user);
-      });
-    })(req, res, next);
-  });
-
   app.post("/api/logout", (req, res, next) => {
     if (!req.isAuthenticated()) {
       return res.sendStatus(200);
@@ -224,4 +184,100 @@ export function setupAuth(app: Express) {
     }
     res.json(req.user);
   });
+
+  // Password reset request endpoint
+  app.post("/api/forgot-password", async (req, res) => {
+    try {
+      const { email } = passwordResetRequestSchema.parse(req.body);
+      const user = await storage.getUserByEmail(email);
+      
+      if (user) {
+        const token = await storage.createPasswordResetToken(user.id);
+        const info = await sendPasswordResetEmail(email, token);
+        
+        if (process.env.NODE_ENV !== 'production') {
+          return res.json({
+            message: "Password reset email sent (development mode)",
+            previewUrl: nodemailer.getTestMessageUrl(info)
+          });
+        }
+      }
+
+      // Always return success to prevent email enumeration
+      res.json({ message: "If an account exists with that email, a password reset link has been sent." });
+    } catch (error) {
+      console.error("Password reset request error:", error);
+      res.status(400).json({ message: "Invalid request" });
+    }
+  });
+
+  // Restaurant password reset request endpoint
+  app.post("/api/restaurant/forgot-password", async (req, res) => {
+    try {
+      const { email } = restaurantPasswordResetRequestSchema.parse(req.body);
+      const restaurant = await storage.getRestaurantAuthByEmail(email);
+      
+      if (restaurant) {
+        const token = await storage.createRestaurantPasswordResetToken(restaurant.id);
+        const info = await sendPasswordResetEmail(email, token, true);
+        
+        if (process.env.NODE_ENV !== 'production') {
+          return res.json({
+            message: "Password reset email sent (development mode)",
+            previewUrl: nodemailer.getTestMessageUrl(info)
+          });
+        }
+      }
+
+      // Always return success to prevent email enumeration
+      res.json({ message: "If a restaurant account exists with that email, a password reset link has been sent." });
+    } catch (error) {
+      console.error("Restaurant password reset request error:", error);
+      res.status(400).json({ message: "Invalid request" });
+    }
+  });
+
+  // Password reset endpoint
+  app.post("/api/reset-password", async (req, res) => {
+    try {
+      const { token, password } = passwordResetSchema.parse(req.body);
+      const userId = await storage.validatePasswordResetToken(token);
+
+      if (!userId) {
+        return res.status(400).json({ message: "Invalid or expired reset token" });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      await storage.updateUserPassword(userId, hashedPassword);
+      await storage.markPasswordResetTokenAsUsed(token);
+
+      res.json({ message: "Password has been reset successfully" });
+    } catch (error) {
+      console.error("Password reset error:", error);
+      res.status(400).json({ message: "Invalid request" });
+    }
+  });
+
+  // Restaurant password reset endpoint
+  app.post("/api/restaurant/reset-password", async (req, res) => {
+    try {
+      const { token, password } = restaurantPasswordResetSchema.parse(req.body);
+      const restaurantId = await storage.validateRestaurantPasswordResetToken(token);
+
+      if (!restaurantId) {
+        return res.status(400).json({ message: "Invalid or expired reset token" });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      await storage.updateRestaurantPassword(restaurantId, hashedPassword);
+      await storage.markRestaurantPasswordResetTokenAsUsed(token);
+
+      res.json({ message: "Password has been reset successfully" });
+    } catch (error) {
+      console.error("Restaurant password reset error:", error);
+      res.status(400).json({ message: "Invalid request" });
+    }
+  });
+
+  return app;
 }

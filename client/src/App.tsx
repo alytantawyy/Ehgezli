@@ -14,6 +14,10 @@ import RestaurantDashboard from "@/pages/restaurant-dashboard";
 import UserBookings from "@/pages/user-bookings";
 import SavedRestaurants from "@/pages/saved-restaurants";
 import PreviousBookings from "@/pages/previous-bookings";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
+import RestaurantForgotPasswordPage from "@/pages/restaurant/forgot-password";
+import RestaurantResetPasswordPage from "@/pages/restaurant/reset-password";
 import { ProtectedRoute } from "./lib/protected-route";
 import { ProtectedRestaurantRoute } from "./lib/protected-restaurant-route";
 
@@ -22,6 +26,10 @@ function Router() {
     <ErrorBoundary>
       <Switch>
         <Route path="/auth" component={AuthPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+        <Route path="/restaurant/forgot-password" component={RestaurantForgotPasswordPage} />
+        <Route path="/restaurant/reset-password" component={RestaurantResetPasswordPage} />
         <ProtectedRestaurantRoute
           path="/restaurant/dashboard"
           component={RestaurantDashboard}

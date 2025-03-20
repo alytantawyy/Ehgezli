@@ -116,6 +116,14 @@ export default function RestaurantAuthForm() {
             >
               {loginMutation.isPending ? "Logging in..." : "Login"}
             </Button>
+            <div className="text-center mt-2">
+              <a
+                href="/restaurant/forgot-password"
+                className="text-sm text-muted-foreground hover:text-primary"
+              >
+                Forgot your password?
+              </a>
+            </div>
           </form>
         </Form>
       </TabsContent>

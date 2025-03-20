@@ -2,13 +2,15 @@ import {
   InsertUser, User, Restaurant, Booking, RestaurantBranch,
   mockRestaurants, RestaurantAuth, InsertRestaurantAuth,
   restaurantProfiles, restaurantBranches, bookings, users,
-  type InsertRestaurantProfile, RestaurantProfile, restaurants, restaurantAuth
+  type InsertRestaurantProfile, RestaurantProfile, restaurants, restaurantAuth,
+  passwordResetTokens, restaurantPasswordResetTokens
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gt, sql, desc, inArray } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
+import * as crypto from 'crypto';
 
 const PostgresSessionStore = connectPg(session);
 
@@ -33,6 +35,14 @@ export interface IStorage {
   markBookingArrived(bookingId: number, arrivedAt: string): Promise<void>;
   markBookingComplete(bookingId: number): Promise<void>;
   cancelBooking(bookingId: number): Promise<void>;
+  createPasswordResetToken(userId: number): Promise<string>;
+  validatePasswordResetToken(token: string): Promise<number | null>;
+  markPasswordResetTokenAsUsed(token: string): Promise<void>;
+  updateUserPassword(userId: number, hashedPassword: string): Promise<void>;
+  createRestaurantPasswordResetToken(restaurantId: number): Promise<string>;
+  validateRestaurantPasswordResetToken(token: string): Promise<number | null>;
+  markRestaurantPasswordResetTokenAsUsed(token: string): Promise<void>;
+  updateRestaurantPassword(restaurantId: number, hashedPassword: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -232,6 +242,7 @@ export class DatabaseStorage implements IStorage {
 
   async createBooking(booking: Omit<Booking, "id" | "confirmed">): Promise<Booking> {
     try {
+      console.log('Creating booking:', booking);
       const date = booking.date instanceof Date ? booking.date : new Date(booking.date);
 
       const [branch] = await db
@@ -240,22 +251,25 @@ export class DatabaseStorage implements IStorage {
         .where(eq(restaurantBranches.id, booking.branchId));
 
       if (!branch) {
-        throw new Error('Restaurant branch not found');
+        throw new Error('Branch not found');
       }
 
-      const [newBooking] = await db.insert(bookings)
+      console.log('Inserting booking with values:', {
+        ...booking,
+        date,
+        confirmed: true
+      });
+
+      const [newBooking] = await db
+        .insert(bookings)
         .values({
-          userId: booking.userId,
-          branchId: booking.branchId,
-          date: date,
-          partySize: booking.partySize,
-          confirmed: true,
-          arrived: false,
-          arrivedAt: null,
-          completed: false
+          ...booking,
+          date,
+          confirmed: true
         })
         .returning();
 
+      console.log('Created booking:', newBooking);
       return newBooking;
     } catch (error) {
       console.error('Error creating booking:', error);
@@ -263,24 +277,36 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getUserBookings(userId: number): Promise<(Booking & { restaurantName: string })[]> {
-    const bookingsWithRestaurants = await db
-      .select({
-        id: bookings.id,
-        userId: bookings.userId,
-        branchId: bookings.branchId,
-        date: bookings.date,
-        partySize: bookings.partySize,
-        confirmed: bookings.confirmed,
-        arrived: bookings.arrived,
-        restaurantName: restaurantAuth.name,
-      })
-      .from(bookings)
-      .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
-      .innerJoin(restaurantAuth, eq(restaurantBranches.restaurantId, restaurantAuth.id))
-      .where(eq(bookings.userId, userId));
+  async getUserBookings(userId: number): Promise<(Booking & { restaurantName: string, restaurantId: number, branchRestaurantId: number })[]> {
+    try {
+      console.log('Fetching bookings for user:', userId);
+      
+      const bookingsWithRestaurants = await db
+        .select({
+          id: bookings.id,
+          userId: bookings.userId,
+          branchId: bookings.branchId,
+          date: bookings.date,
+          partySize: bookings.partySize,
+          confirmed: bookings.confirmed,
+          arrived: bookings.arrived,
+          arrivedAt: bookings.arrivedAt,
+          completed: bookings.completed,
+          restaurantName: restaurantAuth.name,
+          restaurantId: restaurantAuth.id,
+          branchRestaurantId: restaurantBranches.restaurantId
+        })
+        .from(bookings)
+        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
+        .innerJoin(restaurantAuth, eq(restaurantBranches.restaurantId, restaurantAuth.id))
+        .where(eq(bookings.userId, userId));
 
-    return bookingsWithRestaurants;
+      console.log('Found bookings with restaurants:', bookingsWithRestaurants);
+      return bookingsWithRestaurants;
+    } catch (error) {
+      console.error('Error fetching user bookings:', error);
+      throw error;
+    }
   }
 
   async getRestaurantBookings(restaurantId: number): Promise<Booking[]> {
@@ -289,24 +315,11 @@ export class DatabaseStorage implements IStorage {
 
       const [restaurant] = await db
         .select()
-        .from(restaurantAuth)
-        .where(eq(restaurantAuth.id, restaurantId));
+        .from(restaurants)
+        .where(eq(restaurants.id, restaurantId));
 
       if (!restaurant) {
-        console.log('Restaurant not found:', restaurantId);
-        throw new Error('Restaurant not found');
-      }
-
-      const branches = await db
-        .select()
-        .from(restaurantBranches)
-        .where(eq(restaurantBranches.restaurantId, restaurantId));
-
-      console.log(`Found ${branches.length} branches for restaurant ${restaurantId}:`, branches);
-
-      if (!branches.length) {
-        console.log(`No branches found for restaurant ${restaurantId}`);
-        return [];
+        throw new Error(`Restaurant ${restaurantId} not found`);
       }
 
       const bookingsWithDetails = await db
@@ -318,31 +331,25 @@ export class DatabaseStorage implements IStorage {
           partySize: bookings.partySize,
           confirmed: bookings.confirmed,
           arrived: bookings.arrived,
+          arrivedAt: bookings.arrivedAt,
           completed: bookings.completed,
           user: {
             firstName: users.firstName,
-            lastName: users.lastName
+            lastName: users.lastName,
           },
           branch: {
             address: restaurantBranches.address,
-            city: restaurantBranches.city
+            city: restaurantBranches.city,
           }
         })
         .from(bookings)
-        .innerJoin(
-          restaurantBranches,
-          and(
-            eq(bookings.branchId, restaurantBranches.id),
-            eq(restaurantBranches.restaurantId, restaurantId)
-          )
-        )
-        .leftJoin(users, eq(bookings.userId, users.id))
-        .where(eq(bookings.confirmed, true));
+        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
+        .innerJoin(users, eq(bookings.userId, users.id))
+        .where(eq(restaurantBranches.restaurantId, restaurantId));
 
-      console.log(`Found ${bookingsWithDetails.length} confirmed bookings for restaurant ${restaurantId}:`, bookingsWithDetails);
       return bookingsWithDetails;
     } catch (error) {
-      console.error('Error fetching restaurant bookings:', error);
+      console.error("Error fetching restaurant bookings:", error);
       throw error;
     }
   }
@@ -466,6 +473,93 @@ export class DatabaseStorage implements IStorage {
       return matchesName || matchesCuisine || matchesLocation;
     });
   }
+
+  async createPasswordResetToken(userId: number): Promise<string> {
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour from now
+
+    await db.insert(passwordResetTokens).values({
+      userId,
+      token,
+      expiresAt,
+      used: false,
+    });
+
+    return token;
+  }
+
+  async createRestaurantPasswordResetToken(restaurantId: number): Promise<string> {
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour from now
+
+    await db.insert(restaurantPasswordResetTokens).values({
+      restaurantId,
+      token,
+      expiresAt,
+      used: false,
+    });
+
+    return token;
+  }
+
+  async validatePasswordResetToken(token: string): Promise<number | null> {
+    const [resetToken] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(
+        and(
+          eq(passwordResetTokens.token, token),
+          eq(passwordResetTokens.used, false),
+          gt(passwordResetTokens.expiresAt, new Date())
+        )
+      );
+
+    return resetToken?.userId ?? null;
+  }
+
+  async validateRestaurantPasswordResetToken(token: string): Promise<number | null> {
+    const [resetToken] = await db
+      .select()
+      .from(restaurantPasswordResetTokens)
+      .where(
+        and(
+          eq(restaurantPasswordResetTokens.token, token),
+          eq(restaurantPasswordResetTokens.used, false),
+          gt(restaurantPasswordResetTokens.expiresAt, new Date())
+        )
+      );
+
+    return resetToken?.restaurantId ?? null;
+  }
+
+  async markPasswordResetTokenAsUsed(token: string): Promise<void> {
+    await db
+      .update(passwordResetTokens)
+      .set({ used: true })
+      .where(eq(passwordResetTokens.token, token));
+  }
+
+  async markRestaurantPasswordResetTokenAsUsed(token: string): Promise<void> {
+    await db
+      .update(restaurantPasswordResetTokens)
+      .set({ used: true })
+      .where(eq(restaurantPasswordResetTokens.token, token));
+  }
+
+  async updateUserPassword(userId: number, hashedPassword: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ password: hashedPassword })
+      .where(eq(users.id, userId));
+  }
+
+  async updateRestaurantPassword(restaurantId: number, hashedPassword: string): Promise<void> {
+    await db
+      .update(restaurantAuth)
+      .set({ password: hashedPassword })
+      .where(eq(restaurantAuth.id, restaurantId));
+  }
+
   async markBookingArrived(bookingId: number, arrivedAt: string): Promise<void> {
     try {
       await db.update(bookings)
@@ -479,6 +573,7 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
+
   async markBookingComplete(bookingId: number): Promise<void> {
     try {
       await db.update(bookings)
@@ -489,6 +584,7 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
+
   async cancelBooking(bookingId: number): Promise<void> {
     try {
       await db.update(bookings)

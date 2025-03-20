@@ -22,13 +22,33 @@ interface BookingWithRestaurant extends Booking {
 export default function UserBookings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: bookings, isLoading } = useQuery<BookingWithRestaurant[]>({
-    queryKey: ["/api/bookings"],
+
+  // Add user query to check authentication
+  const { data: user, isLoading: isUserLoading } = useQuery({
+    queryKey: ["/api/user"],
     queryFn: async () => {
-      const response = await fetch("/api/bookings");
-      if (!response.ok) throw new Error("Failed to fetch bookings");
+      const response = await fetch("/api/user", {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error("Not authenticated");
       return response.json();
     },
+  });
+
+  const { data: bookings, isLoading: isLoadingBookings } = useQuery<BookingWithRestaurant[]>({
+    queryKey: ["/api/bookings"],
+    queryFn: async () => {
+      const response = await fetch("/api/bookings", {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to fetch bookings");
+      }
+      return response.json();
+    },
+    // Only fetch bookings if user is authenticated
+    enabled: !!user,
   });
 
   const cancelBookingMutation = useMutation({
@@ -59,7 +79,7 @@ export default function UserBookings() {
     },
   });
 
-  if (isLoading) {
+  if (isUserLoading || isLoadingBookings) {
     return (
       <div className="container mx-auto py-8">
         <h1 className="text-2xl font-bold mb-6">My Bookings</h1>
@@ -67,6 +87,17 @@ export default function UserBookings() {
           {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" />
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="container mx-auto py-8">
+        <h1 className="text-2xl font-bold mb-6">My Bookings</h1>
+        <div className="text-center py-8 bg-gray-50 rounded-lg">
+          <p className="text-lg text-muted-foreground">You are not authenticated. Please log in to view your bookings.</p>
         </div>
       </div>
     );

@@ -138,6 +138,14 @@ export default function AuthPage() {
                     >
                       {loginMutation.isPending ? "Logging in..." : "Login"}
                     </Button>
+                    <div className="text-center mt-2">
+                      <a
+                        href="/forgot-password"
+                        className="text-sm text-muted-foreground hover:text-primary"
+                      >
+                        Forgot your password?
+                      </a>
+                    </div>
                   </form>
                 </Form>
               </CardContent>
@@ -279,7 +287,7 @@ export default function AuthPage() {
                           <FormLabel>What do you like to eat? (Max 3)</FormLabel>
                           <Select
                             onValueChange={(value: string) => {
-                              const currentValues = field.value || [];
+                              const currentValues: string[] = field.value ?? [];
                               if (currentValues.length < 3 && !currentValues.includes(value)) {
                                 field.onChange([...currentValues, value]);
                               }
@@ -291,7 +299,10 @@ export default function AuthPage() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {CUISINES.filter(cuisine => !field.value?.includes(cuisine)).map((cuisine: string) => (
+                              {CUISINES.filter(cuisine => {
+                                const selectedCuisines = field.value as string[] | undefined;
+                                return !(selectedCuisines ?? []).includes(cuisine);
+                              }).map((cuisine: string) => (
                                 <SelectItem key={cuisine} value={cuisine}>
                                   {cuisine}
                                 </SelectItem>

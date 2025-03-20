@@ -1,14 +1,20 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
 import express from 'express';
-import { setupAuth } from "./auth";
-import { storage } from "./storage";
-import { db } from "./db";
+import { setupAuth, hashPassword, cookieSettings } from "./auth";
+import { DatabaseStorage } from "./storage";
+import { db, pool } from "./db";
 import { and, eq, sql } from "drizzle-orm";
-import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles } from "@shared/schema";
+import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles, passwordResetRequestSchema, restaurantPasswordResetRequestSchema } from "@shared/schema";
+import { sendPasswordResetEmail } from "./email";
 import { parse as parseCookie } from 'cookie';
 import { format, parseISO, addMinutes, isWithinInterval } from 'date-fns';
+import connectPg from 'connect-pg-simple';
+import session from 'express-session';
+import passport from 'passport';
+
+const storage = new DatabaseStorage();
 
 // Define WebSocket message types
 type WebSocketMessage = {
@@ -23,6 +29,9 @@ type WebSocketClient = {
   isAlive: boolean;
 };
 
+// Create session store
+const PgStore = connectPg(session) as any;
+
 export function registerRoutes(app: Express): Server {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
@@ -33,6 +42,136 @@ export function registerRoutes(app: Express): Server {
       return res.status(400).json({ message: 'Invalid JSON in request body' });
     }
     next(err);
+  });
+
+  // Set up session middleware first
+  const sessionStore = new PgStore({
+    pool,
+    tableName: 'session',
+    createTableIfMissing: true,
+    pruneSessionInterval: 60 * 15,
+    errorLog: console.error.bind(console, 'Session store error:')
+  });
+
+  storage.setSessionStore(sessionStore);
+
+  // Session configuration
+  const sessionSettings: session.SessionOptions = {
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: true,
+    saveUninitialized: false,
+    store: sessionStore,
+    cookie: cookieSettings,
+    name: 'connect.sid',
+    rolling: true,
+    proxy: true
+  };
+
+  app.use(session(sessionSettings));
+
+  // Initialize passport (needed for req.login)
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  // Public routes (before auth middleware)
+  app.post("/api/register", async (req, res) => {
+    try {
+      const { email, password, firstName, lastName, gender, birthday, city, favoriteCuisines } = req.body;
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      // Hash password and create user
+      const hashedPassword = await hashPassword(password);
+      const user = await storage.createUser({
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        gender,
+        birthday,
+        city,
+        favoriteCuisines: Array.isArray(favoriteCuisines) ? favoriteCuisines : []
+      });
+
+      // Log the user in
+      req.login({ ...user, type: 'user' as const }, (err) => {
+        if (err) {
+          return res.status(500).json({ message: "Login error occurred" });
+        }
+        res.cookie('connect.sid', req.sessionID, cookieSettings);
+        res.status(200).json(user);
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  // Restaurant login endpoint
+  app.post("/api/restaurant/login", (req, res, next) => {
+    passport.authenticate('restaurant-local', (err: any, user: any, info: any) => {
+      if (err) {
+        return res.status(500).json({ message: "Authentication error occurred" });
+      }
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      }
+
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({ message: "Login error occurred" });
+        }
+
+        res.cookie('connect.sid', req.sessionID, cookieSettings);
+        res.status(200).json({ ...user, type: 'restaurant' });
+      });
+    })(req, res, next);
+  });
+
+  // User login endpoint
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate('local', (err: any, user: any, info: any) => {
+      if (err) {
+        return res.status(500).json({ message: "Authentication error occurred" });
+      }
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      }
+
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({ message: "Login error occurred" });
+        }
+
+        res.cookie('connect.sid', req.sessionID, cookieSettings);
+        res.status(200).json(user);
+      });
+    })(req, res, next);
+  });
+
+  // Set up authentication middleware for protected routes
+  app.use('/api', (req, res, next) => {
+    // List of public endpoints that do not require authentication
+    const publicPaths = [
+      '/register',
+      '/login',
+      '/restaurant/login',
+      '/forgot-password',
+      '/reset-password',
+      '/restaurant/forgot-password',
+      '/restaurant/reset-password'
+    ];
+    if (publicPaths.some(path => req.path.endsWith(path))) {
+      return next();
+    }
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    next();
   });
 
   // Set up authentication first to ensure session is available for WebSocket
@@ -277,16 +416,16 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Add authentication middleware for all /api routes
-  app.use('/api', (req, res, next) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Authentication required" });
-    }
-    // Add user type check for restaurant-only endpoints
-    if (req.path.startsWith('/restaurant/') && req.user?.type !== 'restaurant') {
-      return res.status(403).json({ message: "Access denied" });
-    }
-    next();
-  });
+  // app.use('/api', (req, res, next) => {
+  //   if (!req.isAuthenticated()) {
+  //     return res.status(401).json({ message: "Authentication required" });
+  //   }
+  //   // Add user type check for restaurant-only endpoints
+  //   if (req.path.startsWith('/restaurant/') && req.user?.type !== 'restaurant') {
+  //     return res.status(403).json({ message: "Access denied" });
+  //   }
+  //   next();
+  // });
 
   // Add type-specific authentication middleware
   const requireRestaurantAuth = (req: any, res: any, next: any) => {
@@ -549,6 +688,7 @@ export function registerRoutes(app: Express): Server {
         date: new Date(date),
         partySize,
         arrived: false,
+        arrivedAt: null,  // Add arrivedAt field
         completed: false
       });
 
@@ -573,14 +713,20 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/bookings", async (req, res, next) => {
     try {
-      if (!req.isAuthenticated() || !req.user?.id) {
-        res.status(401).json({ message: "Unauthorized" });
+      console.log('GET /api/bookings - User:', req.user);
+      
+      if (!req.isAuthenticated() || !req.user?.id || req.user?.type !== 'user') {
+        console.log('GET /api/bookings - Not authenticated as user');
+        res.status(401).json({ message: "Not authenticated as user" });
         return;
       }
 
+      console.log('GET /api/bookings - Fetching bookings for user:', req.user.id);
       const bookings = await storage.getUserBookings(req.user.id);
+      console.log('GET /api/bookings - Found bookings:', bookings);
       res.json(bookings);
     } catch (error) {
+      console.error('GET /api/bookings - Error:', error);
       next(error);
     }
   });
@@ -782,6 +928,48 @@ export function registerRoutes(app: Express): Server {
       res.status(200).json({ message: "Restaurant removed from saved list" });
     } catch (error) {
       next(error);
+    }
+  });
+
+  app.post("/api/forgot-password", async (req, res) => {
+    try {
+      const { email } = passwordResetRequestSchema.parse(req.body);
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: "No user exists with this email address." });
+      }
+      const token = await storage.createPasswordResetToken(user.id);
+      const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
+      const previewUrl = await sendPasswordResetEmail(email, resetUrl);
+      res.json({ message: "Password reset email sent", previewUrl });
+    } catch (error: any) {
+      console.error("Error in forgot password:", error);
+      if (error.message?.includes("not found")) {
+        res.status(404).json({ message: "No user exists with this email address." });
+      } else {
+        res.status(500).json({ message: "Failed to process password reset request" });
+      }
+    }
+  });
+
+  app.post("/api/restaurant/forgot-password", async (req, res) => {
+    try {
+      const { email } = restaurantPasswordResetRequestSchema.parse(req.body);
+      const restaurant = await storage.getRestaurantAuthByEmail(email);
+      if (!restaurant) {
+        return res.status(404).json({ message: "No restaurant exists with this email address." });
+      }
+      const token = await storage.createRestaurantPasswordResetToken(restaurant.id);
+      const resetUrl = `${process.env.CLIENT_URL}/restaurant/reset-password?token=${token}`;
+      const previewUrl = await sendPasswordResetEmail(email, resetUrl, true);
+      res.json({ message: "Password reset email sent", previewUrl });
+    } catch (error: any) {
+      console.error("Error in restaurant forgot password:", error);
+      if (error.message?.includes("not found")) {
+        res.status(404).json({ message: "No restaurant exists with this email address." });
+      } else {
+        res.status(500).json({ message: "Failed to process password reset request" });
+      }
     }
   });
 

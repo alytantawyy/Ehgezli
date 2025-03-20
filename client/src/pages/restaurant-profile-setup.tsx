@@ -117,7 +117,15 @@ export default function RestaurantProfileSetup() {
         console.log("Fetched branches data:", branchesData);
 
         // Map the branches, ensuring we preserve the exact city value
-        const branches = branchesData.map(branch => {
+        const branches = branchesData.map((branch: { 
+          id: number; 
+          address: string; 
+          city: "Alexandria" | "Cairo"; 
+          tablesCount: number;
+          seatsCount: number;
+          openingTime: string;
+          closingTime: string;
+        }) => {
           console.log("Processing branch for form:", {
             id: branch.id,
             city: branch.city,
@@ -126,7 +134,7 @@ export default function RestaurantProfileSetup() {
 
           return {
             address: branch.address,
-            city: branch.city,  // This should already be "Alexandria" or "Cairo"
+            city: branch.city,
             tablesCount: branch.tablesCount,
             seatsCount: branch.seatsCount,
             openingTime: branch.openingTime,

@@ -27,6 +27,48 @@ export const users = pgTable("users", {
   favoriteCuisines: text("favorite_cuisines").array().notNull(),
 });
 
+// Add password reset tokens table
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Add restaurant password reset tokens table
+export const restaurantPasswordResetTokens = pgTable("restaurant_password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  restaurantId: integer("restaurant_id").notNull().references(() => restaurantAuth.id),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Add password reset request schema
+export const passwordResetRequestSchema = z.object({
+  email: z.string().email("Invalid email format"),
+});
+
+// Add restaurant password reset request schema
+export const restaurantPasswordResetRequestSchema = z.object({
+  email: z.string().email("Invalid email format"),
+});
+
+// Add password reset schema
+export const passwordResetSchema = z.object({
+  token: z.string(),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+// Add restaurant password reset schema
+export const restaurantPasswordResetSchema = z.object({
+  token: z.string(),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
 export const restaurantAuth = pgTable("restaurant_auth", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -243,5 +285,27 @@ export type RestaurantProfile = typeof restaurantProfiles.$inferSelect;
 export type InsertRestaurantProfile = z.infer<typeof restaurantProfileSchema>;
 export type InsertBranchUnavailableDates = z.infer<typeof insertBranchUnavailableDatesSchema>;
 export type BranchUnavailableDate = typeof branchUnavailableDates.$inferSelect;
+
+// Add BookingWithDetails type
+export type BookingWithDetails = {
+  id: number;
+  date: Date;
+  branchId: number;
+  userId: number;
+  partySize: number;
+  confirmed: boolean;
+  arrived: boolean;
+  arrivedAt: Date | null;
+  completed: boolean;
+  user: {
+    firstName: string;
+    lastName: string;
+  } | null;
+  branch: {
+    address: string;
+    city: string;
+    restaurantName: string;
+  };
+};
 
 export const mockRestaurants: Restaurant[] = [];
