@@ -1,6 +1,6 @@
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Restaurant } from "@shared/schema";
+import { Restaurant, BookingWithDetails as SchemaBookingWithDetails } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,24 +23,7 @@ import { CurrentlySeatedBooking } from "@/components/currently-seated-booking";
 import { getCurrentTimeSlot, generateTimeSlots, getBookingsForSeatCalculation, getAvailableSeats } from "@/lib/utils/time-utils";
 import { Input } from "@/components/ui/input";
 
-export interface BookingWithDetails {
-  id: number;
-  branchId: number;
-  date: string;
-  partySize: number;
-  confirmed: boolean;
-  arrived: boolean;
-  completed: boolean;
-  arrivedAt?: string;
-  user?: {
-    firstName: string;
-    lastName: string;
-  } | null;
-  branch: {
-    address: string;
-    city: string;
-  };
-}
+export interface BookingWithDetails extends SchemaBookingWithDetails {}
 
 function RestaurantDashboardContent() {
   // All hooks at the top level
@@ -77,19 +60,25 @@ function RestaurantDashboardContent() {
     retry: 1
   });
 
-  const { data: bookings, isLoading: isBookingsLoading } = useQuery<BookingWithDetails[]>({
+  const { data: bookings, isLoading: isLoadingBookings } = useQuery({
     queryKey: ["/api/restaurant/bookings", auth.id],
     queryFn: async () => {
       const response = await fetch(`/api/restaurant/bookings/${auth.id}`, {
-        credentials: 'include'
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
       });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch bookings');
-      }
-      return response.json();
+      if (!response.ok) throw new Error("Failed to fetch bookings");
+      const data = await response.json();
+      // Transform dates to Date objects
+      return data.map((booking: BookingWithDetails) => ({
+        ...booking,
+        date: new Date(booking.date),
+        arrivedAt: booking.arrivedAt ? new Date(booking.arrivedAt) : null,
+      }));
     },
-    enabled: !!auth.id,
   });
 
   const cancelBookingMutation = useMutation({
@@ -199,7 +188,7 @@ function RestaurantDashboardContent() {
   }, [selectedDate, selectedBranch, restaurant, selectedTime]);
 
 
-  if (isRestaurantLoading || isBookingsLoading) {
+  if (isRestaurantLoading || isLoadingBookings) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-border" />
@@ -226,7 +215,7 @@ function RestaurantDashboardContent() {
     );
   }
 
-  const currentlySeatedBookings = bookings?.filter(booking => {
+  const currentlySeatedBookings = bookings?.filter((booking: BookingWithDetails) => {
     // Only show bookings that have been manually marked as arrived and not completed
     if (!booking.arrived || !booking.confirmed || booking.completed) {
       return false;
@@ -240,27 +229,11 @@ function RestaurantDashboardContent() {
     }
 
     return true;
-  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }).sort((a: BookingWithDetails, b: BookingWithDetails) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const filteredBookings = bookings?.filter(booking => {
+  const filteredBookings = bookings?.filter((booking: BookingWithDetails) => {
     // Skip completed bookings
-    if (booking.completed) {
-      return false;
-    }
-
-    // Apply date filter if selected
-    if (selectedDate) {
-      if (!isSameDay(new Date(booking.date), selectedDate)) {
-        return false;
-      }
-    } else {
-      // If no date is selected, only show upcoming bookings
-      const bookingDate = new Date(booking.date);
-      const now = new Date();
-      if (!isSameDay(bookingDate, now) && !isAfter(bookingDate, now)) {
-        return false;
-      }
-    }
+    if (booking.completed) return false;
 
     // Apply branch filter if selected
     if (selectedBranch !== "all") {
@@ -271,54 +244,41 @@ function RestaurantDashboardContent() {
 
     // Apply time filter if selected
     if (selectedTime !== "all") {
-      const bookingTime = format(new Date(booking.date), 'HH:mm');
+      const bookingTime = format(booking.date, "HH:mm");
       if (bookingTime !== selectedTime) {
         return false;
       }
     }
 
-    // Only show confirmed bookings
-    if (!booking.confirmed) {
-      return false;
-    }
-
-    return true;
-  }) || [];
-
-  const upcomingBookings = filteredBookings
-    .filter(booking => {
-      const bookingDate = new Date(booking.date);
-      const now = new Date();
-      // Include bookings from today onwards that haven't arrived yet
-      return (!booking.arrived && (isSameDay(bookingDate, now) || isAfter(bookingDate, now)));
-    })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-  const futureBookings = bookings?.filter(booking => {
-    // Skip unconfirmed, completed, or arrived bookings
-    if (!booking.confirmed || booking.completed || booking.arrived) {
-      return false;
-    }
-
-    const bookingDate = new Date(booking.date);
-    const now = new Date();
-
-    // Show bookings from today onwards
-    if (!isSameDay(bookingDate, now) && !isAfter(bookingDate, now)) {
-      return false;
-    }
-
-    // Apply branch filter if selected
-    if (selectedBranch !== "all") {
-      if (booking.branchId.toString() !== selectedBranch) {
+    // Apply date filter if selected
+    if (selectedDate) {
+      if (!isSameDay(booking.date, selectedDate)) {
         return false;
       }
     }
 
     return true;
-  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
+  }).sort((a: BookingWithDetails, b: BookingWithDetails) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const filteredFutureBookings = futureBookings?.filter(booking => {
+  const upcomingBookings = filteredBookings
+    .filter((booking: BookingWithDetails) => {
+      const now = new Date();
+      // Include bookings from today onwards that haven't arrived yet
+      return (!booking.arrived && (isSameDay(booking.date, now) || isAfter(booking.date, now)));
+    })
+    .sort((a: BookingWithDetails, b: BookingWithDetails) => a.date.getTime() - b.date.getTime());
+
+  const futureBookings = bookings?.filter((booking: BookingWithDetails) => {
+    // Skip unconfirmed, completed, or arrived bookings
+    if (!booking.confirmed || booking.completed || booking.arrived) {
+      return false;
+    }
+
+    const now = new Date();
+    return isAfter(booking.date, now);
+  }).sort((a: BookingWithDetails, b: BookingWithDetails) => a.date.getTime() - b.date.getTime()) || [];
+
+  const filteredFutureBookings = futureBookings?.filter((booking: BookingWithDetails) => {
     if (!searchQuery) return true;
 
     const searchLower = searchQuery.toLowerCase();
@@ -444,7 +404,7 @@ function RestaurantDashboardContent() {
                   onValueChange={setSelectedBranch}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select Branch">
+                    <SelectValue>
                       <div className="flex items-center">
                         <Calendar className="mr-2 h-4 w-4" />
                         {selectedBranch === "all" ? "All Branches" :
@@ -488,7 +448,7 @@ function RestaurantDashboardContent() {
                   onValueChange={setSelectedTime}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select Time">
+                    <SelectValue>
                       <div className="flex items-center">
                         <Clock className="mr-2 h-4 w-4" />
                         {selectedTime === "all" ? "Select Time" : selectedTime}
@@ -592,7 +552,7 @@ function RestaurantDashboardContent() {
               <CardContent>
                 {upcomingBookings && upcomingBookings.length > 0 ? (
                   <div className="space-y-4">
-                    {upcomingBookings.map((booking) => (
+                    {upcomingBookings.map((booking: BookingWithDetails) => (
                       <div
                         key={booking.id}
                         className="flex items-center justify-between p-4 border rounded-lg"
@@ -661,7 +621,7 @@ function RestaurantDashboardContent() {
               <CardContent>
                 {currentlySeatedBookings && currentlySeatedBookings.length > 0 ? (
                   <div className="space-y-4">
-                    {currentlySeatedBookings.map((booking) => (
+                    {currentlySeatedBookings.map((booking: BookingWithDetails) => (
                       <CurrentlySeatedBooking
                         key={booking.id}
                         booking={booking}
@@ -694,7 +654,13 @@ function RestaurantDashboardContent() {
                   </div>
                   <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                     <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="All Branches" />
+                      <SelectValue>
+                        <div className="flex items-center">
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {selectedBranch === "all" ? "All Branches" :
+                            restaurant.locations.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
+                        </div>
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Branches</SelectItem>
@@ -710,7 +676,7 @@ function RestaurantDashboardContent() {
               <CardContent>
                 {filteredFutureBookings.length > 0 ? (
                   <div className="space-y-4">
-                    {filteredFutureBookings.map((booking) => (
+                    {filteredFutureBookings.map((booking: BookingWithDetails) => (
                       <div
                         key={booking.id}
                         className="flex items-center justify-between p-4 border rounded-lg"

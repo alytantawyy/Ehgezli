@@ -2,25 +2,7 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { formatElapsedTime } from "@/lib/utils/time-utils";
-
-interface BookingWithDetails {
-  id: number;
-  branchId: number;
-  date: string;
-  partySize: number;
-  confirmed: boolean;
-  arrived: boolean;
-  completed: boolean;
-  arrivedAt?: string;
-  user?: {
-    firstName: string;
-    lastName: string;
-  } | null;
-  branch: {
-    address: string;
-    city: string;
-  };
-}
+import { BookingWithDetails } from "@shared/schema";
 
 interface CurrentlySeatedBookingProps {
   booking: BookingWithDetails;
@@ -34,14 +16,14 @@ export function CurrentlySeatedBooking({
   isMarkingComplete
 }: CurrentlySeatedBookingProps) {
   const [elapsedTime, setElapsedTime] = useState(
-    booking.date ? formatElapsedTime(booking.date) : ''
+    booking.date ? formatElapsedTime(booking.date.toISOString()) : ''
   );
 
   useEffect(() => {
     if (!booking.date) return;
 
     const timer = setInterval(() => {
-      setElapsedTime(formatElapsedTime(booking.date));
+      setElapsedTime(formatElapsedTime(booking.date.toISOString()));
     }, 1000);
 
     return () => clearInterval(timer);
@@ -57,7 +39,7 @@ export function CurrentlySeatedBooking({
           }
         </div>
         <div className="text-sm text-muted-foreground">
-          Booking Started: {booking.date ? format(new Date(booking.date), "h:mm:ss a") : 'Unknown'}
+          Booking Started: {booking.date ? format(booking.date, "h:mm:ss a") : 'Unknown'}
         </div>
         {booking.date && (
           <div className="text-sm font-medium text-primary">

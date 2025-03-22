@@ -9,7 +9,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles, passwordResetRequestSchema, restaurantPasswordResetRequestSchema } from "@shared/schema";
 import { sendPasswordResetEmail } from "./email";
 import { parse as parseCookie } from 'cookie';
-import { format, parseISO, addMinutes, isWithinInterval } from 'date-fns';
+import { format, parseISO, addMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import connectPg from 'connect-pg-simple';
 import session from 'express-session';
 import passport from 'passport';
@@ -178,17 +178,17 @@ export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
   // Add availability endpoint
-  app.get("/api/restaurants/:restaurantId/branches/:branchId/availability", async (req, res) => {
+  app.get("/api/restaurants/:restaurantId/branches/:branchId/availability", async (req, res, next) => {
     try {
       const restaurantId = parseInt(req.params.restaurantId);
       const branchId = parseInt(req.params.branchId);
       const dateStr = req.query.date as string;
 
-      console.log('Calculating availability:', { restaurantId, branchId, dateStr });
-
       if (!dateStr) {
         return res.status(400).json({ message: "Date parameter is required" });
       }
+
+      const date = parseISO(dateStr);
 
       // Get branch details
       const [branch] = await db
@@ -202,96 +202,53 @@ export function registerRoutes(app: Express): Server {
         );
 
       if (!branch) {
-        console.log('Branch not found:', { branchId, restaurantId });
         return res.status(404).json({ message: "Branch not found" });
       }
 
-      // Parse the requested date - ensure we're using the date part only
-      const date = parseISO(dateStr.split('T')[0]);
-      console.log('Parsed date:', date);
-
-      // Get all confirmed bookings for this branch on the requested date
-      const existingBookings = await db
-        .select({
-          id: bookings.id,
-          date: bookings.date,
-          partySize: bookings.partySize,
-          confirmed: bookings.confirmed
-        })
+      // Get all bookings for this branch on the given date
+      const branchBookings = await db
+        .select()
         .from(bookings)
         .where(
           and(
             eq(bookings.branchId, branchId),
-            eq(bookings.confirmed, true),
             sql`DATE(${bookings.date}) = DATE(${date})`
           )
         );
 
-      console.log('Found existing bookings:', existingBookings);
-
-      // Calculate availability for each time slot
-      const availability: Record<string, number> = {};
+      // Create time slots map
+      const timeSlots: Record<string, number> = {};
       const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
       const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
-
-      console.log('Restaurant hours:', { openingTime: branch.openingTime, closingTime: branch.closingTime });
 
       let currentTime = new Date(date);
       currentTime.setHours(openHour, openMinute, 0, 0);
 
       const endTime = new Date(date);
+      // Handle closing time past midnight
+      if (closeHour < openHour || (closeHour === openHour && closeMinute < openMinute)) {
+        endTime.setDate(endTime.getDate() + 1);
+      }
       endTime.setHours(closeHour, closeMinute, 0, 0);
 
-      // If date is today, start from current time
-      const now = new Date();
-      if (
-        date.getDate() === now.getDate() &&
-        date.getMonth() === now.getMonth() &&
-        date.getFullYear() === now.getFullYear()
-      ) {
-        let startHour = now.getHours();
-        let startMinute = now.getMinutes();
-
-        // Round up to the next 30-minute slot
-        if (startMinute > 30) {
-          startHour += 1;
-          startMinute = 0;
-        } else if (startMinute > 0) {
-          startMinute = 30;
-        }
-
-        currentTime.setHours(startHour, startMinute, 0, 0);
-      }
-
+      // Generate 30-minute slots
       while (currentTime < endTime) {
         const timeSlot = format(currentTime, 'HH:mm');
-
-        // Calculate booked seats for this time slot considering 2-hour window
-        const bookedSeats = existingBookings
-          .filter(booking => {
-            const bookingTime = new Date(booking.date);
-            const bookingEnd = addMinutes(bookingTime, 120); // 2-hour window
-
-            // Check if current time slot falls within any booking's 2-hour window
-            return isWithinInterval(currentTime, {
-              start: bookingTime,
-              end: bookingEnd
-            });
-          })
-          .reduce((total, booking) => total + booking.partySize, 0);
-
-        // Calculate available seats
-        availability[timeSlot] = Math.max(0, branch.seatsCount - bookedSeats);
-
-        // Move to next time slot (30 minutes)
-        currentTime.setMinutes(currentTime.getMinutes() + 30);
+        timeSlots[timeSlot] = branch.seatsCount; // Initialize with full capacity
+        currentTime = addMinutes(currentTime, 30);
       }
 
-      console.log('Calculated availability:', availability);
-      res.json(availability);
+      // Subtract booked seats from available seats
+      branchBookings.forEach(booking => {
+        const bookingTime = format(booking.date, 'HH:mm');
+        if (timeSlots[bookingTime] !== undefined) {
+          timeSlots[bookingTime] -= booking.partySize;
+        }
+      });
+
+      res.json(timeSlots);
     } catch (error) {
-      console.error('Error calculating availability:', error);
-      res.status(500).json({ message: "Failed to calculate availability" });
+      next(error);
     }
   });
 

@@ -80,36 +80,22 @@ const generateTimeSlots = async (
     const availability = await response.json();
     console.log('Received availability data:', availability);
 
-    const slots: TimeSlot[] = [];
-    const [openHour, openMinute] = openingTime.split(':').map(Number);
-    const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+    // Convert availability object to array of TimeSlot objects
+    const slots: TimeSlot[] = Object.entries(availability).map(([time, availableSeats]) => ({
+      time,
+      available: (availableSeats as number) > 0,
+      availableSeats: availableSeats as number
+    }));
 
-    let currentTime = new Date();
-    currentTime.setHours(openHour, openMinute, 0, 0);
-    currentTime.setDate(bookingDate.getDate()); //Added to set correct date
-    currentTime.setMonth(bookingDate.getMonth()); //Added to set correct month
-    currentTime.setFullYear(bookingDate.getFullYear()); //Added to set correct year
-
-
-    const endTime = new Date();
-    endTime.setHours(closeHour, closeMinute, 0, 0);
-    endTime.setDate(bookingDate.getDate()); //Added to set correct date
-    endTime.setMonth(bookingDate.getMonth()); //Added to set correct month
-    endTime.setFullYear(bookingDate.getFullYear()); //Added to set correct year
-
-    while (currentTime < endTime) {
-      const timeSlot = format(currentTime, 'HH:mm');
-      const availableSeats = availability[timeSlot] || 0;
-
-      slots.push({
-        time: timeSlot,
-        available: availableSeats > 0,
-        availableSeats
-      });
-
-      // Move to next time slot (30 minutes)
-      currentTime.setMinutes(currentTime.getMinutes() + 30);
-    }
+    // Sort slots by time
+    slots.sort((a, b) => {
+      // Convert time strings to minutes for comparison
+      const [aHours, aMinutes] = a.time.split(':').map(Number);
+      const [bHours, bMinutes] = b.time.split(':').map(Number);
+      const aTotal = aHours * 60 + aMinutes;
+      const bTotal = bHours * 60 + bMinutes;
+      return aTotal - bTotal;
+    });
 
     console.log('Generated time slots:', slots);
     return slots;

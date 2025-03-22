@@ -77,7 +77,7 @@ export const getBookingsForSeatCalculation = (
 ) => {
   return bookings?.filter(booking => {
     if (booking.completed) return false;
-    if (selectedDate && !isSameDay(new Date(booking.date), selectedDate)) return false;
+    if (selectedDate && !isSameDay(booking.date, selectedDate)) return false;
     if (selectedBranch !== "all" && booking.branchId.toString() !== selectedBranch) return false;
     return true;
   }) || [];
