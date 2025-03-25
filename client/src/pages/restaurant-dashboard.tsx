@@ -1,6 +1,6 @@
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Restaurant, BookingWithDetails as SchemaBookingWithDetails } from "@shared/schema";
+import { Restaurant, BookingWithDetails as SchemaBookingWithDetails, RestaurantBranch } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -44,6 +44,7 @@ function RestaurantDashboardContent() {
     return null;
   }
 
+  // Get restaurant data
   const { data: restaurant, isLoading: isRestaurantLoading, error: restaurantError } = useQuery<Restaurant>({
     queryKey: ["/api/restaurants", auth.id],
     queryFn: async () => {
@@ -57,8 +58,17 @@ function RestaurantDashboardContent() {
       return response.json();
     },
     enabled: !!auth.id,
-    retry: 1
+    retry: 1,
+    initialData: auth.branches ? (auth as unknown as Restaurant) : undefined
   });
+
+  // Get branches with type safety
+  const branches = restaurant?.branches || [];
+
+  // Get selected branch
+  const currentBranch = selectedBranch
+    ? branches.find((branch: RestaurantBranch) => branch.id.toString() === selectedBranch)
+    : undefined;
 
   const { data: bookings, isLoading: isLoadingBookings } = useQuery({
     queryKey: ["/api/restaurant/bookings", auth.id],
@@ -169,14 +179,14 @@ function RestaurantDashboardContent() {
   });
 
   useEffect(() => {
-    if (restaurant?.locations && selectedBranch !== "all") {
-      const selectedLocation = restaurant.locations.find(
-        loc => loc.id.toString() === selectedBranch
+    if (branches.length > 0 && selectedBranch !== "all") {
+      const selectedBranchData = branches.find(
+        branch => branch.id.toString() === selectedBranch
       );
-      if (selectedLocation) {
+      if (selectedBranchData) {
         const slots = generateTimeSlots(
-          selectedLocation.openingTime,
-          selectedLocation.closingTime,
+          selectedBranchData.openingTime,
+          selectedBranchData.closingTime,
           selectedDate
         );
         setTimeSlots(slots);
@@ -186,7 +196,6 @@ function RestaurantDashboardContent() {
       }
     }
   }, [selectedDate, selectedBranch, restaurant, selectedTime]);
-
 
   if (isRestaurantLoading || isLoadingBookings) {
     return (
@@ -206,7 +215,7 @@ function RestaurantDashboardContent() {
     );
   }
 
-  if (!restaurant || !restaurant.locations) {
+  if (!restaurant || !branches.length) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <div className="text-xl text-destructive">Restaurant data not found</div>
@@ -287,15 +296,16 @@ function RestaurantDashboardContent() {
     return fullName.includes(searchLower);
   }) || [];
 
+  // Calculate total seats
   const getTotalSeats = () => {
-    if (!restaurant.locations) return 0;
+    if (!branches.length) return 0;
     if (selectedBranch === "all") {
-      return restaurant.locations.reduce((total, loc) => total + loc.seatsCount, 0);
+      return branches.reduce((total: number, branch: RestaurantBranch) => total + branch.seatsCount, 0);
     }
-    const selectedLocation = restaurant.locations.find(
-      loc => loc.id.toString() === selectedBranch
+    const selectedBranchData = branches.find(
+      branch => branch.id.toString() === selectedBranch
     );
-    return selectedLocation?.seatsCount || 0;
+    return selectedBranchData?.seatsCount || 0;
   };
 
   return (
@@ -394,7 +404,7 @@ function RestaurantDashboardContent() {
 
           <TabsContent value="dashboard" className="space-y-6">
             <div className="flex">
-              <AddReservationModal branches={restaurant.locations} />
+              <AddReservationModal branches={branches} />
             </div>
 
             <div className="grid grid-cols-3 gap-6">
@@ -408,15 +418,15 @@ function RestaurantDashboardContent() {
                       <div className="flex items-center">
                         <Calendar className="mr-2 h-4 w-4" />
                         {selectedBranch === "all" ? "All Branches" :
-                          restaurant.locations.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
+                          branches.find(branch => branch.id.toString() === selectedBranch)?.address || "Select Branch"}
                       </div>
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Branches</SelectItem>
-                    {restaurant.locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id.toString()}>
-                        {location.address}, {location.city}
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id.toString()}>
+                        {branch.address}, {branch.city}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -513,7 +523,7 @@ function RestaurantDashboardContent() {
                   <p className="text-sm text-muted-foreground">
                     {selectedBranch === "all"
                       ? "Across all branches"
-                      : `In ${restaurant.locations.find(loc => loc.id.toString() === selectedBranch)?.address}`}
+                      : `In ${branches.find(branch => branch.id.toString() === selectedBranch)?.address}`}
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -658,15 +668,15 @@ function RestaurantDashboardContent() {
                         <div className="flex items-center">
                           <Calendar className="mr-2 h-4 w-4" />
                           {selectedBranch === "all" ? "All Branches" :
-                            restaurant.locations.find(loc => loc.id.toString() === selectedBranch)?.address || "Select Branch"}
+                            branches.find(branch => branch.id.toString() === selectedBranch)?.address || "Select Branch"}
                         </div>
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Branches</SelectItem>
-                      {restaurant.locations.map((location) => (
-                        <SelectItem key={location.id} value={location.id.toString()}>
-                          {location.address}, {location.city}
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id.toString()}>
+                          {branch.address}, {branch.city}
                         </SelectItem>
                       ))}
                     </SelectContent>

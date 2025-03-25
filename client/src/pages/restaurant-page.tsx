@@ -88,67 +88,41 @@ export default function RestaurantPage() {
     );
   }
 
-  if (!restaurant || !restaurant.locations?.[branchIndex]) {
+  if (!restaurant || !restaurant.branches?.[branchIndex]) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Restaurant Not Found</h2>
-          <p className="text-muted-foreground mb-4">The requested restaurant or branch could not be found.</p>
-          <Button variant="outline" asChild>
-            <Link to="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Restaurants
-            </Link>
-          </Button>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <div className="text-xl text-destructive">Restaurant or branch not found</div>
+        <Button asChild>
+          <Link to="/">Go Home</Link>
+        </Button>
       </div>
     );
   }
 
-  const branch = restaurant.locations[branchIndex];
+  const branch = restaurant.branches[branchIndex];
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <Button variant="ghost" asChild className="mb-8">
-          <Link to="/">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Restaurants
-          </Link>
-        </Button>
-
-        <div className="grid md:grid-cols-2 gap-12">
-          <div>
-            {restaurant.logo && (
+    <div className="container mx-auto py-8">
+      <div className="space-y-8">
+        <div className="flex items-start gap-8">
+          <div className="flex-1">
+            {restaurant.profile?.logo && (
               <div
-                className="h-64 rounded-lg bg-cover bg-center mb-6"
-                style={{ backgroundImage: `url(${restaurant.logo})` }}
+                className="w-full h-64 bg-center bg-cover rounded-lg"
+                style={{ backgroundImage: `url(${restaurant.profile.logo})` }}
               />
             )}
-
-            <h1 className="text-3xl font-bold mb-4">{restaurant.name}</h1>
-
-            <div className="flex gap-4 mb-6">
-              <div className="flex items-center text-muted-foreground">
-                <MapPin className="h-4 w-4 mr-1" />
-                <span className="text-sm">{branch.address}</span>
+            <div className="mt-6 space-y-4">
+              <h1 className="text-4xl font-bold">{restaurant.name}</h1>
+              <div className="flex items-center gap-4">
+                <span className="text-sm">{restaurant.profile?.priceRange}</span>
               </div>
-              <div className="flex items-center text-muted-foreground">
-                <Clock className="h-4 w-4 mr-1" />
-                <span className="text-sm">{branch.openingTime} - {branch.closingTime}</span>
-              </div>
-              <div className="flex items-center text-muted-foreground">
-                <DollarSign className="h-4 w-4 mr-1" />
-                <span className="text-sm">{restaurant.priceRange}</span>
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold">About</h2>
+                <span className="text-foreground">{restaurant.profile?.about || restaurant.profile?.description}</span>
               </div>
             </div>
-
-            <p className="mb-6">
-              <span className="font-bold text-foreground">About: </span>
-              <span className="text-foreground">{restaurant.about || restaurant.description}</span>
-            </p>
           </div>
-
           <div className="bg-card p-6 rounded-lg border">
             <h2 className="text-xl font-semibold mb-6">Make a Reservation</h2>
             <BookingForm 

@@ -1,6 +1,12 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { restaurantProfileSchema, type InsertRestaurantProfile, Restaurant } from "@shared/schema";
+import { 
+  restaurantProfileSchema, 
+  type InsertRestaurantProfile, 
+  type Restaurant, 
+  type RestaurantBranch,
+  type InsertRestaurantBranch 
+} from "@shared/schema";
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -65,7 +71,8 @@ export default function RestaurantProfileSetup() {
     enabled: !!restaurant?.id,
   });
 
-  const form = useForm<InsertRestaurantProfile>({
+  // Create separate form for profile
+  const profileForm = useForm<InsertRestaurantProfile>({
     resolver: zodResolver(restaurantProfileSchema),
     defaultValues: {
       restaurantId: restaurant?.id,
@@ -73,17 +80,26 @@ export default function RestaurantProfileSetup() {
       cuisine: "",
       priceRange: "$",
       logo: "",
+      isProfileComplete: false
+    },
+  });
+
+  // Create separate form for branches
+  const branchesForm = useForm<{ branches: InsertRestaurantBranch[] }>({
+    defaultValues: {
       branches: [
         {
+          restaurantId: restaurant?.id,
           address: "",
           city: "Alexandria",
           tablesCount: 1,
           seatsCount: 1,
           openingTime: "09:00",
           closingTime: "22:00",
-        },
-      ],
-    },
+          reservationDuration: 60
+        }
+      ]
+    }
   });
 
   // Load existing data into form when available
@@ -113,54 +129,52 @@ export default function RestaurantProfileSetup() {
 
         // Get branches data
         const branchesResponse = await fetch(`/api/restaurants/${existingRestaurant.id}/branches`);
+        if (!branchesResponse.ok) {
+          console.error("Failed to fetch branches:", await branchesResponse.text());
+          return;
+        }
         const branchesData = await branchesResponse.json();
         console.log("Fetched branches data:", branchesData);
 
-        // Map the branches, ensuring we preserve the exact city value
-        const branches = branchesData.map((branch: { 
-          id: number; 
-          address: string; 
-          city: "Alexandria" | "Cairo"; 
-          tablesCount: number;
-          seatsCount: number;
-          openingTime: string;
-          closingTime: string;
-        }) => {
-          console.log("Processing branch for form:", {
-            id: branch.id,
-            city: branch.city,
-            address: branch.address
-          });
-
-          return {
-            address: branch.address,
-            city: branch.city,
-            tablesCount: branch.tablesCount,
-            seatsCount: branch.seatsCount,
-            openingTime: branch.openingTime,
-            closingTime: branch.closingTime,
-          };
-        });
+        const branches = (branchesData || []).map((branch: RestaurantBranch): InsertRestaurantBranch => ({
+          restaurantId: existingRestaurant.id,
+          address: branch.address,
+          city: branch.city,
+          tablesCount: branch.tablesCount,
+          seatsCount: branch.seatsCount,
+          openingTime: branch.openingTime,
+          closingTime: branch.closingTime,
+          reservationDuration: branch.reservationDuration
+        }));
 
         console.log("Final mapped branches for form:", branches);
 
-        form.reset({
+        const restaurantProfile = existingRestaurant.profile;
+        if (!restaurantProfile) {
+          console.warn("No profile data found for restaurant:", existingRestaurant.id);
+        }
+
+        profileForm.reset({
           restaurantId: existingRestaurant.id,
-          about: existingRestaurant.about || "",
-          cuisine: existingRestaurant.cuisine,
-          priceRange: profile?.priceRange || "$",
-          logo: existingRestaurant.logo || "",
-          branches,
+          about: restaurantProfile?.about || "",
+          cuisine: restaurantProfile?.cuisine || "",
+          priceRange: restaurantProfile?.priceRange || "$",
+          logo: restaurantProfile?.logo || "",
+          isProfileComplete: restaurantProfile?.isProfileComplete || false
         });
 
-        if (existingRestaurant.logo) {
-          setLogoPreview(existingRestaurant.logo);
+        branchesForm.reset({
+          branches
+        });
+
+        if (restaurantProfile?.logo) {
+          setLogoPreview(restaurantProfile.logo);
         }
       };
 
       loadProfileData();
     }
-  }, [existingRestaurant, form]);
+  }, [existingRestaurant, profileForm, branchesForm]);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -170,7 +184,7 @@ export default function RestaurantProfileSetup() {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        form.setValue("logo", base64String);
+        profileForm.setValue("logo", base64String);
       };
       reader.readAsDataURL(file);
     }
@@ -207,24 +221,64 @@ export default function RestaurantProfileSetup() {
     },
   });
 
+  const branchesMutation = useMutation({
+    mutationFn: async (data: { branches: InsertRestaurantBranch[] }) => {
+      console.log('Submitting branches data:', data); // Add logging
+      const res = await apiRequest("PUT", "/api/restaurant/branches", data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to update branches");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurants"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/branches", restaurant?.id] });
+      toast({
+        title: "Branches Updated!",
+        description: "Your restaurant branches have been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      console.error('Branches mutation error:', error); // Add error logging
+      toast({
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const addBranch = () => {
-    const currentBranches = form.getValues("branches");
-    form.setValue("branches", [
+    if (!restaurant?.id) {
+      console.error("Cannot add branch: restaurant ID is missing");
+      toast({
+        title: "Error",
+        description: "Restaurant ID is required to add a branch",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const currentBranches = branchesForm.getValues("branches");
+    branchesForm.setValue("branches", [
       ...currentBranches,
       {
+        restaurantId: restaurant.id,
         address: "",
         city: "Alexandria",
         tablesCount: 1,
         seatsCount: 1,
         openingTime: "09:00",
         closingTime: "22:00",
-      },
+        reservationDuration: 60
+      }
     ]);
   };
 
   const removeBranch = (index: number) => {
-    const currentBranches = form.getValues("branches");
-    form.setValue(
+    const currentBranches = branchesForm.getValues("branches");
+    branchesForm.setValue(
       "branches",
       currentBranches.filter((_, i) => i !== index)
     );
@@ -240,9 +294,9 @@ export default function RestaurantProfileSetup() {
           {!existingRestaurant && <Progress value={33} className="w-full" />}
         </div>
 
-        <Form {...form}>
+        <Form {...profileForm}>
           <form
-            onSubmit={form.handleSubmit((data) => profileMutation.mutate(data))}
+            onSubmit={profileForm.handleSubmit((data) => profileMutation.mutate(data))}
             className="space-y-6"
           >
             <Card>
@@ -251,7 +305,7 @@ export default function RestaurantProfileSetup() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="logo"
                   render={({ field: { value, onChange, ...field } }) => (
                     <FormItem>
@@ -309,7 +363,7 @@ export default function RestaurantProfileSetup() {
                   )}
                 />
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="about"
                   render={({ field }) => (
                     <FormItem>
@@ -330,7 +384,7 @@ export default function RestaurantProfileSetup() {
                 />
 
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="cuisine"
                   render={({ field }) => (
                     <FormItem>
@@ -358,7 +412,7 @@ export default function RestaurantProfileSetup() {
                 />
 
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="priceRange"
                   render={({ field }) => (
                     <FormItem>
@@ -386,6 +440,21 @@ export default function RestaurantProfileSetup() {
               </CardContent>
             </Card>
 
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={profileMutation.isPending}
+            >
+              {profileMutation.isPending ? "Saving..." : (existingRestaurant ? "Save Changes" : "Save & Continue")}
+            </Button>
+          </form>
+        </Form>
+
+        <Form {...branchesForm}>
+          <form
+            onSubmit={branchesForm.handleSubmit((data) => branchesMutation.mutate(data))}
+            className="space-y-6"
+          >
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Branch Locations</CardTitle>
@@ -400,7 +469,7 @@ export default function RestaurantProfileSetup() {
                 </Button>
               </CardHeader>
               <CardContent className="space-y-6">
-                {form.watch("branches").map((_, index) => (
+                {branchesForm.watch("branches").map((_, index) => (
                   <div key={index} className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold">
@@ -419,7 +488,7 @@ export default function RestaurantProfileSetup() {
                     </div>
 
                     <FormField
-                      control={form.control}
+                      control={branchesForm.control}
                       name={`branches.${index}.address`}
                       render={({ field }) => (
                         <FormItem>
@@ -433,7 +502,7 @@ export default function RestaurantProfileSetup() {
                     />
 
                     <FormField
-                      control={form.control}
+                      control={branchesForm.control}
                       name={`branches.${index}.city`}
                       render={({ field }) => (
                         <FormItem>
@@ -460,7 +529,7 @@ export default function RestaurantProfileSetup() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
-                        control={form.control}
+                        control={branchesForm.control}
                         name={`branches.${index}.tablesCount`}
                         render={({ field }) => (
                           <FormItem>
@@ -480,7 +549,7 @@ export default function RestaurantProfileSetup() {
                       />
 
                       <FormField
-                        control={form.control}
+                        control={branchesForm.control}
                         name={`branches.${index}.seatsCount`}
                         render={({ field }) => (
                           <FormItem>
@@ -502,7 +571,7 @@ export default function RestaurantProfileSetup() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
-                        control={form.control}
+                        control={branchesForm.control}
                         name={`branches.${index}.openingTime`}
                         render={({ field }) => (
                           <FormItem>
@@ -516,7 +585,7 @@ export default function RestaurantProfileSetup() {
                       />
 
                       <FormField
-                        control={form.control}
+                        control={branchesForm.control}
                         name={`branches.${index}.closingTime`}
                         render={({ field }) => (
                           <FormItem>
@@ -529,6 +598,26 @@ export default function RestaurantProfileSetup() {
                         )}
                       />
                     </div>
+
+                    <FormField
+                      control={branchesForm.control}
+                      name={`branches.${index}.reservationDuration`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Reservation Duration (minutes)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(parseInt(e.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 ))}
               </CardContent>
@@ -537,9 +626,9 @@ export default function RestaurantProfileSetup() {
             <Button
               type="submit"
               className="w-full"
-              disabled={profileMutation.isPending}
+              disabled={branchesMutation.isPending}
             >
-              {profileMutation.isPending ? "Saving..." : (existingRestaurant ? "Save Changes" : "Save & Continue")}
+              {branchesMutation.isPending ? "Saving..." : "Save Branches"}
             </Button>
           </form>
         </Form>

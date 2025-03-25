@@ -1,42 +1,128 @@
-import type { Express, Request, Response } from "express";
+/**
+ * routes.ts - Main Server Routes Configuration
+ * This file sets up all the server endpoints (URLs) that our application responds to.
+ * It handles user authentication, restaurant management, bookings, and real-time updates.
+ */
+
+// === Core Server Packages ===
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from 'ws';
 import express from 'express';
+// WebSocket enables real-time updates (e.g., instant booking notifications)
+import { WebSocketServer } from 'ws';
+import WebSocket from 'ws';
+
+// === Authentication & Security ===
 import { setupAuth, hashPassword, cookieSettings } from "./auth";
+import passport from 'passport';
+
+// === Database & Storage ===
 import { DatabaseStorage } from "./storage";
 import { db, pool } from "./db";
 import { and, eq, sql } from "drizzle-orm";
-import { bookings, restaurantBranches, users, savedRestaurants, restaurants, restaurantAuth, restaurantProfiles, passwordResetRequestSchema, restaurantPasswordResetRequestSchema } from "@shared/schema";
+// Database table definitions
+import { 
+  type RestaurantAuth, type RestaurantProfile, type RestaurantBranch,
+  restaurantAuth, restaurantProfiles, restaurantBranches,
+  insertRestaurantProfileSchema, insertBranchSchema
+} from "@shared/schema";
+import { bookings, users, savedRestaurants, passwordResetRequestSchema, restaurantPasswordResetRequestSchema } from "@shared/schema";
+
+// === Utilities ===
 import { sendPasswordResetEmail } from "./email";
 import { parse as parseCookie } from 'cookie';
 import { format, parseISO, addMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+
+// === Session Management ===
 import connectPg from 'connect-pg-simple';
 import session from 'express-session';
-import passport from 'passport';
 
+// Initialize our database operations helper
 const storage = new DatabaseStorage();
 
-// Define WebSocket message types
+/**
+ * WebSocket Message Format
+ * Defines the structure of real-time messages sent between server and clients
+ */
 type WebSocketMessage = {
-  type: 'new_booking' | 'booking_cancelled' | 'heartbeat' | 'connection_established' | 'booking_arrived' | 'booking_completed';
-  data?: any;
+  type: 'new_booking' |      // When a new booking is made
+        'booking_cancelled' | // When a booking is cancelled
+        'heartbeat' |        // Keep-alive check
+        'connection_established' | // Initial connection success
+        'booking_arrived' |  // When a customer arrives
+        'booking_completed' | // When a booking is finished
+        'init';             // Initial connection setup
+  data?: any;  // Optional data associated with the message
 };
 
-type WebSocketClient = {
+/**
+ * WebSocket Client Information
+ * Tracks information about connected clients for real-time updates
+ */
+interface WebSocketClient {
+  sessionID: string;      // Unique session identifier
+  userId: number;         // User's database ID
+  userType: 'user' | 'restaurant';  // Type of user connected
+  isAlive: boolean;      // Connection health status
+}
+
+// Create PostgreSQL session store for persistent sessions
+const PgStore = connectPg(session) as any;
+
+// Track connected WebSocket clients
+const clients = new Map<WebSocket, WebSocketClient & { isAlive: boolean }>();
+
+// Define user types
+interface AuthenticatedUser {
+  id: number;
+  type: 'user' | 'restaurant';
+}
+
+interface WebSocketClient {
   sessionID: string;
   userId: number;
   userType: 'user' | 'restaurant';
   isAlive: boolean;
+}
+
+// Extend Express Request type
+declare global {
+  namespace Express {
+    interface User extends AuthenticatedUser {}
+  }
+}
+
+// Define authentication middleware
+const requireRestaurantAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated() || !req.user || req.user.type !== 'restaurant') {
+    return res.status(401).json({ message: "Not authenticated as restaurant" });
+  }
+  next();
 };
 
-// Create session store
-const PgStore = connectPg(session) as any;
+const requireUserAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated() || !req.user || req.user.type !== 'user') {
+    return res.status(401).json({ message: "Not authenticated as user" });
+  }
+  next();
+};
 
+/**
+ * Main Routes Configuration Function
+ * Sets up all server endpoints and WebSocket functionality
+ */
 export function registerRoutes(app: Express): Server {
+  // Create HTTP server
+  const httpServer = createServer(app);
+
+  // === BASIC MIDDLEWARE SETUP ===
+  
+  // Parse JSON request bodies
   app.use(express.json());
+  // Parse URL-encoded form data
   app.use(express.urlencoded({ extended: true }));
 
-  // Add error handling middleware for JSON parsing errors
+  // Handle malformed JSON gracefully
   app.use((err: any, req: any, res: any, next: any) => {
     if (err instanceof SyntaxError && 'body' in err) {
       return res.status(400).json({ message: 'Invalid JSON in request body' });
@@ -44,48 +130,78 @@ export function registerRoutes(app: Express): Server {
     next(err);
   });
 
-  // Set up session middleware first
+  // === SESSION CONFIGURATION ===
+
+  // Set up database-backed session storage
   const sessionStore = new PgStore({
-    pool,
-    tableName: 'session',
-    createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15,
+    pool,                           // Database connection
+    tableName: 'session',          // Where to store sessions
+    createTableIfMissing: true,    // Auto-create table
+    pruneSessionInterval: 60 * 15,  // Clean up every 15 mins
     errorLog: console.error.bind(console, 'Session store error:')
   });
 
+  // Give our storage class access to sessions
   storage.setSessionStore(sessionStore);
 
-  // Session configuration
+  // Configure session behavior
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || 'your-secret-key',
-    resave: true,
-    saveUninitialized: false,
-    store: sessionStore,
-    cookie: cookieSettings,
-    name: 'connect.sid',
-    rolling: true,
-    proxy: true
+    secret: process.env.SESSION_SECRET || 'your-secret-key',  // For security
+    resave: true,              // Save all sessions
+    saveUninitialized: false,  // Don't save empty sessions
+    store: sessionStore,       // Use PostgreSQL storage
+    cookie: cookieSettings,    // Cookie configuration
+    name: 'connect.sid',       // Cookie name
+    rolling: true,            // Extend session on activity
+    proxy: true               // Trust our proxy server
   };
 
+  // Enable session handling
   app.use(session(sessionSettings));
 
-  // Initialize passport (needed for req.login)
+  // Initialize authentication
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Public routes (before auth middleware)
-  app.post("/api/register", async (req, res) => {
+  // === PUBLIC ROUTES (No Login Required) ===
+
+  /**
+   * Register New User
+   * POST /api/register
+   * 
+   * Creates a new user account with the provided information and logs them in.
+   * 
+   * Request body:
+   * - email: User's email address
+   * - password: User's chosen password
+   * - firstName: User's first name
+   * - lastName: User's last name
+   * - gender: User's gender
+   * - birthday: User's date of birth
+   * - city: User's city
+   * - favoriteCuisines: Array of user's preferred cuisine types
+   * 
+   * Returns:
+   * - 200: User created successfully (includes user data)
+   * - 400: Email already registered
+   * - 500: Server error
+   */
+  app.post("/api/register", async (req: Request, res: Response) => {
     try {
-      const { email, password, firstName, lastName, gender, birthday, city, favoriteCuisines } = req.body;
+      // Get user information from request
+      const { email, password, firstName, lastName, gender, birthday, 
+              city, favoriteCuisines } = req.body;
       
-      // Check if user already exists
+      // Check if email is already registered
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
         return res.status(400).json({ message: "Email already registered" });
       }
 
-      // Hash password and create user
+      // Securely hash the password
       const hashedPassword = await hashPassword(password);
+      
+      // Create new user in database
       const user = await storage.createUser({
         email,
         password: hashedPassword,
@@ -97,12 +213,14 @@ export function registerRoutes(app: Express): Server {
         favoriteCuisines: Array.isArray(favoriteCuisines) ? favoriteCuisines : []
       });
 
-      // Log the user in
+      // Log the new user in automatically
       req.login({ ...user, type: 'user' as const }, (err) => {
         if (err) {
           return res.status(500).json({ message: "Login error occurred" });
         }
+        // Set their session cookie
         res.cookie('connect.sid', req.sessionID, cookieSettings);
+        // Send back the user data
         res.status(200).json(user);
       });
     } catch (error) {
@@ -111,8 +229,23 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Restaurant login endpoint
-  app.post("/api/restaurant/login", (req, res, next) => {
+  /**
+   * Restaurant Login
+   * POST /api/restaurant/login
+   * 
+   * Authenticates restaurant accounts using their credentials.
+   * Uses a special passport strategy for restaurant authentication.
+   * 
+   * Request body:
+   * - email: Restaurant's email address
+   * - password: Restaurant's password
+   * 
+   * Returns:
+   * - 200: Login successful (includes restaurant data)
+   * - 401: Invalid credentials
+   * - 500: Server error
+   */
+  app.post("/api/restaurant/login", (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate('restaurant-local', (err: any, user: any, info: any) => {
       if (err) {
         return res.status(500).json({ message: "Authentication error occurred" });
@@ -121,19 +254,36 @@ export function registerRoutes(app: Express): Server {
         return res.status(401).json({ message: info?.message || "Invalid credentials" });
       }
 
+      // Log the restaurant in
       req.login(user, (err) => {
         if (err) {
           return res.status(500).json({ message: "Login error occurred" });
         }
 
+        // Set their session cookie and return their data
         res.cookie('connect.sid', req.sessionID, cookieSettings);
         res.status(200).json({ ...user, type: 'restaurant' });
       });
     })(req, res, next);
   });
 
-  // User login endpoint
-  app.post("/api/login", (req, res, next) => {
+  /**
+   * User Login
+   * POST /api/login
+   * 
+   * Authenticates regular user accounts using their credentials.
+   * Uses the default passport local strategy for authentication.
+   * 
+   * Request body:
+   * - email: User's email address
+   * - password: User's password
+   * 
+   * Returns:
+   * - 200: Login successful (includes user data)
+   * - 401: Invalid credentials
+   * - 500: Server error
+   */
+  app.post("/api/login", (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate('local', (err: any, user: any, info: any) => {
       if (err) {
         return res.status(500).json({ message: "Authentication error occurred" });
@@ -142,20 +292,23 @@ export function registerRoutes(app: Express): Server {
         return res.status(401).json({ message: info?.message || "Invalid credentials" });
       }
 
+      // Log the user in
       req.login(user, (err) => {
         if (err) {
           return res.status(500).json({ message: "Login error occurred" });
         }
 
+        // Set their session cookie and return their data
         res.cookie('connect.sid', req.sessionID, cookieSettings);
         res.status(200).json(user);
       });
     })(req, res, next);
   });
 
-  // Set up authentication middleware for protected routes
-  app.use('/api', (req, res, next) => {
-    // List of public endpoints that do not require authentication
+  // AUTHENTICATION MIDDLEWARE
+  // This protects all routes that come after it
+  app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+    // List of routes that don't need login
     const publicPaths = [
       '/register',
       '/login',
@@ -163,780 +316,299 @@ export function registerRoutes(app: Express): Server {
       '/forgot-password',
       '/reset-password',
       '/restaurant/forgot-password',
-      '/restaurant/reset-password'
+      '/restaurant/reset-password',
+      '/restaurants', 
+      '/restaurant'
     ];
+    
+    // If it's a public path, let them through
     if (publicPaths.some(path => req.path.endsWith(path))) {
       return next();
     }
+    
+    // If not logged in, stop here
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Authentication required" });
     }
+    
+    // If logged in, continue to the route
     next();
   });
 
-  // Set up authentication first to ensure session is available for WebSocket
+  // Set up authentication (from auth.ts)
   setupAuth(app);
 
-  // Add availability endpoint
-  app.get("/api/restaurants/:restaurantId/branches/:branchId/availability", async (req, res, next) => {
+  /**
+   * Get All Restaurants
+   * GET /api/restaurants
+   * 
+   * Public endpoint to get a list of all restaurants with their branches
+   * 
+   * Query parameters:
+   * - search (optional): Search by restaurant name, description, or cuisine
+   * - city (optional): Filter by city (Alexandria or Cairo)
+   * - cuisine (optional): Filter by cuisine type
+   * - priceRange (optional): Filter by price range ($, $$, $$$, $$$$)
+   * 
+   * Returns:
+   * - 200: List of restaurants
+   * - 500: Server error
+   */
+  app.get("/api/restaurants", async (req: Request, res: Response) => {
     try {
-      const restaurantId = parseInt(req.params.restaurantId);
-      const branchId = parseInt(req.params.branchId);
-      const dateStr = req.query.date as string;
-
-      if (!dateStr) {
-        return res.status(400).json({ message: "Date parameter is required" });
+      const { search, city, cuisine, priceRange } = req.query;
+      
+      // Validate city if provided
+      if (city && !["Alexandria", "Cairo", "all"].includes(city as string)) {
+        return res.status(400).json({ message: "Invalid city. Must be Alexandria or Cairo" });
       }
 
-      const date = parseISO(dateStr);
+      // Validate price range if provided
+      if (priceRange && !["$", "$$", "$$$", "$$$$", "all"].includes(priceRange as string)) {
+        return res.status(400).json({ message: "Invalid price range. Must be $, $$, $$$, or $$$$" });
+      }
 
-      // Get branch details
-      const [branch] = await db
-        .select()
-        .from(restaurantBranches)
-        .where(
-          and(
-            eq(restaurantBranches.id, branchId),
-            eq(restaurantBranches.restaurantId, restaurantId)
-          )
-        );
+      const restaurants = await storage.getRestaurants({
+        search: search as string,
+        city: city === "all" ? undefined : city as string,
+        cuisine: cuisine === "all" ? undefined : cuisine as string,
+        priceRange: priceRange === "all" ? undefined : priceRange as string
+      });
 
+      res.json(restaurants);
+    } catch (error) {
+      console.error("Error getting restaurants:", error);
+      res.status(500).json({ message: "Error retrieving restaurants" });
+    }
+  });
+
+  /**
+   * Get Restaurant Details
+   * GET /api/restaurant/:id
+   * 
+   * Public endpoint to get details of a specific restaurant
+   * 
+   * URL parameters:
+   * - id: Restaurant ID
+   * 
+   * Returns:
+   * - 200: Restaurant details
+   * - 404: Restaurant not found
+   * - 500: Server error
+   */
+  app.get("/api/restaurant/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const restaurant = await storage.getRestaurant(parseInt(id));
+      
+      if (!restaurant) {
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+      
+      res.json(restaurant);
+    } catch (error) {
+      console.error("Error getting restaurant:", error);
+      res.status(500).json({ message: "Error retrieving restaurant" });
+    }
+  });
+
+  // PROTECTED ROUTES (login required)
+
+  /**
+   * Get Restaurant Branch Details
+   */
+  app.get("/api/restaurant/branches/:branchId", requireRestaurantAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { branchId } = req.params;
+      
+      // Get user ID from authenticated request
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const restaurantId = req.user.id;
+
+      // Parse and validate branchId
+      const branchIdNum = parseInt(branchId, 10);
+      if (isNaN(branchIdNum)) {
+        return res.status(400).json({ message: "Invalid branch ID" });
+      }
+
+      // Get the branch details from database
+      const branch = await storage.getBranchById(branchIdNum, restaurantId);
       if (!branch) {
         return res.status(404).json({ message: "Branch not found" });
       }
 
-      // Get all bookings for this branch on the given date
-      const branchBookings = await db
-        .select()
-        .from(bookings)
-        .where(
-          and(
-            eq(bookings.branchId, branchId),
-            sql`DATE(${bookings.date}) = DATE(${date})`
-          )
-        );
+      // Get branch availability
+      const availability = await storage.getBranchAvailability(branchIdNum, new Date());
 
-      // Create time slots map
-      const timeSlots: Record<string, number> = {};
-      const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
-      const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
-
-      let currentTime = new Date(date);
-      currentTime.setHours(openHour, openMinute, 0, 0);
-
-      const endTime = new Date(date);
-      // Handle closing time past midnight
-      if (closeHour < openHour || (closeHour === openHour && closeMinute < openMinute)) {
-        endTime.setDate(endTime.getDate() + 1);
-      }
-      endTime.setHours(closeHour, closeMinute, 0, 0);
-
-      // Generate 30-minute slots
-      while (currentTime < endTime) {
-        const timeSlot = format(currentTime, 'HH:mm');
-        timeSlots[timeSlot] = branch.seatsCount; // Initialize with full capacity
-        currentTime = addMinutes(currentTime, 30);
-      }
-
-      // Subtract booked seats from available seats
-      branchBookings.forEach(booking => {
-        const bookingTime = format(booking.date, 'HH:mm');
-        if (timeSlots[bookingTime] !== undefined) {
-          timeSlots[bookingTime] -= booking.partySize;
-        }
-      });
-
-      res.json(timeSlots);
+      res.json({ ...branch, availability });
     } catch (error) {
       next(error);
     }
   });
 
-  const httpServer = createServer(app);
-  const wss = new WebSocketServer({ 
-    server: httpServer, 
-    path: '/ws',
-    verifyClient: async (info, callback) => {
-      try {
-        const cookies = info.req.headers.cookie ? parseCookie(info.req.headers.cookie) : null;
-        if (!cookies?.['connect.sid']) {
-          return callback(false, 401, 'Authentication required');
-        }
-
-        const sessionID = cookies['connect.sid'];
-        const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
-
-        // Get session from store
-        const session = await new Promise((resolve) => {
-          storage.sessionStore.get(cleanSessionId, (err, session) => {
-            resolve(err ? null : session);
-          });
-        });
-
-        if (!session) {
-          return callback(false, 401, 'Invalid session');
-        }
-
-        // Safely access passport data
-        const passportData = (session as any).passport;
-        if (!passportData?.user?.id || !passportData?.user?.type) {
-          return callback(false, 401, 'Invalid user data');
-        }
-
-        // Store user info in request
-        (info.req as any).user = {
-          id: passportData.user.id,
-          type: passportData.user.type
-        };
-
-        callback(true);
-      } catch (error) {
-        console.error('WebSocket authentication error:', error);
-        callback(false, 500, 'Authentication failed');
+  /**
+   * Get Booking Details
+   */
+  app.get("/api/bookings/:bookingId", requireUserAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { bookingId } = req.params;
+      
+      // Get user ID from authenticated request
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "Not authenticated" });
       }
+      const userId = req.user.id;
+
+      // Parse and validate bookingId
+      const bookingIdNum = parseInt(bookingId, 10);
+      if (isNaN(bookingIdNum)) {
+        return res.status(400).json({ message: "Invalid booking ID" });
+      }
+
+      // Get booking details
+      const booking = await storage.getBookingByIdAndUser(bookingIdNum, userId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      res.json(booking);
+    } catch (error) {
+      next(error);
     }
   });
 
-  // Track active connections by WebSocket instances
-  const clients = new Map<WebSocket, WebSocketClient>();
+  // === WEBSOCKET SETUP ===
+  const wss = new WebSocketServer({
+    server: httpServer,
+    path: '/ws' // Dedicated path for our WebSocket connections
+  });
 
-  // Heartbeat interval
+  // Heartbeat interval to keep connections alive (check every 60 seconds)
   const heartbeatInterval = setInterval(() => {
-    wss.clients.forEach((ws) => {
+    wss.clients.forEach((ws: WebSocket) => {
       const client = clients.get(ws);
       if (!client || !client.isAlive) {
         clients.delete(ws);
-        return ws.terminate();
+        ws.terminate();
+        return;
       }
       client.isAlive = false;
-      ws.ping();
+      try {
+        ws.ping();
+      } catch (error) {
+        console.error('Error sending ping:', error);
+        clients.delete(ws);
+        ws.terminate();
+      }
     });
-  }, 30000);
+  }, 60000); // 60 seconds
 
-  // WebSocket connection handler
-  wss.on('connection', async (ws, req) => {
-    const user = (req as any).user;
-    if (!user?.id || !user?.type || !['user', 'restaurant'].includes(user.type)) {
-      ws.close(1008, 'Invalid user data');
-      return;
-    }
+  // Clean up interval on server close
+  httpServer.on('close', () => {
+    clearInterval(heartbeatInterval);
+    wss.clients.forEach((ws) => {
+      ws.terminate();
+    });
+    clients.clear();
+  });
 
-    const cookies = req.headers.cookie ? parseCookie(req.headers.cookie) : null;
-    if (!cookies?.['connect.sid']) {
-      ws.close(1008, 'No session found');
-      return;
-    }
+  wss.on('connection', (ws: WebSocket) => {
+    console.log('New WebSocket connection on /ws path');
 
-    const sessionID = cookies['connect.sid'];
-    const cleanSessionId = sessionID.split('.')[0].replace(/^s:/, '');
+    // Send connection established message
+    ws.send(JSON.stringify({
+      type: 'connection_established',
+      data: { message: 'Connected to server' }
+    }));
 
-    // Add client to tracked connections
-    clients.set(ws, {
-      sessionID: cleanSessionId,
-      userId: user.id,
-      userType: user.type as 'user' | 'restaurant',
-      isAlive: true
+    ws.on('message', (data: string) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(data);
+        console.log('Received message:', message.type);
+        
+        // Handle different message types
+        switch (message.type) {
+          case 'heartbeat':
+            const client = clients.get(ws);
+            if (client) {
+              client.isAlive = true;
+            }
+            break;
+
+          case 'init':
+            if (!message.data?.sessionID || !message.data?.userId || !message.data?.userType) {
+              console.error('Invalid init message:', message);
+              return;
+            }
+            // Initialize client connection
+            clients.set(ws, {
+              sessionID: message.data.sessionID,
+              userId: message.data.userId,
+              userType: message.data.userType as 'user' | 'restaurant',
+              isAlive: true
+            });
+            // Send confirmation
+            ws.send(JSON.stringify({
+              type: 'connection_established',
+              data: { message: 'Successfully initialized connection' }
+            }));
+            break;
+
+          case 'new_booking':
+          case 'booking_cancelled':
+          case 'booking_arrived':
+          case 'booking_completed':
+            // Forward booking-related messages to relevant clients
+            const { restaurantId, userId } = message.data;
+            clients.forEach((clientInfo, clientWs) => {
+              if (
+                clientInfo.userType === 'restaurant' && clientInfo.userId === restaurantId ||
+                clientInfo.userType === 'user' && clientInfo.userId === userId
+              ) {
+                try {
+                  clientWs.send(JSON.stringify(message));
+                } catch (error) {
+                  console.error('Error sending message to client:', error);
+                  clients.delete(clientWs);
+                  clientWs.terminate();
+                }
+              }
+            });
+            break;
+
+          default:
+            console.warn('Unknown message type:', message.type);
+        }
+      } catch (error) {
+        console.error('Error handling WebSocket message:', error);
+      }
     });
 
-    // Set up client event handlers
+    ws.on('close', () => {
+      console.log('Client disconnected from /ws');
+      clients.delete(ws);
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      clients.delete(ws);
+      ws.terminate();
+    });
+
     ws.on('pong', () => {
       const client = clients.get(ws);
       if (client) {
         client.isAlive = true;
       }
     });
-
-    ws.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString()) as WebSocketMessage;
-        if (data.type === 'heartbeat') {
-          const client = clients.get(ws);
-          if (client) {
-            client.isAlive = true;
-            ws.send(JSON.stringify({ type: 'heartbeat' }));
-          }
-        }
-      } catch (error) {
-        console.error('WebSocket message parsing error:', error);
-      }
-    });
-
-    ws.on('close', () => {
-      clients.delete(ws);
-    });
-
-    // Send initial connection success message
-    ws.send(JSON.stringify({
-      type: 'connection_established',
-      data: { userId: user.id, userType: user.type }
-    }));
   });
 
-  // Add authentication middleware for all /api routes
-  // app.use('/api', (req, res, next) => {
-  //   if (!req.isAuthenticated()) {
-  //     return res.status(401).json({ message: "Authentication required" });
-  //   }
-  //   // Add user type check for restaurant-only endpoints
-  //   if (req.path.startsWith('/restaurant/') && req.user?.type !== 'restaurant') {
-  //     return res.status(403).json({ message: "Access denied" });
-  //   }
-  //   next();
-  // });
-
-  // Add type-specific authentication middleware
-  const requireRestaurantAuth = (req: any, res: any, next: any) => {
-    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
-      return res.status(401).json({ message: "Not authenticated as restaurant" });
-    }
-    next();
-  };
-
-  // Update restaurant bookings endpoint with enhanced auth
-  app.get("/api/restaurant/bookings/:restaurantId", requireRestaurantAuth, async (req, res) => {
-    try {
-      const restaurantId = parseInt(req.params.restaurantId);
-      if (restaurantId !== req.user?.id) {
-        return res.status(403).json({ message: "Unauthorized to access these bookings" });
-      }
-
-      const bookings = await storage.getRestaurantBookings(restaurantId);
-      res.json(bookings);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Update arrive endpoint with enhanced auth and proper type checking
-  app.post("/api/restaurant/bookings/:bookingId/arrive", requireRestaurantAuth, async (req, res, next) => {
-    try {
-      const bookingId = parseInt(req.params.bookingId);
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-
-      // Verify booking belongs to this restaurant
-      const [booking] = await db.select()
-        .from(bookings)
-        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
-        .where(
-          and(
-            eq(bookings.id, bookingId),
-            eq(restaurantBranches.restaurantId, sql`${userId}`)
-          )
-        );
-
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found or unauthorized" });
-      }
-
-      // Add arrivedAt timestamp
-      const arrivedAt = new Date().toISOString();
-      await storage.markBookingArrived(bookingId, arrivedAt);
-
-      // Notify connected clients about the arrival update
-      clients.forEach((client, ws) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'booking_arrived',
-            data: { bookingId, restaurantId: userId, arrivedAt }
-          }));
-        }
-      });
-
-      res.json({ message: "Booking marked as arrived" });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Add new endpoint to mark booking as complete
-  app.post("/api/restaurant/bookings/:bookingId/complete", requireRestaurantAuth, async (req, res, next) => {
-    try {
-      const bookingId = parseInt(req.params.bookingId);
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-
-      // Verify booking belongs to this restaurant
-      const [booking] = await db.select()
-        .from(bookings)
-        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
-        .where(
-          and(
-            eq(bookings.id, bookingId),
-            eq(restaurantBranches.restaurantId, sql`${userId}`)
-          )
-        );
-
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found or unauthorized" });
-      }
-
-      await storage.markBookingComplete(bookingId);
-
-      // Notify connected clients about the completion update
-      clients.forEach((client, ws) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'booking_completed',
-            data: { bookingId, restaurantId: userId }
-          }));
-        }
-      });
-
-      res.json({ message: "Booking marked as complete" });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Add restaurant booking cancellation endpoint
-  app.post("/api/restaurant/bookings/:bookingId/cancel", requireRestaurantAuth, async (req, res, next) => {
-    try {
-      const bookingId = parseInt(req.params.bookingId);
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-
-      // Verify booking belongs to this restaurant
-      const [booking] = await db.select()
-        .from(bookings)
-        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
-        .where(
-          and(
-            eq(bookings.id, bookingId),
-            eq(restaurantBranches.restaurantId, sql`${userId}`)
-          )
-        );
-
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found or unauthorized" });
-      }
-
-      await storage.cancelBooking(bookingId);
-
-      // Notify connected clients about the cancelled booking
-      clients.forEach((client, ws) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'booking_cancelled',
-            data: { bookingId, restaurantId: userId }
-          }));
-        }
-      });
-
-      res.json({ message: "Booking cancelled successfully" });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post("/api/bookings/:bookingId/cancel", async (req, res, next) => {
-    try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
-        return res.status(401).json({ message: "Not authenticated as user" });
-      }
-
-      const bookingId = parseInt(req.params.bookingId);
-
-      // First get the booking to verify ownership
-      const [booking] = await db.select()
-        .from(bookings)
-        .where(
-          and(
-            eq(bookings.id, bookingId),
-            eq(bookings.userId, req.user.id)
-          )
-        );
-
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found or unauthorized" });
-      }
-
-      await storage.cancelBooking(bookingId);
-
-      // Notify connected clients about the cancelled booking
-      clients.forEach((client, ws) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'booking_cancelled',
-            data: { bookingId, userId: req.user?.id }
-          }));
-        }
-      });
-
-      res.json({ message: "Booking cancelled successfully" });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.get("/api/restaurants", async (req, res, next) => {
-    try {
-      const query = req.query.q as string;
-      const restaurants = query
-        ? await storage.searchRestaurants(query)
-        : await storage.getRestaurants();
-      res.json(restaurants);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.get("/api/restaurants/:id", async (req, res, next) => {
-    try {
-      const restaurant = await storage.getRestaurant(parseInt(req.params.id));
-      if (!restaurant) {
-        res.status(404).json({ message: "Restaurant not found" });
-        return;
-      }
-      res.json(restaurant);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.get("/api/restaurants/:id/branches", async (req, res, next) => {
-    try {
-      const branches = await storage.getRestaurantBranches(parseInt(req.params.id));
-      res.json(branches);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Update the POST /api/bookings endpoint with proper type checking
-  app.post("/api/bookings", async (req, res, next) => {
-    try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user' || typeof req.user?.id !== 'number') {
-        return res.status(401).json({ message: "Not authenticated as user" });
-      }
-
-      const { branchId, date, partySize } = req.body;
-
-      // Validate required fields
-      if (!branchId || !date || !partySize) {
-        return res.status(400).json({
-          message: "Missing required fields",
-          required: ['branchId', 'date', 'partySize']
-        });
-      }
-
-      // Validate data types
-      if (typeof partySize !== 'number' || partySize < 1) {
-        return res.status(400).json({ message: "Party size must be a positive number" });
-      }
-
-      if (isNaN(Date.parse(date))) {
-        return res.status(400).json({ message: "Invalid date format" });
-      }
-
-      // Create the booking
-      const booking = await storage.createBooking({
-        userId: req.user.id,
-        branchId,
-        date: new Date(date),
-        partySize,
-        arrived: false,
-        arrivedAt: null,  // Add arrivedAt field
-        completed: false
-      });
-
-      // Notify connected clients about the new booking
-      clients.forEach((client, ws) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'new_booking',
-            data: booking
-          }));
-        }
-      });
-
-      return res.status(201).json(booking);
-    } catch (error) {
-      console.error('Error creating booking:', error);
-      return res.status(500).json({
-        message: error instanceof Error ? error.message : "Failed to create booking"
-      });
-    }
-  });
-
-  app.get("/api/bookings", async (req, res, next) => {
-    try {
-      console.log('GET /api/bookings - User:', req.user);
-      
-      if (!req.isAuthenticated() || !req.user?.id || req.user?.type !== 'user') {
-        console.log('GET /api/bookings - Not authenticated as user');
-        res.status(401).json({ message: "Not authenticated as user" });
-        return;
-      }
-
-      console.log('GET /api/bookings - Fetching bookings for user:', req.user.id);
-      const bookings = await storage.getUserBookings(req.user.id);
-      console.log('GET /api/bookings - Found bookings:', bookings);
-      res.json(bookings);
-    } catch (error) {
-      console.error('GET /api/bookings - Error:', error);
-      next(error);
-    }
-  });
-
-  // Add restaurant profile endpoints
-  app.put("/api/restaurant/profile", requireRestaurantAuth, async (req, res, next) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-
-      await storage.createRestaurantProfile({
-        ...req.body,
-        restaurantId: userId
-      });
-
-      res.json({ message: "Profile updated successfully" });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-
-  // Add saved restaurants endpoints
-  app.post("/api/saved-restaurants", async (req, res, next) => {
-    try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
-        console.log('Authentication failed:', {
-          isAuthenticated: req.isAuthenticated(),
-          userType: req.user?.type,
-          userId: req.user?.id
-        });
-        return res.status(401).json({ message: "Not authenticated as user" });
-      }
-
-      const { restaurantId, branchIndex } = req.body;
-      console.log('Saving restaurant:', {
-        userId: req.user.id,
-        restaurantId,
-        branchIndex
-      });
-
-      if (typeof restaurantId !== 'number' || typeof branchIndex !== 'number') {
-        console.log('Invalid request body:', req.body);
-        return res.status(400).json({ message: "Invalid request body" });
-      }
-
-      // Verify that the restaurant exists before saving
-      const [restaurant] = await db
-        .select()
-        .from(restaurantAuth)
-        .where(eq(restaurantAuth.id, restaurantId));
-
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-
-      const [saved] = await db.insert(savedRestaurants)
-        .values({
-          userId: req.user.id,
-          restaurantId,
-          branchIndex,
-          createdAt: new Date()
-        })
-        .returning();
-
-      console.log('Restaurant saved successfully:', saved);
-      res.status(201).json(saved);
-    } catch (error) {
-      console.error('Error saving restaurant:', error);
-      next(error);
-    }
-  });
-
-  app.get("/api/saved-restaurants", async (req, res, next) => {
-    try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
-        return res.status(401).json({ message: "Not authenticated as user" });
-      }
-
-      const userId = req.user.id;
-      console.log('Fetching saved restaurants for user:', userId);
-
-      // First get the saved restaurant records
-      const savedRecords = await db
-        .select()
-        .from(savedRestaurants)
-        .where(eq(savedRestaurants.userId, userId));
-
-      console.log('Found saved records:', savedRecords);
-
-      // Then fetch complete restaurant data for each saved record
-      const results = await Promise.all(
-        savedRecords.map(async (saved) => {
-          // Get restaurant auth and profile data
-          const [restaurantData] = await db
-            .select({
-              id: restaurantAuth.id,
-              name: restaurantAuth.name,
-              description: restaurantProfiles.about,
-              about: restaurantProfiles.about,
-              logo: restaurantProfiles.logo,
-              cuisine: restaurantProfiles.cuisine,
-              priceRange: restaurantProfiles.priceRange,
-            })
-            .from(restaurantAuth)
-            .innerJoin(
-              restaurantProfiles,
-              eq(restaurantAuth.id, restaurantProfiles.restaurantId)
-            )
-            .where(eq(restaurantAuth.id, saved.restaurantId));
-
-          // Get branches data
-          const branches = await db
-            .select()
-            .from(restaurantBranches)
-            .where(eq(restaurantBranches.restaurantId, saved.restaurantId));
-
-          // Map branches to locations format
-          const locations = branches.map(branch => ({
-            id: branch.id,
-            address: branch.address,
-            tablesCount: branch.tablesCount,
-            seatsCount: branch.seatsCount,
-            openingTime: branch.openingTime,
-            closingTime: branch.closingTime,
-            city: branch.city as "Alexandria" | "Cairo"
-          }));
-
-          return {
-            id: saved.id,
-            restaurantId: saved.restaurantId,
-            branchIndex: saved.branchIndex,
-            createdAt: saved.createdAt,
-            restaurant: {
-              ...restaurantData,
-              locations
-            }
-          };
-        })
-      );
-
-      console.log('Mapped saved restaurants results:', results);
-      res.json(results);
-    } catch (error) {
-      console.error('Error fetching saved restaurants:', error);
-      next(error);
-    }
-  });
-
-  app.get("/api/saved-restaurants/:restaurantId/:branchIndex", async (req, res, next) => {
-    try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
-        return res.status(401).json({ message: "Not authenticated as user" });
-      }
-
-      const userId = req.user.id;
-      const restaurantId = parseInt(req.params.restaurantId);
-      const branchIndex = parseInt(req.params.branchIndex);
-
-      const [saved] = await db
-        .select()
-        .from(savedRestaurants)
-        .where(
-          and(
-            eq(savedRestaurants.userId, userId),
-            eq(savedRestaurants.restaurantId, restaurantId),
-            eq(savedRestaurants.branchIndex, branchIndex)
-          )
-        );
-
-      res.json(Boolean(saved));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.delete("/api/saved-restaurants/:restaurantId/:branchIndex", async (req, res, next) => {
-    try {
-      if (!req.isAuthenticated() || req.user?.type !== 'user' || !req.user?.id) {
-        return res.status(401).json({ message: "Not authenticated as user" });
-      }
-
-      const userId = req.user.id;
-      const restaurantId = parseInt(req.params.restaurantId);
-      const branchIndex = parseInt(req.params.branchIndex);
-
-      await db
-        .delete(savedRestaurants)
-        .where(
-          and(
-            eq(savedRestaurants.userId, userId),
-            eq(savedRestaurants.restaurantId, restaurantId),
-            eq(savedRestaurants.branchIndex, branchIndex)
-          )
-        );
-
-      res.status(200).json({ message: "Restaurant removed from saved list" });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post("/api/forgot-password", async (req, res) => {
-    try {
-      const { email } = passwordResetRequestSchema.parse(req.body);
-      const user = await storage.getUserByEmail(email);
-      if (!user) {
-        return res.status(404).json({ message: "No user exists with this email address." });
-      }
-      const token = await storage.createPasswordResetToken(user.id);
-      const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
-      const previewUrl = await sendPasswordResetEmail(email, resetUrl);
-      res.json({ message: "Password reset email sent", previewUrl });
-    } catch (error: any) {
-      console.error("Error in forgot password:", error);
-      if (error.message?.includes("not found")) {
-        res.status(404).json({ message: "No user exists with this email address." });
-      } else {
-        res.status(500).json({ message: "Failed to process password reset request" });
-      }
-    }
-  });
-
-  app.post("/api/restaurant/forgot-password", async (req, res) => {
-    try {
-      const { email } = restaurantPasswordResetRequestSchema.parse(req.body);
-      const restaurant = await storage.getRestaurantAuthByEmail(email);
-      if (!restaurant) {
-        return res.status(404).json({ message: "No restaurant exists with this email address." });
-      }
-      const token = await storage.createRestaurantPasswordResetToken(restaurant.id);
-      const resetUrl = `${process.env.CLIENT_URL}/restaurant/reset-password?token=${token}`;
-      const previewUrl = await sendPasswordResetEmail(email, resetUrl, true);
-      res.json({ message: "Password reset email sent", previewUrl });
-    } catch (error: any) {
-      console.error("Error in restaurant forgot password:", error);
-      if (error.message?.includes("not found")) {
-        res.status(404).json({ message: "No restaurant exists with this email address." });
-      } else {
-        res.status(500).json({ message: "Failed to process password reset request" });
-      }
-    }
-  });
-
-  // Error handling middleware should be last
-  app.use((err: any, req: any, res: any, next: any) => {
+  // Error handling middleware
+  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     console.error('Error:', err);
-    // Ensure we always send JSON response
-    res.status(err.status || 500).json({
-      message: err.message || "Internal server error"
-    });
+    res.status(500).json({ message: 'Internal Server Error' });
   });
 
   return httpServer;

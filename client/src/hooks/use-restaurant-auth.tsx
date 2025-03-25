@@ -3,12 +3,12 @@ import {
   useQuery,
   useMutation,
 } from "@tanstack/react-query";
-import { RestaurantAuth, InsertRestaurantAuth } from "@shared/schema";
+import { RestaurantAuth, InsertRestaurantAuth, Restaurant } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 type RestaurantAuthContextType = {
-  restaurant: RestaurantAuth | null;
+  restaurant: (RestaurantAuth & Partial<Restaurant>) | null;
   isLoading: boolean;
   error: Error | null;
   loginMutation: any;
@@ -29,7 +29,7 @@ export function RestaurantAuthProvider({ children }: { children: ReactNode }) {
     data: restaurant,
     error,
     isLoading,
-  } = useQuery<RestaurantAuth | null>({
+  } = useQuery<RestaurantAuth & Partial<Restaurant> | null>({
     queryKey: ["/api/restaurant"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,

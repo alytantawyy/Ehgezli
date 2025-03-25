@@ -81,30 +81,21 @@ export const restaurantAuth = pgTable("restaurant_auth", {
 // Define Location type first, before the restaurant schema
 export type Location = {
   id: number;
+  restaurantId: number;
   address: string;
   tablesCount: number;
   seatsCount: number;
   openingTime: string;
   closingTime: string;
   city: "Alexandria" | "Cairo";
+  reservationDuration: number;
 };
-
-export const restaurants = pgTable("restaurants", {
-  id: serial("id").primaryKey(),
-  authId: integer("auth_id").notNull().unique(),
-  name: text("name").notNull(),
-  description: text("description").notNull(),
-  about: text("about").notNull(),
-  logo: text("logo").notNull(),
-  cuisine: text("cuisine").notNull(),
-  locations: jsonb("locations").notNull().$type<Location[]>(),
-  priceRange: text("price_range").notNull().$default(() => "$"),
-});
 
 export const restaurantProfiles = pgTable("restaurant_profiles", {
   id: serial("id").primaryKey(),
-  restaurantId: integer("restaurant_id").notNull().unique(),
+  restaurantId: integer("restaurant_id").notNull().unique().references(() => restaurantAuth.id),
   about: text("about").notNull(),
+  description: text("description").notNull(),
   cuisine: text("cuisine").notNull(),
   priceRange: text("price_range").notNull(),
   logo: text("logo").notNull().default(""), // Add logo field
@@ -140,9 +131,9 @@ export const branchUnavailableDatesRelations = relations(branchUnavailableDates,
 }));
 
 export const branchRelations = relations(restaurantBranches, ({ one, many }) => ({
-  restaurant: one(restaurants, {
+  restaurant: one(restaurantProfiles, {
     fields: [restaurantBranches.restaurantId],
-    references: [restaurants.id],
+    references: [restaurantProfiles.restaurantId],
   }),
   bookings: many(bookings),
   unavailableDates: many(branchUnavailableDates),
@@ -185,9 +176,9 @@ export const savedRestaurantsRelations = relations(savedRestaurants, ({ one }) =
     fields: [savedRestaurants.userId],
     references: [users.id],
   }),
-  restaurant: one(restaurants, {
+  restaurant: one(restaurantProfiles, {
     fields: [savedRestaurants.restaurantId],
-    references: [restaurants.id],
+    references: [restaurantProfiles.restaurantId],
   }),
 }));
 
@@ -211,18 +202,12 @@ export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omi
   email: z.string().email("Invalid email format")
 });
 
-export const insertRestaurantSchema = createInsertSchema(restaurants).omit({
+export const insertRestaurantProfileSchema = createInsertSchema(restaurantProfiles).omit({
   id: true
 }).extend({
   about: z.string().max(100),
+  description: z.string().max(100),
   priceRange: z.enum(["$", "$$", "$$$", "$$$$"]), // Add price range validation
-  locations: z.array(z.object({
-    address: z.string(),
-    tablesCount: z.number(),
-    openingTime: z.string(),
-    closingTime: z.string(),
-    city: z.enum(["Alexandria", "Cairo"])
-  }))
 });
 
 export const insertBranchSchema = createInsertSchema(restaurantBranches).omit({
@@ -249,42 +234,30 @@ export const restaurantProfileSchema = createInsertSchema(restaurantProfiles).om
     .refine((val) => val.trim().split(/\s+/).length <= 50, {
       message: "About section must not exceed 50 words"
     }),
+  description: z.string()
+    .min(1, "Description section is required")
+    .refine((val) => val.trim().split(/\s+/).length <= 50, {
+      message: "Description section must not exceed 50 words"
+    }),
   cuisine: z.string().min(1, "Cuisine type is required"),
   priceRange: z.enum(["$", "$$", "$$$", "$$$$"], {
     required_error: "Price range is required",
   }),
-  branches: z.array(z.object({
-    address: z.string().min(1, "Address is required"),
-    city: z.enum(["Alexandria", "Cairo"], {
-      required_error: "City is required",
-      invalid_type_error: "Please select a valid city"
-    }),
-    tablesCount: z.number().min(1, "Must have at least 1 table"),
-    seatsCount: z.number().min(1, "Must have at least 1 seat"),
-    openingTime: z.string().min(1, "Opening time is required"),
-    closingTime: z.string().min(1, "Closing time is required"),
-  })).min(1, "At least one branch is required"),
 });
 
 // Add schema for inserting unavailable dates
-export const insertBranchUnavailableDatesSchema = createInsertSchema(branchUnavailableDates).omit({
-  id: true,
-  createdAt: true,
-}).extend({
-  date: z.string()
+export const insertBranchUnavailableDatesSchema = z.object({
+  branchId: z.number(),
+  date: z.date(),
+  reason: z.string().optional()
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type InsertRestaurantAuth = z.infer<typeof insertRestaurantAuthSchema>;
-export type User = typeof users.$inferSelect;
-export type RestaurantAuth = typeof restaurantAuth.$inferSelect;
-export type Restaurant = typeof restaurants.$inferSelect;
-export type RestaurantBranch = typeof restaurantBranches.$inferSelect;
-export type Booking = typeof bookings.$inferSelect;
-export type RestaurantProfile = typeof restaurantProfiles.$inferSelect;
-export type InsertRestaurantProfile = z.infer<typeof restaurantProfileSchema>;
-export type InsertBranchUnavailableDates = z.infer<typeof insertBranchUnavailableDatesSchema>;
-export type BranchUnavailableDate = typeof branchUnavailableDates.$inferSelect;
+// Extended booking type that includes restaurant details
+export interface ExtendedBooking extends Booking {
+  restaurantName?: string;
+  restaurantId?: number;
+  branchRestaurantId?: number;
+}
 
 // Add BookingWithDetails type
 export type BookingWithDetails = {
@@ -308,4 +281,21 @@ export type BookingWithDetails = {
   };
 };
 
-export const mockRestaurants: Restaurant[] = [];
+// Export types
+export type InsertUser = typeof users.$inferInsert;
+export type InsertRestaurantAuth = typeof restaurantAuth.$inferInsert;
+export type User = typeof users.$inferSelect;
+export type RestaurantAuth = typeof restaurantAuth.$inferSelect;
+export type RestaurantProfile = typeof restaurantProfiles.$inferSelect;
+export type RestaurantBranch = typeof restaurantBranches.$inferSelect;
+export type InsertRestaurantBranch = typeof restaurantBranches.$inferInsert;
+export type Booking = typeof bookings.$inferSelect;
+export type InsertRestaurantProfile = typeof restaurantProfiles.$inferInsert;
+export type InsertBranchUnavailableDates = typeof branchUnavailableDates.$inferInsert;
+export type BranchUnavailableDate = typeof branchUnavailableDates.$inferSelect;
+
+// Restaurant type combining auth and profile
+export type Restaurant = RestaurantAuth & {
+  profile?: RestaurantProfile;
+  branches: RestaurantBranch[];
+};

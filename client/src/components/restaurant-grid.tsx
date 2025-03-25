@@ -12,19 +12,26 @@ interface RestaurantGridProps {
 
 export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter, priceFilter }: RestaurantGridProps) {
   const { data: restaurants, isLoading } = useQuery<Restaurant[]>({
-    queryKey: ["/api/restaurants", searchQuery, cityFilter, cuisineFilter, priceFilter],
+    queryKey: ["restaurants", searchQuery, cityFilter, cuisineFilter, priceFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (searchQuery) params.append("q", searchQuery);
+      if (searchQuery) params.append("search", searchQuery);
       if (cityFilter && cityFilter !== 'all') params.append("city", cityFilter);
       if (cuisineFilter && cuisineFilter !== 'all') params.append("cuisine", cuisineFilter);
       if (priceFilter && priceFilter !== 'all') params.append("priceRange", priceFilter);
 
       const url = `/api/restaurants${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to fetch restaurants");
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Failed to fetch restaurants' }));
+        throw new Error(error.message || 'Failed to fetch restaurants');
+      }
+      
       return response.json();
     },
+    retry: 1, // Only retry once
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
   });
 
   if (isLoading) {
@@ -41,50 +48,25 @@ export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter, priceFi
     );
   }
 
-  // Create an array of all branches and filter by city if needed
-  const branches = restaurants?.flatMap((restaurant) =>
-    restaurant.locations.map((location, index) => ({
+  if (!restaurants || restaurants.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-lg text-muted-foreground">
+          No restaurants found
+        </p>
+      </div>
+    );
+  }
+
+  // Flatten restaurants into branch cards
+  const branchCards = restaurants?.flatMap((restaurant) =>
+    restaurant.branches?.map((branch, index) => ({
       restaurant,
       branchIndex: index,
-      city: location.city
-    }))
-  ).filter(branch => {
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesName = branch.restaurant.name.toLowerCase().includes(query);
-      const matchesCuisine = branch.restaurant.cuisine.toLowerCase().includes(query);
-      const matchesLocation = branch.restaurant.locations[branch.branchIndex].address.toLowerCase().includes(query);
-      if (!matchesName && !matchesCuisine && !matchesLocation) {
-        return false;
-      }
-    }
+    })) || []
+  ) || [];
 
-    // Apply city filter
-    if (cityFilter && cityFilter !== 'all') {
-      if (branch.city !== cityFilter) {
-        return false;
-      }
-    }
-
-    // Apply cuisine filter
-    if (cuisineFilter && cuisineFilter !== 'all') {
-      if (branch.restaurant.cuisine !== cuisineFilter) {
-        return false;
-      }
-    }
-
-    // Apply price range filter
-    if (priceFilter && priceFilter !== 'all') {
-      if (branch.restaurant.priceRange !== priceFilter) {
-        return false;
-      }
-    }
-
-    return true;
-  }) || [];
-
-  if (branches.length === 0) {
+  if (branchCards.length === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-lg text-muted-foreground">
@@ -100,7 +82,7 @@ export function RestaurantGrid({ searchQuery, cityFilter, cuisineFilter, priceFi
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {branches.map(({ restaurant, branchIndex }) => (
+      {branchCards.map(({ restaurant, branchIndex }) => (
         <RestaurantCard
           key={`${restaurant.id}-${branchIndex}`}
           restaurant={restaurant}
