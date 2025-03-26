@@ -15,6 +15,7 @@ type AuthContextType = {
   loginMutation: UseMutationResult<SelectUser, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
+  logout: () => void;
 };
 
 type LoginData = {
@@ -34,6 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
+    staleTime: 30000, 
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const loginMutation = useMutation({
@@ -57,16 +61,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/logout");
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(["/api/user"], null);
+      toast({
+        title: "Logged out",
+        description: "Successfully logged out",
+      });
+    },
+  });
+
   const registerMutation = useMutation({
-    mutationFn: async (credentials: InsertUser) => {
-      const res = await apiRequest("POST", "/api/register", credentials);
+    mutationFn: async (data: InsertUser) => {
+      const validatedData = insertUserSchema.parse(data);
+      const res = await apiRequest("POST", "/api/register", validatedData);
       return await res.json();
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
       toast({
         title: "Registration successful",
-        description: "Welcome!",
+        description: "Welcome to Ehgezli!",
       });
     },
     onError: (error: Error) => {
@@ -78,36 +96,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
-    },
-    onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
-      queryClient.clear(); // Clear all queries from the cache
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Logout failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const logout = () => logoutMutation.mutate();
 
   return (
     <AuthContext.Provider
       value={{
         user: user ?? null,
-        isLoading,
         error,
+        isLoading,
         loginMutation,
         logoutMutation,
         registerMutation,
+        logout,
       }}
     >
       {children}
@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error("useAuth must be used within AuthProvider");
   }
   return context;
 }

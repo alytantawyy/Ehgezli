@@ -12,7 +12,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -30,7 +30,7 @@ import {
 import { CalendarIcon } from "lucide-react";
 import { format, startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const bookingSchema = z.object({
   date: z.date({
@@ -50,6 +50,36 @@ interface TimeSlot {
   availableSeats: number;
 }
 
+async function apiRequest(method: string, url: string, body?: any) {
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  const options: RequestInit = {
+    method,
+    headers,
+    credentials: 'include',
+  };
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, options);
+  
+  // Check if response is JSON
+  const contentType = response.headers.get("content-type");
+  if (!contentType || !contentType.includes("application/json")) {
+    throw new Error('Server returned non-JSON response');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: 'Server error' }));
+    throw new Error(errorData.message || 'Failed to process request');
+  }
+
+  return response.json();
+}
+
 const generateTimeSlots = async (
   openingTime: string,
   closingTime: string,
@@ -63,33 +93,23 @@ const generateTimeSlots = async (
   }
 
   try {
-    // Format date as ISO string but only include the date part
     const dateStr = format(bookingDate, 'yyyy-MM-dd');
     console.log('Fetching availability for:', { restaurantId, branchId, dateStr });
 
-    const response = await fetch(
-      `/api/restaurants/${restaurantId}/branches/${branchId}/availability?date=${dateStr}`,
-      { credentials: 'include' }
+    const availability = await apiRequest(
+      'GET',
+      `/api/restaurant/${restaurantId}/branch/${branchId}/availability?date=${dateStr}`
     );
 
-    if (!response.ok) {
-      console.error('Failed to fetch availability:', response.status, response.statusText);
-      throw new Error('Failed to fetch availability');
-    }
-
-    const availability = await response.json();
     console.log('Received availability data:', availability);
 
-    // Convert availability object to array of TimeSlot objects
     const slots: TimeSlot[] = Object.entries(availability).map(([time, availableSeats]) => ({
       time,
       available: (availableSeats as number) > 0,
       availableSeats: availableSeats as number
     }));
 
-    // Sort slots by time
     slots.sort((a, b) => {
-      // Convert time strings to minutes for comparison
       const [aHours, aMinutes] = a.time.split(':').map(Number);
       const [bHours, bMinutes] = b.time.split(':').map(Number);
       const aTotal = aHours * 60 + aMinutes;
@@ -117,6 +137,14 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [branchId, setBranchId] = useState<number | null>(null);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const mountedRef = useRef(true);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const triggerConfetti = () => {
     const count = 200;
@@ -172,40 +200,36 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     },
   });
 
-  // Fetch branch information
   useEffect(() => {
     const fetchBranch = async () => {
+      if (!mountedRef.current) return;
+      
       try {
         console.log('Fetching branch information:', { restaurantId, branchIndex });
-        const response = await fetch(`/api/restaurants/${restaurantId}/branches`, {
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch branches');
-        }
-
-        const branches = await response.json();
-        console.log('Received branches:', branches);
-
-        if (branches[branchIndex]) {
-          setBranchId(branches[branchIndex].id);
+        const restaurant = await apiRequest('GET', `/api/restaurant/${restaurantId}`);
+        
+        if (!mountedRef.current) return;
+        
+        console.log('Received restaurant:', restaurant);
+        if (restaurant.branches[branchIndex]) {
+          setBranchId(restaurant.branches[branchIndex].id);
         } else {
           throw new Error('Branch not found');
         }
       } catch (error) {
         console.error('Error fetching branch:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load branch information. Please try again.",
-          variant: "destructive",
-        });
+        if (mountedRef.current) {
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to load branch information",
+            variant: "destructive",
+          });
+        }
       }
     };
     fetchBranch();
   }, [restaurantId, branchIndex, toast]);
 
-  // Update time slots when date changes
   useEffect(() => {
     const updateTimeSlots = async () => {
       const selectedDate = form.getValues("date");
@@ -221,9 +245,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
             restaurantId,
             branchId
           );
+          
+          if (!mountedRef.current) return;
+          
           setTimeSlots(slots);
 
-          // Clear time selection if the previously selected time is no longer available
           const currentTime = form.getValues("time");
           if (currentTime) {
             const isTimeStillAvailable = slots.some(
@@ -235,15 +261,19 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           }
         } catch (error) {
           console.error('Error updating time slots:', error);
-          toast({
-            title: "Error",
-            description: "Failed to load available time slots. Please try again.",
-            variant: "destructive",
-          });
-          setTimeSlots([]);
-          form.setValue("time", "", { shouldValidate: true });
+          if (mountedRef.current) {
+            toast({
+              title: "Error",
+              description: error instanceof Error ? error.message : "Failed to load time slots",
+              variant: "destructive",
+            });
+            setTimeSlots([]);
+            form.setValue("time", "", { shouldValidate: true });
+          }
         } finally {
-          setIsLoadingSlots(false);
+          if (mountedRef.current) {
+            setIsLoadingSlots(false);
+          }
         }
       } else {
         setTimeSlots([]);
@@ -255,86 +285,73 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
-      try {
-        if (!branchId) {
-          throw new Error('Invalid branch selection');
-        }
-
-        // Create the booking date
-        const bookingDate = new Date(
-          data.date.getFullYear(),
-          data.date.getMonth(),
-          data.date.getDate(),
-          parseInt(data.time.split(':')[0]),
-          parseInt(data.time.split(':')[1])
-        );
-
-        // Check if there are enough seats available
-        const selectedTimeSlot = timeSlots.find(slot => slot.time === data.time);
-        if (!selectedTimeSlot?.available || selectedTimeSlot.availableSeats < data.partySize) {
-          throw new Error('Not enough seats available for this time slot');
-        }
-
-        const bookingResponse = await fetch('/api/bookings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            branchId,
-            date: bookingDate.toISOString(),
-            partySize: data.partySize,
-          }),
-        });
-
-        if (!bookingResponse.ok) {
-          const errorData = await bookingResponse.json().catch(() => ({ message: 'Failed to create booking' }));
-          throw new Error(errorData.message || 'Failed to create booking');
-        }
-
-        return bookingResponse.json();
-      } catch (error) {
-        if (error instanceof Error) {
-          throw error;
-        }
-        throw new Error('An unexpected error occurred');
+      if (!branchId) {
+        throw new Error('Invalid branch selection');
       }
+
+      const bookingDate = new Date(
+        data.date.getFullYear(),
+        data.date.getMonth(),
+        data.date.getDate(),
+        parseInt(data.time.split(':')[0]),
+        parseInt(data.time.split(':')[1])
+      );
+
+      const selectedTimeSlot = timeSlots.find(slot => slot.time === data.time);
+      if (!selectedTimeSlot?.available || selectedTimeSlot.availableSeats < data.partySize) {
+        throw new Error('Not enough seats available for this time slot');
+      }
+
+      return await apiRequest('POST', '/api/bookings', {
+        branchId,
+        date: bookingDate.toISOString(),
+        partySize: data.partySize,
+      });
     },
     onSuccess: () => {
-      toast({
-        title: "Booking Confirmed",
-        description: "You're booking is confirmed, have fun! :)",
-      });
+      if (!mountedRef.current) return;
+      
       triggerConfetti();
-      form.reset();
+      toast({
+        title: "Success!",
+        description: "Your booking has been confirmed",
+      });
+      
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurant", restaurantId] });
     },
-    onError: (error: Error) => {
+    onError: (error) => {
+      if (!mountedRef.current) return;
+      
+      console.error('Booking error:', error);
       toast({
         title: "Booking Failed",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Failed to create booking",
         variant: "destructive",
       });
-    },
+    }
   });
+
+  async function onSubmit(data: BookingFormData) {
+    console.log('Submitting booking:', data);
+    await bookingMutation.mutateAsync(data);
+  }
 
   return (
     <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit((data) => bookingMutation.mutate(data))}
-        className="space-y-4"
-      >
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="date"
           render={({ field }) => (
-            <FormItem>
+            <FormItem className="flex flex-col">
               <FormLabel>Date</FormLabel>
               <Popover>
                 <PopoverTrigger asChild>
                   <FormControl>
                     <Button
-                      variant="outline"
+                      variant={"outline"}
                       className={cn(
                         "w-full pl-3 text-left font-normal",
                         !field.value && "text-muted-foreground"
@@ -353,15 +370,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                   <Calendar
                     mode="single"
                     selected={field.value}
-                    onSelect={(date) => {
-                      field.onChange(date);
-                      // Clear time when date changes
-                      form.setValue("time", "", { shouldValidate: true });
-                    }}
-                    disabled={(date) => {
-                      const today = startOfToday();
-                      return date < today || date > new Date(2025, 10, 1);
-                    }}
+                    onSelect={field.onChange}
+                    disabled={(date) => date < startOfToday()}
                     initialFocus
                   />
                 </PopoverContent>
@@ -378,44 +388,25 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
             <FormItem>
               <FormLabel>Time</FormLabel>
               <Select
+                disabled={timeSlots.length === 0}
                 onValueChange={field.onChange}
                 value={field.value}
-                defaultValue={field.value}
               >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select time" />
+                    <SelectValue placeholder="Select a time" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {!form.getValues("date") ? (
-                    <SelectItem value="no-date" disabled>
-                      Please select a date first
+                  {timeSlots.map((slot) => (
+                    <SelectItem
+                      key={slot.time}
+                      value={slot.time}
+                      disabled={!slot.available}
+                    >
+                      {slot.time} ({slot.availableSeats} seats available)
                     </SelectItem>
-                  ) : isLoadingSlots ? (
-                    <SelectItem value="loading" disabled>
-                      Loading available times...
-                    </SelectItem>
-                  ) : timeSlots.length > 0 ? (
-                    timeSlots.map((slot) => (
-                      <SelectItem
-                        key={slot.time}
-                        value={slot.time}
-                        disabled={!slot.available}
-                        className={cn(
-                          !slot.available && "text-muted-foreground opacity-50"
-                        )}
-                      >
-                        {slot.time} {slot.available ?
-                          `(${slot.availableSeats} seats available)` :
-                          '(No seats available)'}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="no-slots" disabled>
-                      No available time slots
-                    </SelectItem>
-                  )}
+                  ))}
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -432,11 +423,8 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
               <FormControl>
                 <Input
                   type="number"
-                  min="1"
-                  max="20"
                   {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
-                  value={field.value || ""}
+                  onChange={(e) => field.onChange(parseInt(e.target.value))}
                 />
               </FormControl>
               <FormMessage />
@@ -447,14 +435,9 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         <Button
           type="submit"
           className="w-full"
-          disabled={
-            bookingMutation.isPending ||
-            !form.formState.isValid ||
-            !form.getValues("time") ||
-            !form.getValues("date")
-          }
+          disabled={bookingMutation.isPending || isLoadingSlots}
         >
-          {bookingMutation.isPending ? "Submitting..." : "Submit Booking"}
+          {bookingMutation.isPending ? "Booking..." : "Book Now"}
         </Button>
       </form>
     </Form>

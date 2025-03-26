@@ -1,5 +1,10 @@
 import nodemailer from 'nodemailer';
 
+// Add type for email response
+type EmailResponse = nodemailer.SentMessageInfo & {
+  previewUrl?: string;
+};
+
 // Create a test account for development
 let transporter: nodemailer.Transporter;
 
@@ -30,7 +35,11 @@ export async function setupEmailTransporter() {
   }
 }
 
-export async function sendPasswordResetEmail(email: string, resetToken: string, isRestaurant: boolean = false): Promise<nodemailer.SentMessageInfo> {
+export async function sendPasswordResetEmail(
+  email: string, 
+  resetToken: string, 
+  isRestaurant: boolean = false
+): Promise<EmailResponse> {
   const resetUrl = `${process.env.APP_URL || 'http://localhost:4000'}/${isRestaurant ? 'restaurant/' : ''}reset-password?token=${resetToken}`;
   
   const info = await transporter.sendMail({
@@ -48,7 +57,12 @@ export async function sendPasswordResetEmail(email: string, resetToken: string, 
   });
 
   if (process.env.NODE_ENV !== 'production') {
-    console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    console.log('Preview URL:', previewUrl);
+    return {
+      ...info,
+      previewUrl
+    };
   }
 
   return info;

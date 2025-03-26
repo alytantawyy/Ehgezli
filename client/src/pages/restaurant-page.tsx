@@ -6,41 +6,91 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { ArrowLeft, Clock, MapPin, DollarSign } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useRef, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
-// Assumed implementation of apiRequest function.  This needs to be adjusted based on your actual implementation.
 async function apiRequest(method: string, url: string, body?: any) {
+  console.log('[Debug] Making request:', { method, url });
+  
   const headers = {
     'Content-Type': 'application/json',
-    // Add authentication headers here if needed.  e.g., 'Authorization': `Bearer ${token}`
+    'Accept': 'application/json'
   };
 
   const options: RequestInit = {
     method,
     headers,
+    credentials: 'include', // Important for auth
   };
   if (body) {
     options.body = JSON.stringify(body);
   }
 
+  console.log('[Debug] Request options:', options);
   const response = await fetch(url, options);
-  return response;
-}
+  
+  console.log('[Debug] Response headers:', {
+    contentType: response.headers.get("content-type"),
+    status: response.status,
+    statusText: response.statusText
+  });
+  
+  // Check if response is JSON
+  const contentType = response.headers.get("content-type");
+  if (!contentType || !contentType.includes("application/json")) {
+    const responseText = await response.text();
+    console.error('[Debug] Non-JSON response:', responseText);
+    throw new Error('Server returned non-JSON response');
+  }
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: 'Server error' }));
+    console.error('[Debug] Error response:', errorData);
+    throw new Error(errorData.message || 'Failed to fetch data');
+  }
+
+  const data = await response.json();
+  console.log('[Debug] Success response:', data);
+  return data;
+}
 
 export default function RestaurantPage() {
   const [, params] = useRoute("/restaurant/:id");
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const restaurantId = parseInt(params?.id || "0");
   const branchIndex = parseInt(new URLSearchParams(window.location.search).get("branch") || "0");
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const { data: restaurant, isLoading, error } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants", restaurantId],
+    queryKey: ["/api/restaurant", restaurantId],
     enabled: restaurantId > 0,
-    retry: 1,
+    retry: (failureCount, error) => {
+      // Don't retry on non-JSON responses
+      if (error?.message === 'Server returned non-JSON response') {
+        return false;
+      }
+      return failureCount < 2;
+    },
     queryFn: async () => {
-      const response = await apiRequest("GET", `/api/restaurants/${restaurantId}`);
-      if (!response.ok) throw new Error('Failed to fetch restaurant');
-      return response.json();
+      try {
+        return await apiRequest("GET", `/api/restaurant/${restaurantId}`);
+      } catch (error) {
+        if (!mountedRef.current) return null;
+        console.error('Error fetching restaurant:', error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to load restaurant",
+          variant: "destructive",
+        });
+        throw error;
+      }
     },
   });
 
@@ -70,13 +120,14 @@ export default function RestaurantPage() {
     );
   }
 
-  if (error) {
-    console.error('Restaurant page error:', error);
+  if (error || !restaurant || !restaurant.branches?.[branchIndex]) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Error Loading Restaurant</h2>
-          <p className="text-muted-foreground mb-4">{error.message}</p>
+          <p className="text-muted-foreground mb-4">
+            {error instanceof Error ? error.message : "Restaurant or branch not found"}
+          </p>
           <Button variant="outline" asChild>
             <Link to="/">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -84,17 +135,6 @@ export default function RestaurantPage() {
             </Link>
           </Button>
         </div>
-      </div>
-    );
-  }
-
-  if (!restaurant || !restaurant.branches?.[branchIndex]) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <div className="text-xl text-destructive">Restaurant or branch not found</div>
-        <Button asChild>
-          <Link to="/">Go Home</Link>
-        </Button>
       </div>
     );
   }

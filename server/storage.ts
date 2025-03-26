@@ -263,13 +263,20 @@ export class DatabaseStorage implements IStorage {
   // Find a restaurant by ID
   async getRestaurant(id: number): Promise<(RestaurantAuth & { profile?: RestaurantProfile, branches: RestaurantBranch[] }) | undefined> {
     try {
-      const [restaurantData] = await db.select()
+      console.log('[Debug] getRestaurant called with id:', id);
+      
+      const [restaurantData] = await db.select({
+        auth: restaurantAuth,
+        profile: restaurantProfiles
+      })
         .from(restaurantAuth)
         .where(eq(restaurantAuth.id, id))
         .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId));
 
-      if (!restaurantData?.restaurant_auth) {
-        console.log("No restaurant found for id:", id);
+      console.log('[Debug] Query result:', restaurantData);
+
+      if (!restaurantData?.auth) {
+        console.log('[Debug] No restaurant found');
         return undefined;
       }
 
@@ -279,15 +286,19 @@ export class DatabaseStorage implements IStorage {
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, id));
 
-      console.log("Found branches for restaurant:", id, branches);
+      console.log('[Debug] Found branches:', branches);
 
-      return {
-        ...restaurantData.restaurant_auth,
-        profile: restaurantData.restaurant_profiles || undefined,
+      // Return properly structured data
+      const result = {
+        ...restaurantData.auth,
+        profile: restaurantData.profile || undefined,
         branches
       };
+      
+      console.log('[Debug] Returning result:', result);
+      return result;
     } catch (error) {
-      console.error("Error in getRestaurant:", error);
+      console.error("[Debug] Error in getRestaurant:", error);
       throw error;
     }
   }

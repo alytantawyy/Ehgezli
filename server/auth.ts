@@ -293,15 +293,21 @@ export function setupAuth(app: Express) {
       const { email } = passwordResetRequestSchema.parse(req.body);
       // Find user by email
       const user = await storage.getUserByEmail(email);
+      let emailInfo;
       
       if (user) {
         // Create reset token and send email
         const token = await storage.createPasswordResetToken(user.id);
-        const info = await sendPasswordResetEmail(email, token);
+        emailInfo = await sendPasswordResetEmail(email, token);
       }
       
       // Always return success to prevent email enumeration
-      res.json({ message: "If an account exists with that email, a password reset link has been sent." });
+      res.json({
+        message: "If an account exists with that email, a password reset link has been sent.",
+        ...(process.env.NODE_ENV !== 'production' && emailInfo?.previewUrl && { 
+          previewUrl: emailInfo.previewUrl 
+        })
+      });
     } catch (error) {
       res.status(400).json({ message: "Invalid request" });
     }

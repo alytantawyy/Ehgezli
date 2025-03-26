@@ -51,7 +51,8 @@ type WebSocketMessage = {
         'connection_established' | // Initial connection success
         'booking_arrived' |  // When a customer arrives
         'booking_completed' | // When a booking is finished
-        'init';             // Initial connection setup
+        'init' |            // Initial connection setup
+        'logout';           // User logging out (e.g., tab close)
   data?: any;  // Optional data associated with the message
 };
 
@@ -318,11 +319,12 @@ export function registerRoutes(app: Express): Server {
       '/restaurant/forgot-password',
       '/restaurant/reset-password',
       '/restaurants', 
-      '/restaurant'
+      '/restaurant',
+      '/restaurant/branch'  // Add this to allow branch availability checks
     ];
     
     // If it's a public path, let them through
-    if (publicPaths.some(path => req.path.endsWith(path))) {
+    if (publicPaths.some(path => req.path.startsWith(path))) {
       return next();
     }
     
@@ -397,18 +399,80 @@ export function registerRoutes(app: Express): Server {
    * - 500: Server error
    */
   app.get("/api/restaurant/:id", async (req: Request, res: Response) => {
+    console.log('[Debug] GET /api/restaurant/:id', {
+      params: req.params,
+      headers: req.headers
+    });
+    
     try {
       const { id } = req.params;
       const restaurant = await storage.getRestaurant(parseInt(id));
       
+      console.log('[Debug] Restaurant data:', restaurant);
+      
       if (!restaurant) {
+        console.log('[Debug] Restaurant not found');
         return res.status(404).json({ message: "Restaurant not found" });
       }
       
+      // Set content type header explicitly
+      res.setHeader('Content-Type', 'application/json');
+      console.log('[Debug] Sending response with headers:', res.getHeaders());
       res.json(restaurant);
     } catch (error) {
-      console.error("Error getting restaurant:", error);
+      console.error("[Debug] Error getting restaurant:", error);
       res.status(500).json({ message: "Error retrieving restaurant" });
+    }
+  });
+
+  /**
+   * Get Branch Availability
+   * GET /api/restaurant/:restaurantId/branch/:branchId/availability
+   * 
+   * Get available time slots for a specific branch on a given date
+   * 
+   * Query parameters:
+   * - date: Date to check availability for (YYYY-MM-DD format)
+   * 
+   * Returns:
+   * - 200: Object with time slots and their available seats
+   * - 400: Invalid parameters
+   * - 404: Branch not found
+   * - 500: Server error
+   */
+  app.get("/api/restaurant/:restaurantId/branch/:branchId/availability", async (req: Request, res: Response) => {
+    try {
+      const { restaurantId, branchId } = req.params;
+      const { date } = req.query;
+
+      console.log('[Debug] Checking availability:', { restaurantId, branchId, date });
+
+      if (!date || typeof date !== 'string') {
+        return res.status(400).json({ message: "Date parameter is required (YYYY-MM-DD format)" });
+      }
+
+      const restaurantIdNum = parseInt(restaurantId);
+      const branchIdNum = parseInt(branchId);
+
+      if (isNaN(restaurantIdNum) || isNaN(branchIdNum)) {
+        return res.status(400).json({ message: "Invalid restaurant or branch ID" });
+      }
+
+      // First verify the branch belongs to the restaurant
+      const branch = await storage.getBranchById(branchIdNum, restaurantIdNum);
+      if (!branch) {
+        return res.status(404).json({ message: "Branch not found" });
+      }
+
+      // Get availability for the date
+      const availability = await storage.getBranchAvailability(branchIdNum, new Date(date));
+
+      // Set content type header explicitly
+      res.setHeader('Content-Type', 'application/json');
+      res.json(availability);
+    } catch (error) {
+      console.error("[Debug] Error getting branch availability:", error);
+      res.status(500).json({ message: "Error retrieving branch availability" });
     }
   });
 
@@ -556,6 +620,18 @@ export function registerRoutes(app: Express): Server {
             }));
             break;
 
+          case 'logout':
+            const clientToLogout = clients.get(ws);
+            if (clientToLogout?.sessionID) {
+              // Find and destroy the session
+              sessionStore.destroy(clientToLogout.sessionID, (err: Error | null) => {
+                if (err) console.error('Error destroying session:', err);
+                clients.delete(ws);
+                ws.close();
+              });
+            }
+            break;
+
           case 'new_booking':
           case 'booking_cancelled':
           case 'booking_arrived':
@@ -588,6 +664,13 @@ export function registerRoutes(app: Express): Server {
 
     ws.on('close', () => {
       console.log('Client disconnected from /ws');
+      const client = clients.get(ws);
+      if (client?.sessionID) {
+        // Clean up session when tab closes
+        sessionStore.destroy(client.sessionID, (err: Error | null) => {
+          if (err) console.error('Error destroying session:', err);
+        });
+      }
       clients.delete(ws);
     });
 
