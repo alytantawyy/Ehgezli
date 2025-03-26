@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { users, restaurantAuth, restaurantProfiles, restaurantBranches, bookings, passwordResetTokens } from '../shared/schema';
+import { users, restaurantAuth, restaurantProfiles, restaurantBranches, bookings, passwordResetTokens, restaurantPasswordResetTokens } from '../shared/schema';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { sql } from 'drizzle-orm';
@@ -27,6 +27,7 @@ async function seed() {
   // Clear existing data in correct order (respecting foreign keys)
   console.log('Clearing existing data...');
   await db.delete(passwordResetTokens);
+  await db.delete(restaurantPasswordResetTokens);
   await db.delete(bookings);
   await db.delete(restaurantBranches);
   await db.delete(restaurantProfiles);
@@ -183,6 +184,7 @@ async function seed() {
       const [profileEntry] = await db.insert(restaurantProfiles).values({
         restaurantId: authEntry.id,
         about: restaurant.profile.about,
+        description: restaurant.profile.about, 
         cuisine: restaurant.profile.cuisine,
         priceRange: restaurant.profile.priceRange,
         logo: restaurant.profile.logo,
