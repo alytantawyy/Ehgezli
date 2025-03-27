@@ -8,12 +8,17 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
-interface RestaurantBranchCardProps {
+interface RestaurantCardProps {
   restaurant: Restaurant;
   branchIndex: number;
+  children?: React.ReactNode;
 }
 
-export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCardProps) {
+export function RestaurantCard({
+  restaurant,
+  branchIndex,
+  children
+}: RestaurantCardProps) {
   const branch = restaurant.branches?.[branchIndex];
   const { toast } = useToast();
 
@@ -78,14 +83,10 @@ export function RestaurantCard({ restaurant, branchIndex }: RestaurantBranchCard
             <span>{branch.address}</span>
           </div>
           <p className="text-sm font-medium">City: {branch.city}</p>
+          {children}
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between">
-        <Button asChild className="flex-1 mr-2">
-          <Link to={`/restaurant/${restaurant.id}?branch=${branchIndex}`}>
-            Book a Table
-          </Link>
-        </Button>
+      <CardFooter className="flex justify-end">
         <Button
           variant="outline"
           size="icon"

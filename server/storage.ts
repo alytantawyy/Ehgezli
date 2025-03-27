@@ -81,10 +81,23 @@ export interface IStorage {
 
   // Branch operations
   getBranchById(branchId: number, restaurantId: number): Promise<RestaurantBranch | undefined>;
-  getBranchAvailability(branchId: number, date: Date): Promise<{ tablesCount: number, bookingsCount: number } | undefined>;
+  getBranchAvailability(branchId: number, date: Date): Promise<Record<string, number>>;
   isRestaurantSaved(userId: number, restaurantId: number, branchIndex: number): Promise<boolean>;
   removeSavedRestaurant(userId: number, restaurantId: number, branchIndex: number): Promise<boolean>;
   getDetailedRestaurantData(restaurantId: number): Promise<RestaurantAuth & { profile?: RestaurantProfile } | undefined>;
+
+  // Find restaurants with their closest available time slots
+  findRestaurantsWithAvailability(
+    date: Date,
+    requestedTime: string,
+    partySize: number,
+    filters: { city?: string; cuisine?: string; priceRange?: string }
+  ): Promise<(RestaurantAuth & { 
+    profile?: RestaurantProfile;
+    branches: (RestaurantBranch & { 
+      availableSlots: Array<{ time: string; seats: number }> 
+    })[];
+  })[]>;
 }
 
 // This class implements all the database operations defined in IStorage
@@ -192,7 +205,7 @@ export class DatabaseStorage implements IStorage {
         conditions.push(searchCondition);
       }
       
-      if (filters?.city) {
+      if (filters?.city && filters.city !== 'all') {
         const cityCondition = eq(restaurantBranches.city, filters.city as "Alexandria" | "Cairo") as SQL<unknown>;
         conditions.push(cityCondition);
       }
@@ -777,23 +790,57 @@ export class DatabaseStorage implements IStorage {
   /**
    * Get branch availability for a specific date
    */
-  async getBranchAvailability(branchId: number, date: Date): Promise<{ tablesCount: number, bookingsCount: number } | undefined> {
+  async getBranchAvailability(branchId: number, date: Date): Promise<Record<string, number>> {
+    // First get the branch details
     const [branch] = await db
-      .select({
-        tablesCount: restaurantBranches.tablesCount,
-        bookingsCount: sql<number>`count(${bookings.id})`
-      })
+      .select()
       .from(restaurantBranches)
-      .leftJoin(
-        bookings,
+      .where(eq(restaurantBranches.id, branchId));
+
+    if (!branch) return {};
+
+    // Get all bookings for this date
+    const branchBookings = await db
+      .select({
+        time: sql<string>`DATE_TRUNC('minute', ${bookings.date})::time::text`,
+        totalBooked: sql<number>`SUM(${bookings.partySize})`
+      })
+      .from(bookings)
+      .where(
         and(
-          eq(bookings.branchId, restaurantBranches.id),
-          eq(sql`DATE(${bookings.date})`, sql`DATE(${date})`)
+          eq(bookings.branchId, branchId),
+          eq(sql`DATE(${bookings.date})`, sql`DATE(${sql.param(date)})`)
         )
       )
-      .where(eq(restaurantBranches.id, branchId))
-      .groupBy(restaurantBranches.id);
-    return branch;
+      .groupBy(sql`DATE_TRUNC('minute', ${bookings.date})`);
+
+    // Create a map of time slots to booked seats
+    const bookedSeats = new Map<string, number>();
+    branchBookings.forEach(booking => {
+      bookedSeats.set(booking.time, booking.totalBooked);
+    });
+
+    // Generate time slots from opening to closing time
+    const timeSlots: Record<string, number> = {};
+    const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
+    const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
+    
+    // Convert opening and closing times to minutes for easier comparison
+    const openingMinutes = openHour * 60 + openMinute;
+    // Adjust closing minutes for times after midnight
+    const closingMinutes = (closeHour < openHour ? closeHour + 24 : closeHour) * 60 + closeMinute;
+    
+    // Generate slots every 30 minutes
+    for (let minutes = openingMinutes; minutes <= closingMinutes - 30; minutes += 30) {
+      const hour = Math.floor(minutes / 60);
+      const minute = minutes % 60;
+      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      const bookedSeatsForSlot = bookedSeats.get(time) || 0;
+      const availableSeats = Math.max(0, branch.seatsCount - bookedSeatsForSlot);
+      timeSlots[time] = availableSeats;
+    }
+
+    return timeSlots;
   }
 
   /**
@@ -875,6 +922,184 @@ export class DatabaseStorage implements IStorage {
         updatedAt: updatedAt || now
       }
     };
+  }
+
+  /**
+   * Find restaurants with their closest available time slots
+   */
+  async findRestaurantsWithAvailability(
+    date: Date,
+    requestedTime: string,
+    partySize: number,
+    filters: { city?: string; cuisine?: string; priceRange?: string }
+  ): Promise<(RestaurantAuth & { 
+    profile?: RestaurantProfile;
+    branches: (RestaurantBranch & { 
+      availableSlots: Array<{ time: string; seats: number }> 
+    })[];
+  })[]> {
+    console.log('DEBUG: Starting search with params:', {
+      date: date.toISOString(),
+      requestedTime,
+      partySize,
+      filters
+    });
+
+    // Get all restaurants matching filters
+    const restaurants = await this.getRestaurants(filters);
+    
+    // Get initial restaurant data with profiles
+    const initialRestaurants = await Promise.all(
+      restaurants.map(async restaurant => ({
+        ...restaurant,
+        profile: await this.getRestaurantProfile(restaurant.id)
+      }))
+    );
+
+    console.log('DEBUG: Initial restaurants:', initialRestaurants.map(r => ({
+      id: r.id,
+      name: r.name,
+      priceRange: r.profile?.priceRange
+    })));
+    
+    // For each restaurant, get branch availability
+    const restaurantsWithSlots = await Promise.all(
+      initialRestaurants.map(async (restaurant) => {
+        console.log(`DEBUG: Processing restaurant ${restaurant.id} (${restaurant.name})`);
+        
+        const branches = await this.getRestaurantBranches(restaurant.id);
+        
+        console.log(`DEBUG: Restaurant ${restaurant.id} data:`, {
+          branches: branches.map(b => ({
+            id: b.id,
+            city: b.city,
+            seatsCount: b.seatsCount,
+            openingTime: b.openingTime,
+            closingTime: b.closingTime
+          })),
+          profile: restaurant.profile ? {
+            cuisine: restaurant.profile.cuisine,
+            priceRange: restaurant.profile.priceRange
+          } : null
+        });
+        
+        // Get availability for each branch
+        const branchesWithSlots = await Promise.all(
+          branches.map(async (branch) => {
+            console.log('----------------------------------------');
+            console.log(`DEBUG: Starting availability check for Restaurant ${restaurant.id}, Branch ${branch.id}`);
+            console.log('Branch details:', {
+              openingTime: branch.openingTime,
+              closingTime: branch.closingTime,
+              seatsCount: branch.seatsCount
+            });
+            console.log('Request details:', {
+              date,
+              requestedTime,
+              partySize
+            });
+            
+            // Get all bookings for this date and time
+            const branchBookings = await db
+              .select({
+                time: sql<string>`DATE_TRUNC('minute', ${bookings.date})::time::text`,
+                totalBooked: sql<number>`SUM(${bookings.partySize})`
+              })
+              .from(bookings)
+              .where(
+                and(
+                  eq(bookings.branchId, branch.id),
+                  eq(sql`DATE(${bookings.date})`, sql`DATE(${sql.param(date)})`),
+                  eq(sql`DATE_TRUNC('minute', ${bookings.date})::time::text`, sql.param(requestedTime))
+                )
+              )
+              .groupBy(sql`DATE_TRUNC('minute', ${bookings.date})`);
+
+            console.log('SQL Query results:', {
+              bookings: branchBookings,
+              sql: sql`
+                SELECT DATE_TRUNC('minute', "date")::time::text as time,
+                       SUM(party_size) as total_booked
+                FROM bookings
+                WHERE branch_id = ${branch.id}
+                  AND DATE("date") = DATE(${date})
+                  AND DATE_TRUNC('minute', "date")::time::text = ${requestedTime}
+                GROUP BY DATE_TRUNC('minute', "date")
+              `.toString()
+            });
+
+            console.log(`DEBUG: Branch ${branch.id} bookings:`, branchBookings);
+
+            // Calculate available seats
+            const totalBooked = branchBookings[0]?.totalBooked || 0;
+            const availableSeats = Math.max(0, branch.seatsCount - totalBooked);
+            
+            // Convert times to minutes for comparison
+            const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
+            const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
+            const [requestHour, requestMinute] = requestedTime.split(':').map(Number);
+            
+            const openingMinutes = openHour * 60 + openMinute;
+            const closingMinutes = (closeHour < openHour ? closeHour + 24 : closeHour) * 60 + closeMinute;
+            const requestedMinutes = (requestHour < openHour ? requestHour + 24 : requestHour) * 60 + requestMinute;
+            
+            const isWithinHours = requestedMinutes >= openingMinutes && requestedMinutes <= closingMinutes - 30;
+            const hasEnoughSeats = availableSeats >= partySize;
+            
+            console.log(`DEBUG: Branch ${branch.id} availability check:`, {
+              openingTime: branch.openingTime,
+              closingTime: branch.closingTime,
+              requestedTime,
+              seatsCount: branch.seatsCount,
+              totalBooked,
+              availableSeats,
+              partySize,
+              isWithinHours,
+              hasEnoughSeats,
+              openingMinutes,
+              closingMinutes,
+              requestedMinutes
+            });
+
+            // Check if the requested time is within operating hours and has enough seats
+            if (isWithinHours && hasEnoughSeats) {
+              return {
+                ...branch,
+                availableSlots: [{ time: requestedTime, seats: availableSeats }]
+              };
+            }
+
+            // No availability at the requested time
+            return {
+              ...branch,
+              availableSlots: []
+            };
+          })
+        );
+
+        // Filter out branches with no availability
+        const availableBranches = branchesWithSlots.filter(b => b.availableSlots.length > 0);
+        console.log(`DEBUG: Restaurant ${restaurant.id} has ${availableBranches.length} available branches`);
+
+        return {
+          ...restaurant,
+          branches: branchesWithSlots
+        };
+      })
+    );
+
+    // Only return restaurants that have at least one branch with availability
+    const availableRestaurants = restaurantsWithSlots.filter(r => 
+      r.branches.some(b => b.availableSlots.length > 0)
+    );
+
+    console.log('DEBUG: Final available restaurants:', availableRestaurants.map(r => ({
+      id: r.id,
+      name: r.name,
+      availableBranches: r.branches.filter(b => b.availableSlots.length > 0).length
+    })));
+
+    return availableRestaurants;
   }
 }
 

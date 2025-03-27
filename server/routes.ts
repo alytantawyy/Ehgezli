@@ -320,7 +320,9 @@ export function registerRoutes(app: Express): Server {
       '/restaurant/reset-password',
       '/restaurants', 
       '/restaurant',
-      '/restaurant/branch'  // Add this to allow branch availability checks
+      '/restaurant/branch', 
+      '/api/restaurants',
+      '/api/restaurants/availability'
     ];
     
     // If it's a public path, let them through
@@ -473,6 +475,64 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("[Debug] Error getting branch availability:", error);
       res.status(500).json({ message: "Error retrieving branch availability" });
+    }
+  });
+
+  /**
+   * Get restaurants with availability
+   */
+  app.get('/api/restaurants/availability', async (req, res) => {
+    try {
+      console.log('SERVER: Received availability request:', {
+        query: req.query,
+        params: req.params,
+        body: req.body
+      });
+
+      const { date, time, partySize, city, cuisine, priceRange } = req.query;
+      
+      if (!date || !time || !partySize) {
+        console.error('SERVER: Missing required parameters');
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+
+      const parsedDate = parseISO(date as string);
+      const parsedPartySize = parseInt(partySize as string);
+
+      console.log('SERVER: Parsed parameters:', {
+        parsedDate,
+        time,
+        parsedPartySize,
+        city,
+        cuisine,
+        priceRange
+      });
+
+      const restaurants = await storage.findRestaurantsWithAvailability(
+        parsedDate,
+        time as string,
+        parsedPartySize,
+        {
+          city: city as string,
+          cuisine: cuisine as string,
+          priceRange: priceRange as string
+        }
+      );
+
+      console.log('SERVER: Found restaurants:', {
+        count: restaurants.length,
+        restaurants: restaurants.map(r => ({
+          id: r.id,
+          name: r.name,
+          branchCount: r.branches.length,
+          totalSlots: r.branches.reduce((acc, b) => acc + b.availableSlots.length, 0)
+        }))
+      });
+
+      res.json(restaurants);
+    } catch (error) {
+      console.error('SERVER: Error in availability endpoint:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 

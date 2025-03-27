@@ -1,8 +1,18 @@
+/**
+ * BookingForm Component
+ * This component handles restaurant table reservations.
+ * It lets users pick a date, time, and number of people for their booking.
+ */
+
+// Import form handling and validation libraries
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { Restaurant } from "@shared/schema";
+
+// Import UI components from our design system
 import { Button } from "@/components/ui/button";
-import confetti from 'canvas-confetti';
+import confetti from 'canvas-confetti'; // For celebration effects when booking succeeds
 import {
   Form,
   FormControl,
@@ -12,14 +22,22 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+
+// Import data management and notification tools
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+
+// Import date picker component
 import { Calendar } from "@/components/ui/calendar";
+
+// Import popup menu components for the calendar
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+
+// Import dropdown menu components for time selection
 import {
   Select,
   SelectContent,
@@ -27,59 +45,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarIcon } from "lucide-react";
-import { format, startOfToday } from "date-fns";
-import { cn } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
 
+// Import icons
+import { CalendarIcon } from "lucide-react";
+
+// Import utility functions
+import { format, startOfToday, parseISO } from "date-fns";
+import { cn } from "@/lib/utils";
+
+// Import React hooks
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "wouter";
+
+// Import API request function
+import { apiRequest } from "@/lib/queryClient";
+
+// Define the shape of data we expect from the form
 const bookingSchema = z.object({
   date: z.date({
-    required_error: "Please select a date",
+    required_error: "Please select a date", // Error message if date is missing
   }),
   time: z.string({
-    required_error: "Please select a time",
+    required_error: "Please select a time", // Error message if time is missing
   }),
-  partySize: z.number().min(1, "Party size must be at least 1").max(20, "Party size cannot exceed 20")
+  partySize: z.number()
+    .min(1, "Party size must be at least 1") // Can't book for 0 people
+    .max(20, "Party size cannot exceed 20") // Restaurant limit
 });
 
+// TypeScript type generated from our schema
 type BookingFormData = z.infer<typeof bookingSchema>;
 
+// Define what a time slot looks like (for the dropdown)
 interface TimeSlot {
-  time: string;
-  available: boolean;
-  availableSeats: number;
+  time: string;         // e.g., "18:00"
+  available: boolean;   // whether this slot can be booked
+  availableSeats: number; // how many seats are free at this time
 }
 
-async function apiRequest(method: string, url: string, body?: any) {
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-
-  const options: RequestInit = {
-    method,
-    headers,
-    credentials: 'include',
-  };
-  if (body) {
-    options.body = JSON.stringify(body);
-  }
-
-  const response = await fetch(url, options);
-  
-  // Check if response is JSON
-  const contentType = response.headers.get("content-type");
-  if (!contentType || !contentType.includes("application/json")) {
-    throw new Error('Server returned non-JSON response');
-  }
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Server error' }));
-    throw new Error(errorData.message || 'Failed to process request');
-  }
-
-  return response.json();
+// Type for the availability response
+interface AvailabilityResponse {
+  [time: string]: number;
 }
 
+// Function to generate time slots
 const generateTimeSlots = async (
   openingTime: string,
   closingTime: string,
@@ -96,7 +105,7 @@ const generateTimeSlots = async (
     const dateStr = format(bookingDate, 'yyyy-MM-dd');
     console.log('Fetching availability for:', { restaurantId, branchId, dateStr });
 
-    const availability = await apiRequest(
+    const availability = await apiRequest<AvailabilityResponse>(
       'GET',
       `/api/restaurant/${restaurantId}/branch/${branchId}/availability?date=${dateStr}`
     );
@@ -105,8 +114,8 @@ const generateTimeSlots = async (
 
     const slots: TimeSlot[] = Object.entries(availability).map(([time, availableSeats]) => ({
       time,
-      available: (availableSeats as number) > 0,
-      availableSeats: availableSeats as number
+      available: availableSeats > 0,
+      availableSeats
     }));
 
     slots.sort((a, b) => {
@@ -125,6 +134,7 @@ const generateTimeSlots = async (
   }
 };
 
+// Props for the BookingForm component
 interface BookingFormProps {
   restaurantId: number;
   branchIndex: number;
@@ -132,6 +142,7 @@ interface BookingFormProps {
   closingTime: string;
 }
 
+// BookingForm component
 export function BookingForm({ restaurantId, branchIndex, openingTime, closingTime }: BookingFormProps) {
   const { toast } = useToast();
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
@@ -139,13 +150,21 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const mountedRef = useRef(true);
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
+  const searchParams = new URLSearchParams(window.location.search);
+  
+  // Get URL parameters
+  const urlDate = searchParams.get('date');
+  const urlTime = searchParams.get('time');
+  const urlGuests = searchParams.get('partySize');
 
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  const [formData, setFormData] = useState<BookingFormData>({
+    date: urlDate ? parseISO(urlDate) : new Date(), // Provide default date if none in URL
+    time: urlTime || "18:00", // Default to 6:00 PM if no time provided
+    partySize: urlGuests ? parseInt(urlGuests) : 2,
+  });
 
+  // Function to trigger confetti celebration
   const triggerConfetti = () => {
     const count = 200;
     const defaults = {
@@ -193,25 +212,25 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     });
   };
 
+  // Initialize form with default values
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
-    defaultValues: {
-      partySize: 2,
-    },
+    defaultValues: formData,
   });
 
+  // Fetch branch information when component mounts
   useEffect(() => {
     const fetchBranch = async () => {
       if (!mountedRef.current) return;
       
       try {
         console.log('Fetching branch information:', { restaurantId, branchIndex });
-        const restaurant = await apiRequest('GET', `/api/restaurant/${restaurantId}`);
+        const restaurant = await apiRequest<Restaurant>('GET', `/api/restaurant/${restaurantId}`);
         
         if (!mountedRef.current) return;
         
         console.log('Received restaurant:', restaurant);
-        if (restaurant.branches[branchIndex]) {
+        if (restaurant.branches?.[branchIndex]) {
           setBranchId(restaurant.branches[branchIndex].id);
         } else {
           throw new Error('Branch not found');
@@ -230,6 +249,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     fetchBranch();
   }, [restaurantId, branchIndex, toast]);
 
+  // Update time slots when date changes
   useEffect(() => {
     const updateTimeSlots = async () => {
       const selectedDate = form.getValues("date");
@@ -283,6 +303,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     updateTimeSlots();
   }, [form.watch("date"), branchId, openingTime, closingTime, restaurantId, toast]);
 
+  // Mutation to create a new booking
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingFormData) => {
       if (!branchId) {
@@ -320,6 +341,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/restaurant", restaurantId] });
+      setLocation("/bookings");
     },
     onError: (error) => {
       if (!mountedRef.current) return;
@@ -333,14 +355,19 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     }
   });
 
+  // Handle form submission
   async function onSubmit(data: BookingFormData) {
     console.log('Submitting booking:', data);
     await bookingMutation.mutateAsync(data);
   }
 
+  const hasPreselectedSlot = Boolean(urlDate && urlTime);
+
   return (
+    // The main form component that handles validation and submission
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Date Selection Field */}
         <FormField
           control={form.control}
           name="date"
@@ -356,6 +383,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                         "w-full pl-3 text-left font-normal",
                         !field.value && "text-muted-foreground"
                       )}
+                      disabled={hasPreselectedSlot}
                     >
                       {field.value ? (
                         format(field.value, "PPP")
@@ -371,7 +399,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
                     mode="single"
                     selected={field.value}
                     onSelect={field.onChange}
-                    disabled={(date) => date < startOfToday()}
+                    disabled={(date) => date < startOfToday()} // Can't book in the past
                     initialFocus
                   />
                 </PopoverContent>
@@ -381,6 +409,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           )}
         />
 
+        {/* Time Selection Field */}
         <FormField
           control={form.control}
           name="time"
@@ -388,7 +417,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
             <FormItem>
               <FormLabel>Time</FormLabel>
               <Select
-                disabled={timeSlots.length === 0}
+                disabled={isLoadingSlots || timeSlots.length === 0 || hasPreselectedSlot}
                 onValueChange={field.onChange}
                 value={field.value}
               >
@@ -414,6 +443,7 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           )}
         />
 
+        {/* Party Size Field */}
         <FormField
           control={form.control}
           name="partySize"
@@ -423,8 +453,11 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
               <FormControl>
                 <Input
                   type="number"
+                  min={1}
+                  max={20}
                   {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                  disabled={hasPreselectedSlot}
                 />
               </FormControl>
               <FormMessage />
@@ -432,12 +465,13 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           )}
         />
 
-        <Button
-          type="submit"
+        {/* Submit Button */}
+        <Button 
+          type="submit" 
           className="w-full"
-          disabled={bookingMutation.isPending || isLoadingSlots}
+          disabled={bookingMutation.isPending}
         >
-          {bookingMutation.isPending ? "Booking..." : "Book Now"}
+          {bookingMutation.isPending ? "Booking..." : (hasPreselectedSlot ? "Confirm Reservation" : "Book Now")}
         </Button>
       </form>
     </Form>

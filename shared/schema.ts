@@ -299,3 +299,16 @@ export type Restaurant = RestaurantAuth & {
   profile?: RestaurantProfile;
   branches: RestaurantBranch[];
 };
+
+export interface AvailableSlot {
+  time: string;
+  seats: number;
+}
+
+export interface BranchWithAvailability extends RestaurantBranch {
+  availableSlots?: AvailableSlot[];
+}
+
+export interface RestaurantWithAvailability extends Omit<Restaurant, 'branches'> {
+  branches: BranchWithAvailability[];
+}
