@@ -52,7 +52,7 @@ export function RestaurantGrid({
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="space-y-4">
             <Skeleton className="h-[200px] w-full" />
@@ -75,33 +75,34 @@ export function RestaurantGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       {restaurants.map((restaurant) => 
         restaurant.branches.map((branch, branchIndex) => {
           const slots = branch.availableSlots || [];
           return (
-            <RestaurantCard
-              key={`${restaurant.id}-${branchIndex}`}
-              restaurant={restaurant}
-              branchIndex={branchIndex}
-            >
-              {slots.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {slots.map((slot: AvailableSlot) => (
-                    <Button
-                      key={`${branch.id}-${slot.time}`}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setLocation(
-                        `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
-                      )}
-                    >
-                      {slot.time}
-                    </Button>
-                  ))}
-                </div>
-              )}
-            </RestaurantCard>
+            <div key={`${restaurant.id}-${branchIndex}`} className="w-full max-w-[600px] mx-auto">
+              <RestaurantCard
+                restaurant={restaurant}
+                branchIndex={branchIndex}
+              >
+                {slots.length > 0 && (
+                  <div className="flex justify-center gap-3 mt-4">
+                    {slots.map((slot: AvailableSlot) => (
+                      <Button
+                        key={`${branch.id}-${slot.time}`}
+                        size="sm"
+                        className="bg-[hsl(355,79%,36%)] hover:bg-[hsl(355,79%,30%)] text-white px-4 py-1.5 h-auto rounded font-medium text-sm min-w-[90px]"
+                        onClick={() => setLocation(
+                          `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
+                        )}
+                      >
+                        {slot.time}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </RestaurantCard>
+            </div>
           );
         })
       )}

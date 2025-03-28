@@ -234,33 +234,6 @@ export function setupAuth(app: Express) {
     }
   }));
 
-  // Logout endpoint
-  /**
-   * Logs out the current user.
-   */
-  app.post("/api/logout", (req, res, next) => {
-    // If not logged in, return success immediately
-    if (!req.isAuthenticated()) {
-      return res.sendStatus(200);
-    }
-
-    // Log out using Passport
-    req.logout((err) => {
-      if (err) {
-        return res.status(500).json({ message: "Logout failed" });
-      }
-
-      // Destroy session and clear cookie
-      req.session.destroy((err) => {
-        if (err) {
-          return res.status(500).json({ message: "Session cleanup failed" });
-        }
-        res.clearCookie('connect.sid', { path: '/' });
-        res.sendStatus(200);
-      });
-    });
-  });
-
   // Get current user data endpoint
   /**
    * Returns the current user's data.
@@ -387,6 +360,30 @@ export function setupAuth(app: Express) {
     } catch (error) {
       res.status(400).json({ message: "Invalid request" });
     }
+  });
+
+  // Logout endpoint
+  app.post("/api/logout", (req, res) => {
+    // Check if user is authenticated
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    // Destroy the session
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({ message: "Error during logout" });
+      }
+      
+      // Clear the session cookie
+      res.clearCookie("connect.sid", {
+        ...cookieSettings,
+        expires: new Date(0)
+      });
+      
+      res.json({ message: "Logged out successfully" });
+    });
   });
 
   return app;

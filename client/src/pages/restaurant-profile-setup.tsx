@@ -192,13 +192,20 @@ export default function RestaurantProfileSetup() {
 
   const profileMutation = useMutation({
     mutationFn: async (data: InsertRestaurantProfile) => {
-      console.log('Submitting profile data:', data); // Add logging
-      const res = await apiRequest("PUT", "/api/restaurant/profile", data);
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to update profile");
+      const formData = new FormData();
+
+      // Required fields
+      formData.append("about", data.about);
+      formData.append("cuisine", data.cuisine);
+      formData.append("priceRange", data.priceRange);
+      formData.append("isProfileComplete", String(data.isProfileComplete));
+
+      // Optional fields
+      if (data.logo) {
+        formData.append("logo", data.logo);
       }
-      return res.json();
+
+      return apiRequest<InsertRestaurantProfile>("PUT", "/api/restaurant/profile", formData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/restaurants"] });
@@ -223,13 +230,12 @@ export default function RestaurantProfileSetup() {
 
   const branchesMutation = useMutation({
     mutationFn: async (data: { branches: InsertRestaurantBranch[] }) => {
-      console.log('Submitting branches data:', data); // Add logging
-      const res = await apiRequest("PUT", "/api/restaurant/branches", data);
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to update branches");
-      }
-      return res.json();
+      // Convert branches data to JSON
+      return apiRequest<{ branches: InsertRestaurantBranch[] }>(
+        "PUT",
+        "/api/restaurant/branches",
+        data // Send as JSON instead of FormData
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/restaurants"] });

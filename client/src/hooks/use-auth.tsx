@@ -63,14 +63,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logoutMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/logout");
+      // Note: Don't clear data here, wait for onSuccess
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
+      // Clear all auth-related queries
+      queryClient.clear();
       toast({
         title: "Logged out",
         description: "Successfully logged out",
       });
+      // Force reload to clear all state
+      window.location.href = "/";
     },
+    onError: (error: Error) => {
+      toast({
+        title: "Logout failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   });
 
   const registerMutation = useMutation({

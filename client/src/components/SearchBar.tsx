@@ -8,7 +8,7 @@ interface SearchBarProps {
   placeholder?: string;
 }
 
-export function SearchBar({ onSearch, placeholder = "Search restaurants..." }: SearchBarProps) {
+export function SearchBar({ onSearch, placeholder = "Restaurant, Location, or Cuisine" }: SearchBarProps) {
   const [query, setQuery] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -31,7 +31,7 @@ export function SearchBar({ onSearch, placeholder = "Search restaurants..." }: S
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex w-full max-w-sm items-center space-x-2">
+    <form onSubmit={handleSubmit} className="flex w-full items-center space-x-2">
       <Input
         type="text"
         placeholder={placeholder}
@@ -40,7 +40,7 @@ export function SearchBar({ onSearch, placeholder = "Search restaurants..." }: S
         onBlur={handleBlur}
         className="flex-1"
       />
-      <Button type="submit" size="icon">
+      <Button type="submit" size="icon" className="bg-[hsl(355,79%,36%)] hover:bg-[hsl(355,79%,30%)]">
         <Search className="h-4 w-4" />
       </Button>
     </form>

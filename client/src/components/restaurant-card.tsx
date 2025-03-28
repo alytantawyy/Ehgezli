@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bookmark, MapPin } from "lucide-react";
 import { Restaurant } from "@shared/schema";
@@ -60,41 +60,64 @@ export function RestaurantCard({
   };
 
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="relative h-48 w-full mb-4">
-          {restaurant.profile?.logo && (
-            <img
-              src={restaurant.profile.logo}
-              alt={restaurant.name}
-              className="w-full h-full object-cover rounded-md"
-            />
-          )}
-        </div>
-        
-        <div className="space-y-2">
-          <h3 className="text-2xl font-semibold">{restaurant.name}</h3>
-          <p className="text-sm font-medium text-muted-foreground">{restaurant.profile?.cuisine} Cuisine</p>
-          <p className="text-sm text-muted-foreground">Price Range: {restaurant.profile?.priceRange}</p>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center text-sm text-muted-foreground">
-            <MapPin className="h-4 w-4 mr-1" />
-            <span>{branch.address}</span>
+    <Card className="overflow-hidden h-full">
+      <div className="relative h-[180px] w-full">
+        {restaurant.profile?.logo ? (
+          <img
+            src={restaurant.profile.logo}
+            alt={restaurant.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-muted flex items-center justify-center">
+            <div className="text-muted-foreground">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="40"
+                height="40"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="8" r="5" />
+                <path d="M20 21a8 8 0 0 0-16 0" />
+              </svg>
+            </div>
           </div>
-          <p className="text-sm font-medium">City: {branch.city}</p>
+        )}
+      </div>
+      
+      <CardContent className="p-4">
+        <div className="space-y-2">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-semibold leading-tight mb-1 truncate">{restaurant.name}</h3>
+              <p className="text-sm text-muted-foreground truncate">
+                {restaurant.profile?.cuisine} • {restaurant.profile?.priceRange} • {branch.city}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSaveRestaurant}
+              className="ml-2 mt-[-4px] flex-shrink-0"
+            >
+              <Bookmark className="h-5 w-5" fill={savedStatus ? "currentColor" : "none"} />
+            </Button>
+          </div>
+
+          <div className="flex items-center text-sm text-muted-foreground">
+            <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+            <span className="truncate">{branch.address}</span>
+          </div>
+
+          {/* Time slots */}
           {children}
         </div>
       </CardContent>
-      <CardFooter className="flex justify-end">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleSaveRestaurant}
-        >
-          <Bookmark className="h-5 w-5" fill={savedStatus ? "currentColor" : "none"} />
-        </Button>
-      </CardFooter>
     </Card>
   );
 }

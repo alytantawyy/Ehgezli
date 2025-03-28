@@ -39,12 +39,11 @@ export default function RestaurantResetPasswordPage() {
 
   const resetPasswordMutation = useMutation({
     mutationFn: async (data: { token: string; password: string }) => {
-      const res = await apiRequest("POST", "/api/restaurant/reset-password", data);
-      return res.json();
+      return apiRequest<{ message: string }>("POST", "/api/restaurant/reset-password", data);
     },
     onSuccess: () => {
       toast({
-        title: "Password reset successful",
+        title: "Password Reset Successful",
         description: "You can now log in with your new password.",
       });
       setLocation("/auth");
