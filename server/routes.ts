@@ -321,8 +321,8 @@ export function registerRoutes(app: Express): Server {
       '/restaurants', 
       '/restaurant',
       '/restaurant/branch', 
-      '/api/restaurants',
-      '/api/restaurants/availability'
+      '/restaurants',
+      '/restaurants/availability'
     ];
     
     // If it's a public path, let them through
@@ -491,13 +491,9 @@ export function registerRoutes(app: Express): Server {
 
       const { date, time, partySize, city, cuisine, priceRange } = req.query;
       
-      if (!date || !time || !partySize) {
-        console.error('SERVER: Missing required parameters');
-        return res.status(400).json({ error: 'Missing required parameters' });
-      }
-
-      const parsedDate = parseISO(date as string);
-      const parsedPartySize = parseInt(partySize as string);
+      // All parameters are now optional - using defaults from storage layer
+      const parsedDate = date ? parseISO(date as string) : new Date();
+      const parsedPartySize = partySize ? parseInt(partySize as string) : 2;
 
       console.log('SERVER: Parsed parameters:', {
         parsedDate,
@@ -510,7 +506,7 @@ export function registerRoutes(app: Express): Server {
 
       const restaurants = await storage.findRestaurantsWithAvailability(
         parsedDate,
-        time as string,
+        time as string | undefined,
         parsedPartySize,
         {
           city: city as string,

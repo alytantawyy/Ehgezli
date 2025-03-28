@@ -37,13 +37,12 @@ export function RestaurantGrid({
       if (priceFilter && priceFilter !== 'all') params.append("priceRange", priceFilter);
       if (date) params.append("date", date.toISOString());
       if (time) params.append("time", time);
-      if (partySize) params.append("partySize", partySize.toString());
+      
+      // Always include partySize (defaults to 2 if not provided)
+      params.append("partySize", (partySize || 2).toString());
 
-      const endpoint = date && time 
-        ? '/api/restaurants/availability'
-        : '/api/restaurants';
-
-      const response = await fetch(`${endpoint}?${params}`);
+      // Always use availability endpoint to get time slots
+      const response = await fetch(`/api/restaurants/availability?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch restaurants');
       }

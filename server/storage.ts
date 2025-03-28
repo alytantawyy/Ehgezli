@@ -924,14 +924,38 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  // Helper function to get default time slots based on current time
+  private getDefaultTimeSlots(): string[] {
+    // Add 1 hour to current time
+    const now = new Date();
+    const baseTime = new Date(now.getTime() + 60 * 60 * 1000);
+    
+    // Round down to nearest 30 mins
+    const minutes = baseTime.getMinutes();
+    const roundedMinutes = Math.floor(minutes / 30) * 30;
+    baseTime.setMinutes(roundedMinutes);
+    
+    // Generate slots
+    const baseSlot = new Date(baseTime);
+    const beforeSlot = new Date(baseTime.getTime() - 30 * 60 * 1000);
+    const afterSlot = new Date(baseTime.getTime() + 30 * 60 * 1000);
+
+    // Format as HH:mm
+    const formatTime = (date: Date) => {
+      return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    };
+
+    return [formatTime(beforeSlot), formatTime(baseSlot), formatTime(afterSlot)];
+  }
+
   /**
    * Find restaurants with their closest available time slots
    */
   async findRestaurantsWithAvailability(
-    date: Date,
-    requestedTime: string,
-    partySize: number,
-    filters: { city?: string; cuisine?: string; priceRange?: string }
+    date: Date = new Date(),
+    requestedTime?: string,
+    partySize: number = 2,
+    filters: { city?: string; cuisine?: string; priceRange?: string } = {}
   ): Promise<(RestaurantAuth & { 
     profile?: RestaurantProfile;
     branches: (RestaurantBranch & { 
@@ -1000,7 +1024,7 @@ export class DatabaseStorage implements IStorage {
             });
             
             // Calculate 30 minutes before and after
-            const [requestHour, requestMinute] = requestedTime.split(':').map(Number);
+            const [requestHour, requestMinute] = requestedTime ? requestedTime.split(':').map(Number) : this.getDefaultTimeSlots().map(t => t.split(':').map(Number))[1];
             
             // Calculate time slots in minutes since midnight
             const requestMinutes = requestHour * 60 + requestMinute;
@@ -1018,7 +1042,7 @@ export class DatabaseStorage implements IStorage {
 
             const timeSlots = [
               formatTimeSlot(beforeMinutes),
-              requestedTime,
+              requestedTime || this.getDefaultTimeSlots()[1],
               formatTimeSlot(afterMinutes)
             ];
 
