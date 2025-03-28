@@ -999,7 +999,56 @@ export class DatabaseStorage implements IStorage {
               partySize
             });
             
-            // Get all bookings for this date and time
+            // Calculate 30 minutes before and after
+            const [requestHour, requestMinute] = requestedTime.split(':').map(Number);
+            
+            // Calculate time slots in minutes since midnight
+            const requestMinutes = requestHour * 60 + requestMinute;
+            const beforeMinutes = requestMinutes - 30;
+            const afterMinutes = requestMinutes + 30;
+
+            // Convert minutes back to HH:MM format
+            const formatTimeSlot = (minutes: number) => {
+              // Handle day wrapping
+              const wrappedMinutes = ((minutes % 1440) + 1440) % 1440; // 1440 = 24 * 60
+              const hour = Math.floor(wrappedMinutes / 60);
+              const minute = wrappedMinutes % 60;
+              return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            };
+
+            const timeSlots = [
+              formatTimeSlot(beforeMinutes),
+              requestedTime,
+              formatTimeSlot(afterMinutes)
+            ];
+
+            console.log('DEBUG: Generated time slots:', {
+              requestedTime,
+              timeSlots,
+              requestMinutes,
+              beforeMinutes,
+              afterMinutes
+            });
+
+            console.log('DEBUG: Time calculations:', {
+              requestHour,
+              requestMinute,
+              beforeTime: {
+                raw: beforeMinutes.toString(),
+                hours: Math.floor(beforeMinutes / 60),
+                minutes: beforeMinutes % 60,
+                formatted: formatTimeSlot(beforeMinutes)
+              },
+              afterTime: {
+                raw: afterMinutes.toString(),
+                hours: Math.floor(afterMinutes / 60),
+                minutes: afterMinutes % 60,
+                formatted: formatTimeSlot(afterMinutes)
+              },
+              timeSlots
+            });
+
+            // Get all bookings for the time slots we're interested in
             const branchBookings = await db
               .select({
                 time: sql<string>`DATE_TRUNC('minute', ${bookings.date})::time::text`,
@@ -1010,12 +1059,12 @@ export class DatabaseStorage implements IStorage {
                 and(
                   eq(bookings.branchId, branch.id),
                   eq(sql`DATE(${bookings.date})`, sql`DATE(${sql.param(date)})`),
-                  eq(sql`DATE_TRUNC('minute', ${bookings.date})::time::text`, sql.param(requestedTime))
+                  sql`DATE_TRUNC('minute', ${bookings.date})::time = ANY(${sql.raw(`ARRAY[${timeSlots.map(t => `'${t}'::time`).join(',')}]`)})`
                 )
               )
               .groupBy(sql`DATE_TRUNC('minute', ${bookings.date})`);
 
-            console.log('SQL Query results:', {
+            console.log('DEBUG: SQL Query results:', {
               bookings: branchBookings,
               sql: sql`
                 SELECT DATE_TRUNC('minute', "date")::time::text as time,
@@ -1023,56 +1072,70 @@ export class DatabaseStorage implements IStorage {
                 FROM bookings
                 WHERE branch_id = ${branch.id}
                   AND DATE("date") = DATE(${date})
-                  AND DATE_TRUNC('minute', "date")::time::text = ${requestedTime}
+                  AND DATE_TRUNC('minute', "date")::time = ANY(${sql.raw(`ARRAY[${timeSlots.map(t => `'${t}'::time`).join(',')}]`)})
                 GROUP BY DATE_TRUNC('minute', "date")
               `.toString()
             });
 
-            console.log(`DEBUG: Branch ${branch.id} bookings:`, branchBookings);
+            // Calculate available seats for each time slot
+            const availableSlots = timeSlots
+              .map(time => {
+                const bookingForTime = branchBookings.find(b => b.time === time);
+                const totalBooked = bookingForTime?.totalBooked || 0;
+                const availableSeats = Math.max(0, branch.seatsCount - totalBooked);
+                
+                // Convert times to minutes for comparison
+                const [slotHour, slotMinute] = time.split(':').map(Number);
+                const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
+                const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
+                
+                const slotMinutes = slotHour * 60 + slotMinute;
+                const openMinutes = openHour * 60 + openMinute;
+                let closeMinutes = closeHour * 60 + closeMinute;
+                
+                // Handle after-midnight closing times
+                if (closeHour < openHour) {
+                  closeMinutes += 24 * 60;
+                }
+                
+                const isWithinHours = slotMinutes >= openMinutes && slotMinutes <= closeMinutes - 30;
+                const hasEnoughSeats = availableSeats >= partySize;
 
-            // Calculate available seats
-            const totalBooked = branchBookings[0]?.totalBooked || 0;
-            const availableSeats = Math.max(0, branch.seatsCount - totalBooked);
-            
-            // Convert times to minutes for comparison
-            const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
-            const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
-            const [requestHour, requestMinute] = requestedTime.split(':').map(Number);
-            
-            const openingMinutes = openHour * 60 + openMinute;
-            const closingMinutes = (closeHour < openHour ? closeHour + 24 : closeHour) * 60 + closeMinute;
-            const requestedMinutes = (requestHour < openHour ? requestHour + 24 : requestHour) * 60 + requestMinute;
-            
-            const isWithinHours = requestedMinutes >= openingMinutes && requestedMinutes <= closingMinutes - 30;
-            const hasEnoughSeats = availableSeats >= partySize;
-            
-            console.log(`DEBUG: Branch ${branch.id} availability check:`, {
-              openingTime: branch.openingTime,
-              closingTime: branch.closingTime,
-              requestedTime,
-              seatsCount: branch.seatsCount,
-              totalBooked,
-              availableSeats,
-              partySize,
-              isWithinHours,
-              hasEnoughSeats,
-              openingMinutes,
-              closingMinutes,
-              requestedMinutes
+                console.log('DEBUG: Evaluating time slot:', {
+                  time,
+                  totalBooked,
+                  availableSeats,
+                  partySize,
+                  slotMinutes,
+                  openMinutes,
+                  closeMinutes,
+                  isWithinHours,
+                  hasEnoughSeats,
+                  branch: {
+                    id: branch.id,
+                    openingTime: branch.openingTime,
+                    closingTime: branch.closingTime,
+                    seatsCount: branch.seatsCount
+                  }
+                });
+
+                return {
+                  time,
+                  seats: availableSeats,
+                  isValid: isWithinHours && hasEnoughSeats
+                };
+              })
+              .filter(slot => slot.isValid)
+              .map(({ time, seats }) => ({ time, seats }));
+
+            console.log('DEBUG: Final available slots:', {
+              branchId: branch.id,
+              slots: availableSlots
             });
 
-            // Check if the requested time is within operating hours and has enough seats
-            if (isWithinHours && hasEnoughSeats) {
-              return {
-                ...branch,
-                availableSlots: [{ time: requestedTime, seats: availableSeats }]
-              };
-            }
-
-            // No availability at the requested time
             return {
               ...branch,
-              availableSlots: []
+              availableSlots
             };
           })
         );
