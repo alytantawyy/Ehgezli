@@ -3,8 +3,7 @@
 import { 
   InsertUser, User, RestaurantBranch, RestaurantAuth, InsertRestaurantAuth,
   restaurantProfiles, restaurantBranches, bookings, users,
-  restaurantAuth, RestaurantProfile, Location, ExtendedBooking, 
-  branchUnavailableDates, BranchUnavailableDate, InsertBranchUnavailableDates,
+  restaurantAuth, RestaurantProfile, ExtendedBooking, 
   savedRestaurants, passwordResetTokens, restaurantPasswordResetTokens,
   type InsertRestaurantProfile
 } from "@shared/schema";

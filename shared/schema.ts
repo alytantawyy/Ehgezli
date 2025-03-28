@@ -1,43 +1,51 @@
-import { pgTable, text, serial, integer, timestamp, boolean, jsonb, time, date } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
-import { relations } from "drizzle-orm";
+// Import necessary tools for database and validation
+import { pgTable, text, serial, integer, timestamp, boolean, jsonb, time, date } from "drizzle-orm/pg-core";  // PostgreSQL table definitions
+import { createInsertSchema } from "drizzle-zod";  // Tool to create validation schemas
+import { z } from "zod";  // Zod is our validation library
+import { relations } from "drizzle-orm";  // For defining relationships between tables
 
-// Add loginSchema for authentication
+// ==================== Authentication Schemas ====================
+
+// Schema for regular user login
 export const loginSchema = z.object({
   email: z.string().email("Invalid email format"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-// Add restaurantLoginSchema for restaurant authentication
+// Schema for restaurant owner login
 export const restaurantLoginSchema = z.object({
   email: z.string().email("Invalid email format"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+// ==================== User-Related Tables ====================
+
+// Main users table - stores customer information
 export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  gender: text("gender").notNull(),
-  birthday: timestamp("birthday").notNull(),
-  city: text("city").notNull(),
-  favoriteCuisines: text("favorite_cuisines").array().notNull(),
+  id: serial("id").primaryKey(),                                    // Unique identifier
+  firstName: text("first_name").notNull(),                         // User's first name
+  lastName: text("last_name").notNull(),                          // User's last name
+  email: text("email").notNull().unique(),                        // Unique email address
+  password: text("password").notNull(),                           // Hashed password
+  gender: text("gender").notNull(),                               // User's gender
+  birthday: timestamp("birthday").notNull(),                      // User's birthday
+  city: text("city").notNull(),                                  // User's city
+  favoriteCuisines: text("favorite_cuisines").array().notNull(), // Array of favorite food types
 });
 
-// Add password reset tokens table
+// ==================== Password Reset Tables ====================
+
+// Table for storing user password reset tokens
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
-  token: text("token").notNull().unique(),
-  expiresAt: timestamp("expires_at").notNull(),
-  used: boolean("used").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  userId: integer("user_id").notNull().references(() => users.id),  // Links to user
+  token: text("token").notNull().unique(),                          // Unique reset token
+  expiresAt: timestamp("expires_at").notNull(),                     // When token expires
+  used: boolean("used").notNull().default(false),                   // If token was used
+  createdAt: timestamp("created_at").notNull().defaultNow(),        // When token was created
 });
 
-// Add restaurant password reset tokens table
+// Similar table for restaurant password resets
 export const restaurantPasswordResetTokens = pgTable("restaurant_password_reset_tokens", {
   id: serial("id").primaryKey(),
   restaurantId: integer("restaurant_id").notNull().references(() => restaurantAuth.id),
@@ -47,63 +55,57 @@ export const restaurantPasswordResetTokens = pgTable("restaurant_password_reset_
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Add password reset request schema
+// ==================== Password Reset Request Schemas ====================
+
+// Schema for user requesting password reset
 export const passwordResetRequestSchema = z.object({
   email: z.string().email("Invalid email format"),
 });
 
-// Add restaurant password reset request schema
+// Schema for restaurant requesting password reset
 export const restaurantPasswordResetRequestSchema = z.object({
   email: z.string().email("Invalid email format"),
 });
 
-// Add password reset schema
+// Schema for user setting new password
 export const passwordResetSchema = z.object({
   token: z.string(),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-// Add restaurant password reset schema
+// Schema for restaurant setting new password
 export const restaurantPasswordResetSchema = z.object({
   token: z.string(),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+// ==================== Restaurant Tables ====================
+
+// Restaurant authentication table - stores login credentials
 export const restaurantAuth = pgTable("restaurant_auth", {
   id: serial("id").primaryKey(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  name: text("name").notNull(),
-  verified: boolean("verified").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  email: text("email").notNull().unique(),                    // Restaurant's email
+  password: text("password").notNull(),                       // Hashed password
+  name: text("name").notNull(),                               // Restaurant name
+  verified: boolean("verified").notNull().default(false),     // If email is verified
+  createdAt: timestamp("created_at").notNull().defaultNow(), // Account creation date
 });
 
-// Define Location type first, before the restaurant schema
-export type Location = {
-  id: number;
-  restaurantId: number;
-  address: string;
-  tablesCount: number;
-  seatsCount: number;
-  openingTime: string;
-  closingTime: string;
-  city: "Alexandria" | "Cairo";
-  reservationDuration: number;
-};
-
+// Restaurant profile information
 export const restaurantProfiles = pgTable("restaurant_profiles", {
   id: serial("id").primaryKey(),
   restaurantId: integer("restaurant_id").notNull().unique().references(() => restaurantAuth.id),
-  about: text("about").notNull(),
-  description: text("description").notNull(),
-  cuisine: text("cuisine").notNull(),
-  priceRange: text("price_range").notNull(),
-  logo: text("logo").notNull().default(""), // Add logo field
+  about: text("about").notNull(),                    // Short description
+  description: text("description").notNull(),        // Detailed description
+  cuisine: text("cuisine").notNull(),                // Type of food
+  priceRange: text("price_range").notNull(),        // Price category ($, $$, etc)
+  logo: text("logo").notNull().default(""),         // Restaurant logo (base64)
   isProfileComplete: boolean("is_profile_complete").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Restaurant branches/locations
 export const restaurantBranches = pgTable("restaurant_branches", {
   id: serial("id").primaryKey(),
   restaurantId: integer("restaurant_id").notNull(),
@@ -113,44 +115,36 @@ export const restaurantBranches = pgTable("restaurant_branches", {
   seatsCount: integer("seats_count").notNull(),
   openingTime: text("opening_time").notNull(),
   closingTime: text("closing_time").notNull(),
-  reservationDuration: integer("reservation_duration").notNull().default(120), // 2 hours in minutes
+  reservationDuration: integer("reservation_duration").notNull().default(120), // 2 hours default
 });
 
-export const branchUnavailableDates = pgTable("branch_unavailable_dates", {
-  id: serial("id").primaryKey(),
-  branchId: integer("branch_id").notNull(),
-  date: date("date").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+// ==================== Table Relationships ====================
 
-export const branchUnavailableDatesRelations = relations(branchUnavailableDates, ({ one }) => ({
-  branch: one(restaurantBranches, {
-    fields: [branchUnavailableDates.branchId],
-    references: [restaurantBranches.id],
-  }),
-}));
-
+// Link branches to restaurant profiles and bookings
 export const branchRelations = relations(restaurantBranches, ({ one, many }) => ({
   restaurant: one(restaurantProfiles, {
     fields: [restaurantBranches.restaurantId],
     references: [restaurantProfiles.restaurantId],
   }),
   bookings: many(bookings),
-  unavailableDates: many(branchUnavailableDates),
 }));
 
+// ==================== Bookings ====================
+
+// Table for storing reservations
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  branchId: integer("branch_id").notNull(),
-  date: timestamp("date").notNull(),
-  partySize: integer("party_size").notNull(),
-  confirmed: boolean("confirmed").notNull().default(false),
-  arrived: boolean("arrived").notNull().default(false),
-  arrivedAt: timestamp("arrived_at"),  // Add arrivedAt field
-  completed: boolean("completed").notNull().default(false),
+  userId: integer("user_id").notNull(),              // Who made the booking
+  branchId: integer("branch_id").notNull(),          // Which branch
+  date: timestamp("date").notNull(),                 // When is the booking for
+  partySize: integer("party_size").notNull(),        // How many people
+  confirmed: boolean("confirmed").notNull().default(false),  // If confirmed
+  arrived: boolean("arrived").notNull().default(false),      // If customer arrived
+  arrivedAt: timestamp("arrived_at"),                        // When they arrived
+  completed: boolean("completed").notNull().default(false),  // If booking completed
 });
 
+// Link bookings to branches and users
 export const bookingRelations = relations(bookings, ({ one }) => ({
   branch: one(restaurantBranches, {
     fields: [bookings.branchId],
@@ -162,6 +156,9 @@ export const bookingRelations = relations(bookings, ({ one }) => ({
   }),
 }));
 
+// ==================== Saved Restaurants ====================
+
+// Users can save their favorite restaurants
 export const savedRestaurants = pgTable("saved_restaurants", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
@@ -170,7 +167,7 @@ export const savedRestaurants = pgTable("saved_restaurants", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Add relations for saved restaurants
+// Link saved restaurants to users and restaurants
 export const savedRestaurantsRelations = relations(savedRestaurants, ({ one }) => ({
   user: one(users, {
     fields: [savedRestaurants.userId],
@@ -182,6 +179,9 @@ export const savedRestaurantsRelations = relations(savedRestaurants, ({ one }) =
   }),
 }));
 
+// ==================== Validation Schemas ====================
+
+// Schema for inserting new users
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
 }).extend({
@@ -193,6 +193,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
     })
 });
 
+// Schema for inserting new restaurant authentication
 export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omit({
   id: true,
   verified: true,
@@ -202,6 +203,7 @@ export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omi
   email: z.string().email("Invalid email format")
 });
 
+// Schema for inserting new restaurant profiles
 export const insertRestaurantProfileSchema = createInsertSchema(restaurantProfiles).omit({
   id: true
 }).extend({
@@ -210,12 +212,14 @@ export const insertRestaurantProfileSchema = createInsertSchema(restaurantProfil
   priceRange: z.enum(["$", "$$", "$$$", "$$$$"]), // Add price range validation
 });
 
+// Schema for inserting new branches
 export const insertBranchSchema = createInsertSchema(restaurantBranches).omit({
   id: true
 }).extend({
   seatsCount: z.number().min(1, "Must have at least 1 seat per table")
 });
 
+// Schema for inserting new bookings
 export const insertBookingSchema = createInsertSchema(bookings).omit({
   id: true,
   confirmed: true
@@ -245,12 +249,7 @@ export const restaurantProfileSchema = createInsertSchema(restaurantProfiles).om
   }),
 });
 
-// Add schema for inserting unavailable dates
-export const insertBranchUnavailableDatesSchema = z.object({
-  branchId: z.number(),
-  date: z.date(),
-  reason: z.string().optional()
-});
+// ==================== Types and Interfaces ====================
 
 // Extended booking type that includes restaurant details
 export interface ExtendedBooking extends Booking {
@@ -259,7 +258,7 @@ export interface ExtendedBooking extends Booking {
   branchRestaurantId?: number;
 }
 
-// Add BookingWithDetails type
+// Type for bookings with additional details
 export type BookingWithDetails = {
   id: number;
   date: Date;
@@ -291,8 +290,6 @@ export type RestaurantBranch = typeof restaurantBranches.$inferSelect;
 export type InsertRestaurantBranch = typeof restaurantBranches.$inferInsert;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertRestaurantProfile = typeof restaurantProfiles.$inferInsert;
-export type InsertBranchUnavailableDates = typeof branchUnavailableDates.$inferInsert;
-export type BranchUnavailableDate = typeof branchUnavailableDates.$inferSelect;
 
 // Restaurant type combining auth and profile
 export type Restaurant = RestaurantAuth & {
