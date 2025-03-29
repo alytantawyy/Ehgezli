@@ -2,7 +2,7 @@ import { RestaurantGrid } from "@/components/restaurant-grid";
 import { UserNav } from "@/components/user-nav";
 import { SearchBar } from "@/components/SearchBar";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -63,6 +63,8 @@ export default function HomePage() {
   const [time, setTime] = useState<string>();
   const [partySize, setPartySize] = useState(2);
 
+  const queryClient = useQueryClient();
+
   const { data: user } = useQuery({
     queryKey: ["/api/user"],
     queryFn: async () => {
@@ -77,6 +79,17 @@ export default function HomePage() {
   };
 
   const handleApplyFilters = () => {
+    console.log('Applying filters:', {
+      city: selectedCity,
+      cuisine: selectedCuisine,
+      priceRange: selectedPriceRange
+    });
+    
+    // Force a refetch with the new filters
+    queryClient.invalidateQueries({
+      queryKey: ['restaurants']
+    });
+    
     setIsDrawerOpen(false);
   };
 

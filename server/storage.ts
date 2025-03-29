@@ -1086,6 +1086,37 @@ export class DatabaseStorage implements IStorage {
         // Get branches with filters applied
         const conditions: SQL<unknown>[] = [eq(restaurantBranches.restaurantId, restaurant.id)];
 
+        // Add city filter if it exists
+        if (filters?.city && filters.city !== 'all') {
+          conditions.push(ilike(restaurantBranches.city, `%${filters.city}%`) as SQL<unknown>);
+        }
+
+        // Add cuisine filter if it exists
+        if (filters?.cuisine && filters.cuisine !== 'all') {
+          // We need to join with restaurant profiles to filter by cuisine
+          conditions.push(exists(
+            db.select()
+              .from(restaurantProfiles)
+              .where(and(
+                eq(restaurantProfiles.restaurantId, restaurant.id),
+                ilike(restaurantProfiles.cuisine, `%${filters.cuisine}%`)
+              ))
+          ) as SQL<unknown>);
+        }
+
+        // Add price range filter if it exists
+        if (filters?.priceRange && filters.priceRange !== 'all') {
+          // We need to join with restaurant profiles to filter by price range
+          conditions.push(exists(
+            db.select()
+              .from(restaurantProfiles)
+              .where(and(
+                eq(restaurantProfiles.restaurantId, restaurant.id),
+                eq(restaurantProfiles.priceRange, filters.priceRange)
+              ))
+          ) as SQL<unknown>);
+        }
+
         // Add search filter to branches if it exists
         if (filters?.search) {
           const searchTerm = `%${filters.search}%`;

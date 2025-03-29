@@ -62,9 +62,9 @@ export function SearchBar({
         onChange={handleChange}
         className="flex-1"
       />
-      <Button type="submit" size="icon" variant="ehgezli">
+      {/* <Button type="submit" size="icon" variant="ehgezli">
         <Search className="h-4 w-4" />
-      </Button>
+      </Button> */}
     </form>
   );
 }
