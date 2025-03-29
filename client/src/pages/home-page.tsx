@@ -192,18 +192,26 @@ export default function HomePage() {
 
               {/* Party Size */}
               <div className="w-full md:w-[100px] shrink-0">
-                <div className="flex items-center border rounded-md px-3 py-2">
-                  <Users className="h-4 w-4 opacity-50 mr-2" />
-                  <Input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={partySize}
-                    onChange={(e) => setPartySize(parseInt(e.target.value) || 2)}
-                    className="border-0 p-0 focus-visible:ring-0"
-                    placeholder="Guests"
-                  />
-                </div>
+                <Select
+                  value={partySize.toString()}
+                  onValueChange={(value) => setPartySize(parseInt(value))}
+                >
+                  <SelectTrigger className="w-full">
+                    <div className="flex items-center">
+                      <Users className="h-4 w-4 opacity-50 mr-2" />
+                      <SelectValue />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <ScrollArea className="h-[200px]">
+                      {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
+                        <SelectItem key={num} value={num.toString()}>
+                          {num}
+                        </SelectItem>
+                      ))}
+                    </ScrollArea>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Search Bar */}

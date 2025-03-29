@@ -18,20 +18,10 @@ import passport from 'passport';
 
 // === Database & Storage ===
 import { DatabaseStorage } from "./storage";
-import { db, pool } from "./db";
-import { and, eq, sql } from "drizzle-orm";
-// Database table definitions
-import { 
-  type RestaurantAuth, type RestaurantProfile, type RestaurantBranch,
-  restaurantAuth, restaurantProfiles, restaurantBranches,
-  insertRestaurantProfileSchema, insertBranchSchema
-} from "@shared/schema";
-import { bookings, users, savedRestaurants, passwordResetRequestSchema, restaurantPasswordResetRequestSchema } from "@shared/schema";
+import { pool } from "./db";
 
 // === Utilities ===
-import { sendPasswordResetEmail } from "./email";
-import { parse as parseCookie } from 'cookie';
-import { format, parseISO, addMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { parseISO} from 'date-fns';
 
 // === Session Management ===
 import connectPg from 'connect-pg-simple';

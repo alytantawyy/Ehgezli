@@ -1,5 +1,5 @@
 // Import necessary tools for database and validation
-import { pgTable, text, serial, integer, timestamp, boolean, jsonb, time, date } from "drizzle-orm/pg-core";  // PostgreSQL table definitions
+import { pgTable, text, serial, integer, timestamp, boolean} from "drizzle-orm/pg-core";  // PostgreSQL table definitions
 import { createInsertSchema } from "drizzle-zod";  // Tool to create validation schemas
 import { z } from "zod";  // Zod is our validation library
 import { relations } from "drizzle-orm";  // For defining relationships between tables
@@ -118,16 +118,6 @@ export const restaurantBranches = pgTable("restaurant_branches", {
   reservationDuration: integer("reservation_duration").notNull().default(120), // 2 hours default
 });
 
-// ==================== Table Relationships ====================
-
-// Link branches to restaurant profiles and bookings
-export const branchRelations = relations(restaurantBranches, ({ one, many }) => ({
-  restaurant: one(restaurantProfiles, {
-    fields: [restaurantBranches.restaurantId],
-    references: [restaurantProfiles.restaurantId],
-  }),
-  bookings: many(bookings),
-}));
 
 // ==================== Bookings ====================
 
@@ -167,17 +157,6 @@ export const savedRestaurants = pgTable("saved_restaurants", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Link saved restaurants to users and restaurants
-export const savedRestaurantsRelations = relations(savedRestaurants, ({ one }) => ({
-  user: one(users, {
-    fields: [savedRestaurants.userId],
-    references: [users.id],
-  }),
-  restaurant: one(restaurantProfiles, {
-    fields: [savedRestaurants.restaurantId],
-    references: [restaurantProfiles.restaurantId],
-  }),
-}));
 
 // ==================== Validation Schemas ====================
 
@@ -293,7 +272,7 @@ export type InsertRestaurantProfile = typeof restaurantProfiles.$inferInsert;
 
 // Restaurant type combining auth and profile
 export type Restaurant = RestaurantAuth & {
-  profile?: RestaurantProfile;
+  profile: RestaurantProfile;
   branches: RestaurantBranch[];
 };
 

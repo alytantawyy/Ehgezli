@@ -16,7 +16,7 @@ import {
 } from "@shared/schema";  // Type definitions and validation schemas
 import connectPg from "connect-pg-simple";  // PostgreSQL session store
 import { pool } from "./db";  // Database connection pool
-import { setupEmailTransporter, sendPasswordResetEmail } from "./email";  // Email functionality
+import { sendPasswordResetEmail } from "./email";  // Email functionality
 
 // Extend Express.User interface to support both user and restaurant types
 // This tells TypeScript that req.user can be either a regular user or a restaurant

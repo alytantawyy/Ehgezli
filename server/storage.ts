@@ -1,18 +1,18 @@
 // Import all the types and database tables we need
 // These come from our shared schema file that both client and server use
-import { 
+import {  
   InsertUser, User, RestaurantBranch, RestaurantAuth, InsertRestaurantAuth,
   restaurantProfiles, restaurantBranches, bookings, users,
   restaurantAuth, RestaurantProfile, ExtendedBooking, 
-  savedRestaurants, passwordResetTokens, restaurantPasswordResetTokens,
-  type InsertRestaurantProfile
+  savedRestaurants, passwordResetTokens, restaurantPasswordResetTokens, 
+  InsertRestaurantProfile
 } from "@shared/schema";
 
 // Import our database connection
 import { db, pool } from "./db";
 
 // Import helper functions from Drizzle ORM for writing SQL queries
-import { eq, and, gt, sql, desc, inArray, or, ilike, type SQL } from "drizzle-orm";
+import { eq, and, gt, sql, or, ilike, type SQL } from "drizzle-orm";
 
 // Import session handling packages
 import session from "express-session";  // For managing user sessions
