@@ -53,6 +53,7 @@ const PRICE_RANGES = [
 ];
 
 export default function HomePage() {
+  console.log("[HomePage] rendering");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
   const [selectedCuisine, setSelectedCuisine] = useState<string | undefined>(undefined);

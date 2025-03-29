@@ -3,7 +3,6 @@ import { RestaurantWithAvailability, AvailableSlot } from "@shared/schema";
 import { RestaurantCard } from "./restaurant-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { format, parseISO } from "date-fns";
 import { useLocation } from "wouter";
 
 interface RestaurantGridProps {
@@ -25,11 +24,13 @@ export function RestaurantGrid({
   time,
   partySize
 }: RestaurantGridProps) {
+  console.log("[RestaurantGrid] rendering");
   const [, setLocation] = useLocation();
 
   const { data: restaurants, isLoading } = useQuery<RestaurantWithAvailability[]>({
     queryKey: ["restaurants", searchQuery, cityFilter, cuisineFilter, priceFilter, date, time, partySize],
     queryFn: async () => {
+      console.log("[RestaurantGrid] Fetching with search query:", searchQuery);
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (cityFilter && cityFilter !== 'all') params.append("city", cityFilter);
@@ -38,8 +39,11 @@ export function RestaurantGrid({
       if (date) params.append("date", date.toISOString());
       if (time) params.append("time", time);
       
+      console.log("[RestaurantGrid] Fetching with params:", params.toString());
       // Always include partySize (defaults to 2 if not provided)
       params.append("partySize", (partySize || 2).toString());
+
+      console.log("[RestaurantGrid] Fetching with params:", params.toString());
 
       // Always use availability endpoint to get time slots
       const response = await fetch(`/api/restaurants/availability?${params}`);
@@ -47,7 +51,9 @@ export function RestaurantGrid({
         throw new Error('Failed to fetch restaurants');
       }
       return response.json();
-    }
+    },
+    staleTime: 0, // Ensure data is always considered stale and will refetch
+    refetchOnWindowFocus: false // Prevent refetching when window regains focus
   });
 
   if (isLoading) {
@@ -91,7 +97,8 @@ export function RestaurantGrid({
                       <Button
                         key={`${branch.id}-${slot.time}`}
                         size="sm"
-                        className="bg-[hsl(355,79%,36%)] hover:bg-[hsl(355,79%,30%)] text-white px-4 py-1.5 h-auto rounded font-medium text-sm min-w-[90px]"
+                        variant="ehgezli"
+                        className="px-4 py-1.5 h-auto rounded font-medium text-sm min-w-[90px]"
                         onClick={() => setLocation(
                           `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
                         )}

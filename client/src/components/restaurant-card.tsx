@@ -19,6 +19,7 @@ export function RestaurantCard({
   branchIndex,
   children
 }: RestaurantCardProps) {
+  console.log("[RestaurantCard] rendering", { restaurantId: restaurant.id, branchIndex });
   const branch = restaurant.branches?.[branchIndex];
   const { toast } = useToast();
 

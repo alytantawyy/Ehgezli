@@ -12,7 +12,7 @@ import {
 import { db, pool } from "./db";
 
 // Import helper functions from Drizzle ORM for writing SQL queries
-import { eq, and, gt, sql, or, ilike, type SQL } from "drizzle-orm";
+import { eq, and, gt, sql, or, ilike, exists, type SQL } from "drizzle-orm";
 
 // Import session handling packages
 import session from "express-session";  // For managing user sessions
@@ -87,10 +87,10 @@ export interface IStorage {
 
   // Find restaurants with their closest available time slots
   findRestaurantsWithAvailability(
-    date: Date,
-    requestedTime: string,
-    partySize: number,
-    filters: { city?: string; cuisine?: string; priceRange?: string }
+    date?: Date,
+    partySize?: number,
+    filters?: { city?: string; cuisine?: string; priceRange?: string; search?: string },
+    requestedTime?: string
   ): Promise<(RestaurantAuth & { 
     profile?: RestaurantProfile;
     branches: (RestaurantBranch & { 
@@ -197,9 +197,29 @@ export class DatabaseStorage implements IStorage {
       if (filters?.search) {
         const searchTerm = `%${filters.search}%`;
         const searchCondition = or(
+          // Search in restaurant name
           ilike(restaurantAuth.name, searchTerm),
-          ilike(restaurantProfiles.about, searchTerm),
-          ilike(restaurantProfiles.cuisine, searchTerm)
+          // Search in cuisine
+          exists(
+            db.select()
+              .from(restaurantProfiles)
+              .where(and(
+                eq(restaurantProfiles.restaurantId, restaurantAuth.id),
+                ilike(restaurantProfiles.cuisine, searchTerm)
+              ))
+          ),
+          // Search in branch locations
+          exists(
+            db.select()
+              .from(restaurantBranches)
+              .where(and(
+                eq(restaurantBranches.restaurantId, restaurantAuth.id),
+                or(
+                  ilike(restaurantBranches.address, searchTerm),
+                  ilike(restaurantBranches.city, searchTerm)
+                )
+              ))
+          )
         ) as SQL<unknown>;
         conditions.push(searchCondition);
       }
@@ -951,10 +971,10 @@ export class DatabaseStorage implements IStorage {
    * Find restaurants with their closest available time slots
    */
   async findRestaurantsWithAvailability(
-    date: Date = new Date(),
-    requestedTime?: string,
-    partySize: number = 2,
-    filters: { city?: string; cuisine?: string; priceRange?: string } = {}
+    date?: Date,
+    partySize?: number,
+    filters?: { city?: string; cuisine?: string; priceRange?: string; search?: string },
+    requestedTime?: string
   ): Promise<(RestaurantAuth & { 
     profile?: RestaurantProfile;
     branches: (RestaurantBranch & { 
@@ -962,36 +982,118 @@ export class DatabaseStorage implements IStorage {
     })[];
   })[]> {
     console.log('DEBUG: Starting search with params:', {
-      date: date.toISOString(),
-      requestedTime,
+      date: date?.toISOString(),
       partySize,
-      filters
+      filters,
+      requestedTime
     });
 
-    // Get all restaurants matching filters
-    const restaurants = await this.getRestaurants(filters);
-    
-    // Get initial restaurant data with profiles
-    const initialRestaurants = await Promise.all(
-      restaurants.map(async restaurant => ({
-        ...restaurant,
-        profile: await this.getRestaurantProfile(restaurant.id)
-      }))
-    );
+    // Build search conditions
+    const conditions: SQL<unknown>[] = [];
+
+    if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
+      conditions.push(
+        or(
+          // Search in restaurant name
+          ilike(restaurantAuth.name, searchTerm),
+          // Search in cuisine
+          exists(
+            db.select()
+              .from(restaurantProfiles)
+              .where(and(
+                eq(restaurantProfiles.restaurantId, restaurantAuth.id),
+                ilike(restaurantProfiles.cuisine, searchTerm)
+              ))
+          ),
+          // Search in branch locations
+          exists(
+            db.select()
+              .from(restaurantBranches)
+              .where(and(
+                eq(restaurantBranches.restaurantId, restaurantAuth.id),
+                or(
+                  ilike(restaurantBranches.address, searchTerm),
+                  ilike(restaurantBranches.city, searchTerm)
+                )
+              ))
+          )
+        ) as SQL<unknown>
+      );
+    }
+
+    // Get initial list of restaurants with profiles
+    const query = db
+      .select({
+        id: restaurantAuth.id,
+        email: restaurantAuth.email,
+        name: restaurantAuth.name,
+        password: restaurantAuth.password,
+        verified: restaurantAuth.verified,
+        createdAt: restaurantAuth.createdAt,
+        profile: restaurantProfiles
+      })
+      .from(restaurantAuth)
+      .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId));
+
+    // Apply conditions if we have any
+    const rawRestaurants = await (conditions.length > 0
+      ? query.where(and(...conditions))
+      : query);
+
+    // Transform raw data to match expected types
+    const initialRestaurants = rawRestaurants.map(restaurant => ({
+      ...restaurant,
+      // Ensure all required fields have values
+      verified: restaurant.verified ?? false,
+      createdAt: restaurant.createdAt ?? new Date(),
+      password: restaurant.password ?? "",
+      // Transform null profile to undefined and ensure all profile fields
+      profile: restaurant.profile ? {
+        ...restaurant.profile,
+        about: restaurant.profile.about ?? "",
+        description: restaurant.profile.description ?? "",
+        cuisine: restaurant.profile.cuisine ?? "",
+        priceRange: restaurant.profile.priceRange ?? "$",
+        logo: restaurant.profile.logo ?? "",
+        isProfileComplete: restaurant.profile.isProfileComplete ?? false,
+        createdAt: restaurant.profile.createdAt ?? new Date(),
+        updatedAt: restaurant.profile.updatedAt ?? new Date()
+      } : undefined
+    }));
 
     console.log('DEBUG: Initial restaurants:', initialRestaurants.map(r => ({
       id: r.id,
       name: r.name,
       priceRange: r.profile?.priceRange
     })));
-    
+
     // For each restaurant, get branch availability
     const restaurantsWithSlots = await Promise.all(
       initialRestaurants.map(async (restaurant) => {
         console.log(`DEBUG: Processing restaurant ${restaurant.id} (${restaurant.name})`);
+
+        // Get branches with filters applied
+        const conditions: SQL<unknown>[] = [eq(restaurantBranches.restaurantId, restaurant.id)];
+
+        // Add search filter to branches if it exists
+        if (filters?.search) {
+          const searchTerm = `%${filters.search}%`;
+          conditions.push(
+            or(
+              ilike(restaurantBranches.address, searchTerm),
+              ilike(restaurantBranches.city, searchTerm),
+              // ilike(restaurantAuth.name, searchTerm),
+              // ilike(restaurantProfiles.cuisine, searchTerm)
+            ) as SQL<unknown>
+          );
+        }
         
-        const branches = await this.getRestaurantBranches(restaurant.id);
-        
+        const branches = await db
+          .select()
+          .from(restaurantBranches)
+          .where(and(...conditions));
+
         console.log(`DEBUG: Restaurant ${restaurant.id} data:`, {
           branches: branches.map(b => ({
             id: b.id,
@@ -1005,7 +1107,7 @@ export class DatabaseStorage implements IStorage {
             priceRange: restaurant.profile.priceRange
           } : null
         });
-        
+
         // Get availability for each branch
         const branchesWithSlots = await Promise.all(
           branches.map(async (branch) => {
@@ -1017,14 +1119,14 @@ export class DatabaseStorage implements IStorage {
               seatsCount: branch.seatsCount
             });
             console.log('Request details:', {
-              date,
+              date: date?.toISOString(),
               requestedTime,
               partySize
             });
-            
+
             // Calculate 30 minutes before and after
             const [requestHour, requestMinute] = requestedTime ? requestedTime.split(':').map(Number) : this.getDefaultTimeSlots().map(t => t.split(':').map(Number))[1];
-            
+
             // Calculate time slots in minutes since midnight
             const requestMinutes = requestHour * 60 + requestMinute;
             const beforeMinutes = requestMinutes - 30;
@@ -1081,7 +1183,7 @@ export class DatabaseStorage implements IStorage {
               .where(
                 and(
                   eq(bookings.branchId, branch.id),
-                  eq(sql`DATE(${bookings.date})`, sql`DATE(${sql.param(date)})`),
+                  eq(sql`DATE(${bookings.date})`, sql`DATE(${sql.param(date || new Date())})`),
                   sql`DATE_TRUNC('minute', ${bookings.date})::time = ANY(${sql.raw(`ARRAY[${timeSlots.map(t => `'${t}'::time`).join(',')}]`)})`
                 )
               )
@@ -1094,7 +1196,7 @@ export class DatabaseStorage implements IStorage {
                        SUM(party_size) as total_booked
                 FROM bookings
                 WHERE branch_id = ${branch.id}
-                  AND DATE("date") = DATE(${date})
+                  AND DATE("date") = DATE(${date || new Date()})
                   AND DATE_TRUNC('minute', "date")::time = ANY(${sql.raw(`ARRAY[${timeSlots.map(t => `'${t}'::time`).join(',')}]`)})
                 GROUP BY DATE_TRUNC('minute', "date")
               `.toString()
@@ -1106,23 +1208,23 @@ export class DatabaseStorage implements IStorage {
                 const bookingForTime = branchBookings.find(b => b.time === time);
                 const totalBooked = bookingForTime?.totalBooked || 0;
                 const availableSeats = Math.max(0, branch.seatsCount - totalBooked);
-                
+
                 // Convert times to minutes for comparison
                 const [slotHour, slotMinute] = time.split(':').map(Number);
                 const [openHour, openMinute] = branch.openingTime.split(':').map(Number);
                 const [closeHour, closeMinute] = branch.closingTime.split(':').map(Number);
-                
+
                 const slotMinutes = slotHour * 60 + slotMinute;
                 const openMinutes = openHour * 60 + openMinute;
                 let closeMinutes = closeHour * 60 + closeMinute;
-                
+
                 // Handle after-midnight closing times
                 if (closeHour < openHour) {
                   closeMinutes += 24 * 60;
                 }
-                
+
                 const isWithinHours = slotMinutes >= openMinutes && slotMinutes <= closeMinutes - 30;
-                const hasEnoughSeats = availableSeats >= partySize;
+                const hasEnoughSeats = availableSeats >= (partySize || 2);
 
                 console.log('DEBUG: Evaluating time slot:', {
                   time,

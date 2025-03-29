@@ -479,7 +479,7 @@ export function registerRoutes(app: Express): Server {
         body: req.body
       });
 
-      const { date, time, partySize, city, cuisine, priceRange } = req.query;
+      const { date, time, partySize, city, cuisine, priceRange, search } = req.query;
       
       // All parameters are now optional - using defaults from storage layer
       const parsedDate = date ? parseISO(date as string) : new Date();
@@ -491,18 +491,20 @@ export function registerRoutes(app: Express): Server {
         parsedPartySize,
         city,
         cuisine,
-        priceRange
+        priceRange,
+        search
       });
 
       const restaurants = await storage.findRestaurantsWithAvailability(
         parsedDate,
-        time as string | undefined,
         parsedPartySize,
         {
           city: city as string,
           cuisine: cuisine as string,
-          priceRange: priceRange as string
-        }
+          priceRange: priceRange as string,
+          search: search as string
+        },
+        time as string | undefined
       );
 
       console.log('SERVER: Found restaurants:', {
