@@ -1,7 +1,7 @@
 import { RestaurantGrid } from "@/components/restaurant-grid";
 import { UserNav } from "@/components/user-nav";
 import { SearchBar } from "@/components/SearchBar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Select,
@@ -76,19 +76,21 @@ export default function HomePage() {
   });
 
   const { data: timeSlots } = useQuery({
-    queryKey: ["/api/time-slots/default"],
+    queryKey: ["/api/default-time-slots"],
     queryFn: async () => {
-      const response = await fetch("/api/time-slots/default");
+      const response = await fetch("/api/default-time-slots");
       if (!response.ok) return ["19:00"]; 
       return response.json();
     },
-    onSuccess: (data) => {
-      if (!time && data && data.length > 0) {
-        const defaultTime = data.length >= 3 ? data[1] : data[0];
-        setTime(defaultTime);
-      }
-    }
   });
+
+  // Handle setting the default time when time slots are loaded
+  useEffect(() => {
+    if (!time && timeSlots && timeSlots.length > 0) {
+      const defaultTime = timeSlots.length >= 3 ? timeSlots[1] : timeSlots[0];
+      setTime(defaultTime);
+    }
+  }, [timeSlots, time]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);

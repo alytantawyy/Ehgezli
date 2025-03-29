@@ -966,7 +966,7 @@ export class DatabaseStorage implements IStorage {
   private getDefaultTimeSlots(): string[] {
     // Add 5 hours to current time
     const now = new Date();
-    const baseTime = new Date(now.getTime() + 5 * 60 * 60 * 1000);
+    const baseTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
     
     // Round down to nearest 30 mins
     const minutes = baseTime.getMinutes();
