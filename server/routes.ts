@@ -106,7 +106,7 @@ export function registerRoutes(app: Express): Server {
   // Create HTTP server
   const httpServer = createServer(app);
 
-  // === BASIC MIDDLEWARE SETUP ===
+  // === BASIC MIDDLEWARE SETUP
   
   // Parse JSON request bodies
   app.use(express.json());
@@ -521,6 +521,136 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('SERVER: Error in availability endpoint:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  /**
+   * Save Restaurant
+   * POST /api/saved-restaurants
+   * 
+   * Save a restaurant to the user's favorites
+   * 
+   * Request body:
+   * - restaurantId: ID of the restaurant to save
+   * - branchIndex: Index of the branch to save
+   * 
+   * Returns:
+   * - 200: Success message
+   * - 401: Unauthorized (not logged in)
+   * - 400: Invalid parameters
+   * - 500: Server error
+   */
+  app.post("/api/saved-restaurants", requireUserAuth, async (req: Request, res: Response) => {
+    try {
+      const { restaurantId, branchIndex } = req.body;
+      const userId = (req.user as AuthenticatedUser).id;
+      
+      // Validate input
+      if (!restaurantId || branchIndex === undefined) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      // Check if already saved
+      const alreadySaved = await storage.isRestaurantSaved(userId, restaurantId, branchIndex);
+      if (alreadySaved) {
+        return res.json({ message: "Restaurant already saved", alreadySaved: true });
+      }
+
+      // Save to database
+      await storage.saveRestaurant(userId, restaurantId, branchIndex);
+      
+      console.log(`User ${userId} saved restaurant ${restaurantId} branch ${branchIndex}`);
+      res.json({ success: true, message: "Restaurant saved successfully" });
+    } catch (error) {
+      console.error("Error saving restaurant:", error);
+      res.status(500).json({ message: "Failed to save restaurant" });
+    }
+  });
+
+  /**
+   * Delete Saved Restaurant
+   * DELETE /api/saved-restaurants/:restaurantId/:branchIndex
+   * 
+   * Remove a restaurant from the user's favorites
+   * 
+   * URL parameters:
+   * - restaurantId: ID of the restaurant to remove
+   * - branchIndex: Index of the branch to remove
+   * 
+   * Returns:
+   * - 200: Success message
+   * - 401: Unauthorized (not logged in)
+   * - 404: Restaurant not found in saved list
+   * - 500: Server error
+   */
+  app.delete("/api/saved-restaurants/:restaurantId/:branchIndex", requireUserAuth, async (req: Request, res: Response) => {
+    try {
+      const { restaurantId, branchIndex } = req.params;
+      const userId = (req.user as AuthenticatedUser).id;
+      
+      // Remove from database
+      await storage.removeSavedRestaurant(userId, parseInt(restaurantId), parseInt(branchIndex));
+      
+      console.log(`User ${userId} removed restaurant ${restaurantId} branch ${branchIndex}`);
+      res.json({ success: true, message: "Restaurant removed from saved list" });
+    } catch (error) {
+      console.error("Error removing saved restaurant:", error);
+      res.status(500).json({ message: "Failed to remove saved restaurant" });
+    }
+  });
+
+  /**
+   * Get Saved Restaurants
+   * GET /api/saved-restaurants
+   * 
+   * Get all restaurants saved by the current user
+   * 
+   * Returns:
+   * - 200: Array of saved restaurants
+   * - 401: Unauthorized (not logged in)
+   * - 500: Server error
+   */
+  app.get("/api/saved-restaurants", requireUserAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as AuthenticatedUser).id;
+      
+      // Get saved restaurants
+      const saved = await storage.getSavedRestaurants(userId);
+      
+      res.json(saved);
+    } catch (error) {
+      console.error("Error getting saved restaurants:", error);
+      res.status(500).json({ message: "Failed to get saved restaurants" });
+    }
+  });
+
+  /**
+   * Check if Restaurant is Saved
+   * GET /api/saved-restaurants/:restaurantId/:branchIndex
+   * 
+   * Check if a specific restaurant is saved by the current user
+   * 
+   * URL parameters:
+   * - restaurantId: ID of the restaurant to check
+   * - branchIndex: Index of the branch to check
+   * 
+   * Returns:
+   * - 200: { saved: boolean }
+   * - 401: Unauthorized (not logged in)
+   * - 500: Server error
+   */
+  app.get("/api/saved-restaurants/:restaurantId/:branchIndex", requireUserAuth, async (req: Request, res: Response) => {
+    try {
+      const { restaurantId, branchIndex } = req.params;
+      const userId = (req.user as AuthenticatedUser).id;
+      
+      // Check if restaurant is saved
+      const saved = await storage.isRestaurantSaved(userId, parseInt(restaurantId), parseInt(branchIndex));
+      
+      res.json({ saved });
+    } catch (error) {
+      console.error("Error checking if restaurant is saved:", error);
+      res.status(500).json({ message: "Failed to check if restaurant is saved" });
     }
   });
 

@@ -3,10 +3,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bookmark, MapPin } from "lucide-react";
 import { Restaurant } from "@shared/schema";
-import { useState } from "react";
-import { queryClient } from "@/lib/queryClient";
+import { useState, useEffect } from "react";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 
 interface RestaurantCardProps {
   restaurant: Restaurant;
@@ -22,10 +22,30 @@ export function RestaurantCard({
   console.log("[RestaurantCard] rendering", { restaurantId: restaurant.id, branchIndex });
   const branch = restaurant.branches?.[branchIndex];
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Debug auth state
+  console.log("User auth state in RestaurantCard:", { user });
 
   if (!branch) return null;
 
   const [savedStatus, setSavedStatus] = useState(false);
+
+  // Check if restaurant is already saved when component mounts
+  useEffect(() => {
+    const checkIfSaved = async () => {
+      try {
+        if (user) {
+          const response = await apiRequest<{ saved: boolean }>("GET", `/api/saved-restaurants/${restaurant.id}/${branchIndex}`);
+          setSavedStatus(response.saved);
+        }
+      } catch (error) {
+        console.error("Error checking if restaurant is saved:", error);
+      }
+    };
+
+    checkIfSaved();
+  }, [restaurant.id, branchIndex, user]);
 
   const handleSaveRestaurant = async () => {
     try {
@@ -52,9 +72,17 @@ export function RestaurantCard({
       await queryClient.invalidateQueries({ queryKey: ["/api/saved-restaurants"] });
     } catch (error) {
       console.error("Error saving restaurant:", error);
+      
+      // Check if it's an authentication error (HTML response instead of JSON)
+      const errorMessage = error instanceof Error && error.message.includes("SyntaxError") 
+        ? "Please log in to save restaurants" 
+        : error instanceof Error 
+          ? error.message 
+          : "Failed to save restaurant. Please try again.";
+          
       toast({
-        title: "Error",
-        description: "Failed to save restaurant. Please try again.",
+        title: "Error saving restaurant",
+        description: errorMessage,
         variant: "destructive",
       });
     }

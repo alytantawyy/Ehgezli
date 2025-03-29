@@ -4,6 +4,7 @@ import { RestaurantCard } from "./restaurant-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import { format, parse } from "date-fns";
 
 interface RestaurantGridProps {
   searchQuery?: string;
@@ -93,19 +94,22 @@ export function RestaurantGrid({
               >
                 {slots.length > 0 && (
                   <div className="flex justify-center gap-3 mt-4">
-                    {slots.map((slot: AvailableSlot) => (
-                      <Button
-                        key={`${branch.id}-${slot.time}`}
-                        size="sm"
-                        variant="ehgezli"
-                        className="px-4 py-1.5 h-auto rounded font-medium text-sm min-w-[90px]"
-                        onClick={() => setLocation(
-                          `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
-                        )}
-                      >
-                        {slot.time}
-                      </Button>
-                    ))}
+                    {slots.map((slot: AvailableSlot) => {
+                      const time = parse(slot.time, 'HH:mm', new Date());
+                      return (
+                        <Button
+                          key={`${branch.id}-${slot.time}`}
+                          size="sm"
+                          variant="ehgezli"
+                          className="px-4 py-1.5 h-auto rounded font-medium text-sm min-w-[90px]"
+                          onClick={() => setLocation(
+                            `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
+                          )}
+                        >
+                          {format(time, 'hh:mm a')}
+                        </Button>
+                      );
+                    })}
                   </div>
                 )}
               </RestaurantCard>

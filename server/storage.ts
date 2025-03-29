@@ -85,6 +85,10 @@ export interface IStorage {
   removeSavedRestaurant(userId: number, restaurantId: number, branchIndex: number): Promise<boolean>;
   getDetailedRestaurantData(restaurantId: number): Promise<RestaurantAuth & { profile?: RestaurantProfile } | undefined>;
 
+  // Saved restaurant operations
+  saveRestaurant(userId: number, restaurantId: number, branchIndex: number): Promise<boolean>;
+  getSavedRestaurants(userId: number): Promise<any[]>;
+
   // Find restaurants with their closest available time slots
   findRestaurantsWithAvailability(
     date?: Date,
@@ -876,34 +880,39 @@ export class DatabaseStorage implements IStorage {
    * Check if a restaurant branch is saved by a user
    */
   async isRestaurantSaved(userId: number, restaurantId: number, branchIndex: number): Promise<boolean> {
-    const [saved] = await db
-      .select()
-      .from(savedRestaurants)
-      .where(
-        and(
+    try {
+      const result = await db.select()
+        .from(savedRestaurants)
+        .where(and(
           eq(savedRestaurants.userId, userId),
           eq(savedRestaurants.restaurantId, restaurantId),
           eq(savedRestaurants.branchIndex, branchIndex)
-        )
-      );
-    return !!saved;
+        ));
+
+      return result.length > 0;
+    } catch (error) {
+      console.error('Error checking if restaurant is saved:', error);
+      return false;
+    }
   }
 
   /**
    * Remove a restaurant from user's saved list
    */
   async removeSavedRestaurant(userId: number, restaurantId: number, branchIndex: number): Promise<boolean> {
-    const result = await db
-      .delete(savedRestaurants)
-      .where(
-        and(
+    try {
+      const result = await db.delete(savedRestaurants)
+        .where(and(
           eq(savedRestaurants.userId, userId),
           eq(savedRestaurants.restaurantId, restaurantId),
           eq(savedRestaurants.branchIndex, branchIndex)
-        )
-      )
-      .returning();
-    return result.length > 0;
+        ))
+        .returning();
+      return result.length > 0;
+    } catch (error) {
+      console.error('Error removing saved restaurant:', error);
+      return false;
+    }
   }
 
   /**
@@ -955,9 +964,9 @@ export class DatabaseStorage implements IStorage {
 
   // Helper function to get default time slots based on current time
   private getDefaultTimeSlots(): string[] {
-    // Add 1 hour to current time
+    // Add 5 hours to current time
     const now = new Date();
-    const baseTime = new Date(now.getTime() + 60 * 60 * 1000);
+    const baseTime = new Date(now.getTime() + 5 * 60 * 60 * 1000);
     
     // Round down to nearest 30 mins
     const minutes = baseTime.getMinutes();
@@ -1341,6 +1350,70 @@ export class DatabaseStorage implements IStorage {
     })));
 
     return availableRestaurants;
+  }
+
+  /**
+   * Save a restaurant to user's favorites
+   */
+  async saveRestaurant(userId: number, restaurantId: number, branchIndex: number): Promise<boolean> {
+    try {
+      // Check if already saved
+      const existing = await db.select()
+        .from(savedRestaurants)
+        .where(and(
+          eq(savedRestaurants.userId, userId),
+          eq(savedRestaurants.restaurantId, restaurantId),
+          eq(savedRestaurants.branchIndex, branchIndex)
+        ));
+
+      if (existing.length > 0) {
+        return true; // Already saved
+      }
+
+      // Save to database
+      await db.insert(savedRestaurants).values({
+        userId,
+        restaurantId,
+        branchIndex
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error saving restaurant:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get all saved restaurants for a user
+   */
+  async getSavedRestaurants(userId: number): Promise<any[]> {
+    try {
+      // Get saved restaurants with restaurant details
+      const saved = await db.select({
+        id: savedRestaurants.id,
+        userId: savedRestaurants.userId,
+        restaurantId: savedRestaurants.restaurantId,
+        branchIndex: savedRestaurants.branchIndex,
+        createdAt: savedRestaurants.createdAt
+      })
+      .from(savedRestaurants)
+      .where(eq(savedRestaurants.userId, userId));
+
+      // Fetch restaurant details for each saved restaurant
+      const result = await Promise.all(saved.map(async (item) => {
+        const restaurant = await this.getRestaurant(item.restaurantId);
+        return {
+          ...item,
+          restaurant
+        };
+      }));
+
+      return result;
+    } catch (error) {
+      console.error('Error getting saved restaurants:', error);
+      return [];
+    }
   }
 }
 

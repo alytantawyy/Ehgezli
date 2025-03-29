@@ -59,8 +59,8 @@ export default function HomePage() {
   const [selectedCuisine, setSelectedCuisine] = useState<string | undefined>(undefined);
   const [selectedPriceRange, setSelectedPriceRange] = useState<string | undefined>(undefined);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [date, setDate] = useState<Date>();
-  const [time, setTime] = useState<string>();
+  const [date, setDate] = useState<Date>(new Date());
+  const [time, setTime] = useState<string>("19:00");
   const [partySize, setPartySize] = useState(2);
 
   const queryClient = useQueryClient();
@@ -158,75 +158,79 @@ export default function HomePage() {
           <div className="flex justify-center">
             <div className="flex flex-col md:flex-row gap-4 items-end w-full max-w-5xl">
               {/* Date Picker */}
-              <div className="w-full md:w-[180px] shrink-0">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full justify-start text-left font-normal truncate",
-                        !date && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                      {date ? format(date, "MMM d, yyyy") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={date}
-                      onSelect={setDate}
-                      disabled={{ before: new Date() }}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, "MMM d") : <span>Select date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={(date) => date && setDate(date)}
+                    disabled={{ before: new Date() }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
 
-              {/* Time Picker */}
-              <div className="w-full md:w-[100px] shrink-0">
-                <Select value={time} onValueChange={setTime}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Time">
-                      {time ? format(parseISO(`2000-01-01T${time}`), "h:mm a") : "Time"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="h-[300px]">
-                    <ScrollArea className="h-[300px]">
+              {/* Time Selector */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {time ? format(parseISO(`2000-01-01T${time}`), "h:mm a") : <span>Select time</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-60 p-0" align="start">
+                  <ScrollArea className="h-80">
+                    <div className="grid grid-cols-1 gap-1 p-2">
                       {generateTimeSlots(date).map((slot) => (
-                        <SelectItem key={slot.value} value={slot.value}>
+                        <Button
+                          key={slot.value}
+                          variant={time === slot.value ? "default" : "ghost"}
+                          className="justify-start font-normal"
+                          onClick={() => {
+                            setTime(slot.value);
+                          }}
+                        >
                           {slot.label}
-                        </SelectItem>
+                        </Button>
                       ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Party Size */}
-              <div className="w-full md:w-[100px] shrink-0">
-                <Select
-                  value={partySize.toString()}
-                  onValueChange={(value) => setPartySize(parseInt(value))}
-                >
-                  <SelectTrigger className="w-full">
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 opacity-50 mr-2" />
-                      <SelectValue />
                     </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="h-[200px]">
-                      {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
-                        <SelectItem key={num} value={num.toString()}>
-                          {num}
-                        </SelectItem>
-                      ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
-              </div>
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+
+              {/* Party Size Selector */}
+              <Select
+                value={partySize.toString()}
+                onValueChange={(value) => setPartySize(parseInt(value))}
+              >
+                <SelectTrigger className="w-full sm:w-auto">
+                  <div className="flex items-center">
+                    <Users className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="People" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <ScrollArea className="h-[200px]">
+                    {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
+                      <SelectItem key={num} value={num.toString()}>
+                        {num} {num === 1 ? 'person' : 'people'}
+                      </SelectItem>
+                    ))}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
 
               {/* Search Bar */}
               <div className="w-full md:flex-1 md:max-w-[400px]">
@@ -349,15 +353,9 @@ export default function HomePage() {
           {/* Section Title */}
           <div className="text-center">
             <h1 className="text-2xl font-semibold">Available Restaurants</h1>
-            {date && time ? (
-              <p className="text-sm text-muted-foreground mt-2">
-                Showing available restaurants for {format(date, "MMMM d, yyyy")} at {format(parseISO(`2000-01-01T${time}`), "h:mm a")}
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground mt-2">
-                Select a date and time to see available restaurants
-              </p>
-            )}
+            <p className="text-sm text-muted-foreground mt-2">
+              Showing available restaurants for {format(date, "MMM d")} at {format(parseISO(`2000-01-01T${time}`), "h:mm a")}
+            </p>
           </div>
 
           {/* Restaurant Grid */}
