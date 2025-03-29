@@ -237,7 +237,7 @@ export default function HomePage() {
               <div className="w-full md:w-auto shrink-0">
                 <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
                   <DrawerTrigger asChild>
-                    <Button variant="outline" className="gap-2">
+                    <Button variant="ehgezli" className="gap-2">
                       <FilterIcon className="h-4 w-4" />
                       Filters
                       {(selectedCity || selectedCuisine || selectedPriceRange) && (
