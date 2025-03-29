@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/drawer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Users, CalendarIcon } from "lucide-react";
+import { Users, CalendarIcon, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
@@ -60,8 +60,9 @@ export default function HomePage() {
   const [selectedPriceRange, setSelectedPriceRange] = useState<string | undefined>(undefined);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [date, setDate] = useState<Date>(new Date());
-  const [time, setTime] = useState<string>("19:00");
+  const [time, setTime] = useState<string>(""); 
   const [partySize, setPartySize] = useState(2);
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -72,6 +73,21 @@ export default function HomePage() {
       if (!response.ok) return null;
       return response.json();
     },
+  });
+
+  const { data: timeSlots } = useQuery({
+    queryKey: ["/api/time-slots/default"],
+    queryFn: async () => {
+      const response = await fetch("/api/time-slots/default");
+      if (!response.ok) return ["19:00"]; 
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (!time && data && data.length > 0) {
+        const defaultTime = data.length >= 3 ? data[1] : data[0];
+        setTime(defaultTime);
+      }
+    }
   });
 
   const handleSearch = (query: string) => {
@@ -85,7 +101,6 @@ export default function HomePage() {
       priceRange: selectedPriceRange
     });
     
-    // Force a refetch with the new filters
     queryClient.invalidateQueries({
       queryKey: ['restaurants']
     });
@@ -100,7 +115,7 @@ export default function HomePage() {
   };
 
   const { data: restaurants, isLoading, error } = useQuery({
-    queryKey: ['restaurants', { date, time, partySize, city: selectedCity, cuisine: selectedCuisine, priceRange: selectedPriceRange }],
+    queryKey: ['restaurants', { date, time, partySize, city: selectedCity, cuisine: selectedCuisine, priceRange: selectedPriceRange, showSavedOnly }],
     queryFn: async () => {
       console.log('CLIENT: Fetching restaurants with params:', {
         date,
@@ -108,7 +123,8 @@ export default function HomePage() {
         partySize,
         city: selectedCity,
         cuisine: selectedCuisine,
-        priceRange: selectedPriceRange
+        priceRange: selectedPriceRange,
+        showSavedOnly
       });
 
       const params = new URLSearchParams();
@@ -118,6 +134,7 @@ export default function HomePage() {
       if (selectedCity && selectedCity !== 'all') params.set('city', selectedCity);
       if (selectedCuisine && selectedCuisine !== 'all') params.set('cuisine', selectedCuisine);
       if (selectedPriceRange && selectedPriceRange !== 'all') params.set('priceRange', selectedPriceRange);
+      if (showSavedOnly) params.set('showSavedOnly', 'true');
 
       const endpoint = date && time 
         ? '/api/restaurants/availability'
@@ -238,7 +255,7 @@ export default function HomePage() {
               </div>
 
               {/* Filters Button */}
-              <div className="w-full md:w-auto shrink-0">
+              <div className="flex gap-2">
                 <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
                   <DrawerTrigger asChild>
                     <Button variant="ehgezli" className="gap-2">
@@ -324,6 +341,15 @@ export default function HomePage() {
                     </div>
                   </DrawerContent>
                 </Drawer>
+                <Button
+                  variant="ehgezli"
+                  size="icon"
+                  className={cn(showSavedOnly && "bg-primary/90 text-primary-foreground hover:bg-primary/80")}
+                  onClick={() => setShowSavedOnly(!showSavedOnly)}
+                  title={showSavedOnly ? "Show all restaurants" : "Show saved restaurants only"}
+                >
+                  <Star className="h-4 w-4" fill={showSavedOnly ? "currentColor" : "none"} />
+                </Button>
               </div>
             </div>
           </div>
@@ -368,6 +394,7 @@ export default function HomePage() {
               date={date}
               time={time}
               partySize={partySize}
+              showSavedOnly={showSavedOnly}
             />
           </div>
         </div>

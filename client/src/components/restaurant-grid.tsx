@@ -14,6 +14,7 @@ interface RestaurantGridProps {
   date?: Date;
   time?: string;
   partySize?: number;
+  showSavedOnly?: boolean;
 }
 
 export function RestaurantGrid({
@@ -23,11 +24,13 @@ export function RestaurantGrid({
   priceFilter,
   date,
   time,
-  partySize
+  partySize,
+  showSavedOnly = false
 }: RestaurantGridProps) {
-  console.log("[RestaurantGrid] rendering");
+  console.log("[RestaurantGrid] rendering", { showSavedOnly });
   const [, setLocation] = useLocation();
 
+  // Query for all restaurants with availability
   const { data: restaurants, isLoading } = useQuery<RestaurantWithAvailability[]>({
     queryKey: ["restaurants", searchQuery, cityFilter, cuisineFilter, priceFilter, date, time, partySize],
     queryFn: async () => {
@@ -57,7 +60,22 @@ export function RestaurantGrid({
     refetchOnWindowFocus: false // Prevent refetching when window regains focus
   });
 
-  if (isLoading) {
+  // Query for saved restaurants when showSavedOnly is true
+  const { data: savedRestaurants, isLoading: isSavedLoading } = useQuery<{ restaurantId: number; branchIndex: number }[]>({
+    queryKey: ["/api/saved-restaurants"],
+    queryFn: async () => {
+      const response = await fetch("/api/saved-restaurants", { credentials: 'include' });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to fetch saved restaurants");
+      }
+      return response.json();
+    },
+    enabled: showSavedOnly // Only run this query when showSavedOnly is true
+  });
+
+  // Loading state
+  if (isLoading || (showSavedOnly && isSavedLoading)) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -73,17 +91,48 @@ export function RestaurantGrid({
     );
   }
 
-  if (!restaurants?.length) {
+  // Filter restaurants based on saved status if needed
+  let displayedRestaurants = restaurants || [];
+  
+  if (showSavedOnly && savedRestaurants) {
+    // Create a map of saved restaurant IDs and branch indexes for quick lookup
+    const savedMap = new Map();
+    savedRestaurants.forEach(saved => {
+      savedMap.set(`${saved.restaurantId}-${saved.branchIndex}`, true);
+    });
+    
+    // Filter the restaurants to only include saved ones
+    displayedRestaurants = displayedRestaurants.filter(restaurant => {
+      // Keep the restaurant if any of its branches are saved
+      return restaurant.branches.some((_, branchIndex) => {
+        return savedMap.has(`${restaurant.id}-${branchIndex}`);
+      });
+    });
+
+    // For each restaurant, only keep the saved branches
+    displayedRestaurants = displayedRestaurants.map(restaurant => ({
+      ...restaurant,
+      branches: restaurant.branches.filter((_, branchIndex) => {
+        return savedMap.has(`${restaurant.id}-${branchIndex}`);
+      })
+    }));
+  }
+
+  if (!displayedRestaurants?.length) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">No restaurants found matching your criteria.</p>
+        <p className="text-muted-foreground">
+          {showSavedOnly 
+            ? "You haven't saved any restaurants yet." 
+            : "No restaurants found matching your criteria."}
+        </p>
       </div>
     );
   }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-      {restaurants.map((restaurant) => 
+      {displayedRestaurants.map((restaurant) => 
         restaurant.branches.map((branch, branchIndex) => {
           const slots = branch.availableSlots || [];
           return (
@@ -106,7 +155,7 @@ export function RestaurantGrid({
                             `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
                           )}
                         >
-                          {format(time, 'hh:mm a')}
+                          {format(time, 'h:mm a')}
                         </Button>
                       );
                     })}

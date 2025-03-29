@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bookmark, MapPin } from "lucide-react";
+import { Star, MapPin } from "lucide-react";
 import { Restaurant } from "@shared/schema";
 import { useState, useEffect } from "react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -134,7 +134,7 @@ export function RestaurantCard({
               onClick={handleSaveRestaurant}
               className="ml-2 mt-[-4px] flex-shrink-0"
             >
-              <Bookmark className="h-5 w-5" fill={savedStatus ? "currentColor" : "none"} />
+              <Star className="h-5 w-5" fill={savedStatus ? "currentColor" : "none"} />
             </Button>
           </div>
 
