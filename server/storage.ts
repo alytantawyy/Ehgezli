@@ -351,7 +351,17 @@ export class DatabaseStorage implements IStorage {
 
       // Get the restaurant's branches
       const branches = await db
-        .select()
+        .select({
+          id: restaurantBranches.id,
+          restaurantId: restaurantBranches.restaurantId,
+          address: restaurantBranches.address,
+          city: restaurantBranches.city,
+          tablesCount: restaurantBranches.tablesCount,
+          seatsCount: restaurantBranches.seatsCount,
+          openingTime: restaurantBranches.openingTime,
+          closingTime: restaurantBranches.closingTime,
+          reservationDuration: restaurantBranches.reservationDuration
+        })
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, restaurantId));
 
@@ -1083,15 +1093,27 @@ export class DatabaseStorage implements IStorage {
             or(
               ilike(restaurantBranches.address, searchTerm),
               ilike(restaurantBranches.city, searchTerm),
-              // ilike(restaurantAuth.name, searchTerm),
-              // ilike(restaurantProfiles.cuisine, searchTerm)
+              ilike(restaurantAuth.name, searchTerm),
+              ilike(restaurantProfiles.cuisine, searchTerm)
             ) as SQL<unknown>
           );
         }
         
         const branches = await db
-          .select()
+          .select({
+            id: restaurantBranches.id,
+            restaurantId: restaurantBranches.restaurantId,
+            address: restaurantBranches.address,
+            city: restaurantBranches.city,
+            tablesCount: restaurantBranches.tablesCount,
+            seatsCount: restaurantBranches.seatsCount,
+            openingTime: restaurantBranches.openingTime,
+            closingTime: restaurantBranches.closingTime,
+            reservationDuration: restaurantBranches.reservationDuration
+          })
           .from(restaurantBranches)
+          .leftJoin(restaurantAuth, eq(restaurantBranches.restaurantId, restaurantAuth.id))
+          .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId))
           .where(and(...conditions));
 
         console.log(`DEBUG: Restaurant ${restaurant.id} data:`, {
