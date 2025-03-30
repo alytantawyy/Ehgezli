@@ -657,35 +657,22 @@ export function registerRoutes(app: Express): Server {
   // PROTECTED ROUTES (login required)
 
   /**
-   * Get Restaurant Branch Details
+   * Get All User Bookings
    */
-  app.get("/api/restaurant/branches/:branchId", requireRestaurantAuth, async (req: Request, res: Response, next: NextFunction) => {
+  app.get("/api/bookings", requireUserAuth, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { branchId } = req.params;
-      
       // Get user ID from authenticated request
       if (!req.user || !req.user.id) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      const restaurantId = req.user.id;
+      const userId = req.user.id;
 
-      // Parse and validate branchId
-      const branchIdNum = parseInt(branchId, 10);
-      if (isNaN(branchIdNum)) {
-        return res.status(400).json({ message: "Invalid branch ID" });
-      }
-
-      // Get the branch details from database
-      const branch = await storage.getBranchById(branchIdNum, restaurantId);
-      if (!branch) {
-        return res.status(404).json({ message: "Branch not found" });
-      }
-
-      // Get branch availability
-      const availability = await storage.getBranchAvailability(branchIdNum, new Date());
-
-      res.json({ ...branch, availability });
+      // Get all bookings for the user
+      const bookings = await storage.getUserBookings(userId);
+      
+      res.json(bookings);
     } catch (error) {
+      console.error('Error fetching user bookings:', error);
       next(error);
     }
   });
@@ -721,10 +708,148 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  /**
+   * Create New Booking
+   * POST /api/bookings
+   * 
+   * Creates a new booking for the authenticated user
+   * 
+   * Request body:
+   * - branchId: ID of the restaurant branch
+   * - date: ISO string of the booking date and time
+   * - partySize: Number of people in the party
+   * 
+   * Returns:
+   * - 201: Booking created successfully (includes booking details)
+   * - 400: Invalid parameters
+   * - 401: Unauthorized (not logged in)
+   * - 409: Conflict (time slot not available)
+   * - 500: Server error
+   */
+  app.post("/api/bookings", requireUserAuth, async (req: Request, res: Response) => {
+    try {
+      console.log('Creating new booking:', req.body);
+      const { branchId, date, partySize } = req.body;
+      
+      // Get user ID from authenticated request
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const userId = req.user.id;
+      
+      // Validate input
+      if (!branchId || !date || !partySize) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      // Parse date and validate it's in the future
+      const bookingDate = new Date(date);
+      if (isNaN(bookingDate.getTime())) {
+        return res.status(400).json({ message: "Invalid booking date" });
+      }
+
+      // Extract time in HH:MM format for availability check
+      const timeString = bookingDate.toTimeString().substring(0, 5);
+      console.log('Checking availability for time:', timeString);
+
+      // Check if the time slot is available
+      const availability = await storage.getBranchAvailability(branchId, bookingDate);
+      console.log('Available seats:', availability[timeString]);
+      
+      if (!availability[timeString] || availability[timeString] < partySize) {
+        return res.status(409).json({ message: "Not enough seats available for this time slot" });
+      }
+
+      // Create the booking
+      const booking = await storage.createBooking({
+        userId,
+        branchId,
+        date: bookingDate,
+        partySize,
+        arrived: false,
+        arrivedAt: null,  // Add this field to match the ExtendedBooking type
+        completed: false
+      });
+      
+      // Set content type header explicitly
+      res.setHeader('Content-Type', 'application/json');
+      res.status(201).json(booking);
+    } catch (error) {
+      console.error("Error creating booking:", error);
+      res.status(500).json({ message: "Failed to create booking" });
+    }
+  });
+
+  /**
+   * Cancel a booking
+   */
+  app.post("/api/bookings/:bookingId/cancel", requireUserAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { bookingId } = req.params;
+      
+      // Get user ID from authenticated request
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const userId = req.user.id;
+
+      // Parse and validate bookingId
+      const bookingIdNum = parseInt(bookingId, 10);
+      if (isNaN(bookingIdNum)) {
+        return res.status(400).json({ message: "Invalid booking ID" });
+      }
+
+      // Get the booking to verify ownership
+      const booking = await storage.getBookingById(bookingIdNum);
+      
+      // Check if booking exists
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      
+      // Verify that the booking belongs to the authenticated user
+      if (booking.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to cancel this booking" });
+      }
+
+      // Cancel the booking
+      const cancelledBooking = await storage.cancelBooking(bookingIdNum);
+      
+      // Notify clients about the cancellation via WebSocket
+      const message = {
+        type: 'booking_cancelled',
+        data: {
+          bookingId: bookingIdNum,
+          userId: booking.userId,
+          restaurantId: booking.branchRestaurantId
+        }
+      };
+      
+      // Broadcast the message to relevant clients
+      clients.forEach((clientInfo, clientWs) => {
+        if (
+          (clientInfo.userType === 'restaurant' && clientInfo.userId === booking.branchRestaurantId) ||
+          (clientInfo.userType === 'user' && clientInfo.userId === booking.userId)
+        ) {
+          try {
+            clientWs.send(JSON.stringify(message));
+          } catch (error) {
+            console.error('Error sending cancellation message to client:', error);
+          }
+        }
+      });
+
+      res.json(cancelledBooking);
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      next(error);
+    }
+  });
+
   // === WEBSOCKET SETUP ===
   const wss = new WebSocketServer({
     server: httpServer,
-    path: '/ws' // Dedicated path for our WebSocket connections
+    path: '/ws',
   });
 
   // Heartbeat interval to keep connections alive (check every 60 seconds)
