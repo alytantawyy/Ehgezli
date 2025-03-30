@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Import data management and notification tools
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -48,9 +49,11 @@ import {
 
 // Import icons
 import { CalendarIcon } from "lucide-react";
+import { ClockIcon } from "lucide-react";
+import { Users } from "lucide-react";
 
 // Import utility functions
-import { format, startOfToday, parseISO } from "date-fns";
+import { format, startOfToday, parse, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
 // Import React hooks
@@ -157,12 +160,49 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
   const urlDate = searchParams.get('date');
   const urlTime = searchParams.get('time');
   const urlGuests = searchParams.get('partySize');
+  
+  // Check if we have preselected date and time from URL
+  const hasPreselectedSlot = Boolean(urlDate && urlTime);
 
-  const [formData, setFormData] = useState<BookingFormData>({
-    date: urlDate ? parseISO(urlDate) : new Date(), // Provide default date if none in URL
-    time: urlTime || "18:00", // Default to 6:00 PM if no time provided
-    partySize: urlGuests ? parseInt(urlGuests) : 2,
+  console.log('DEBUG - URL parameters:', { urlDate, urlTime, urlGuests, hasPreselectedSlot });
+  console.log('DEBUG - Current URL:', window.location.href);
+
+  // Initialize form with default values
+  const form = useForm<BookingFormData>({
+    resolver: zodResolver(bookingSchema),
+    defaultValues: {
+      date: urlDate ? parseISO(urlDate) : new Date(),
+      time: urlTime || "18:00",
+      partySize: urlGuests ? parseInt(urlGuests) : 2,
+    }
   });
+
+  console.log('DEBUG - Form initialized with:', form.getValues());
+
+  // Force the time value to be set correctly from URL
+  useEffect(() => {
+    if (urlTime && hasPreselectedSlot) {
+      console.log('DEBUG - Setting time from URL:', urlTime);
+      // Use setTimeout to ensure this runs after form initialization
+      setTimeout(() => {
+        form.setValue('time', urlTime);
+        console.log('DEBUG - Time value set to:', urlTime);
+        console.log('DEBUG - Form values after setting time:', form.getValues());
+      }, 0);
+    }
+  }, [form, urlTime, hasPreselectedSlot]);
+
+  // Reset form with correct values when URL parameters change
+  useEffect(() => {
+    if (hasPreselectedSlot) {
+      console.log('DEBUG - Resetting form with URL values');
+      form.reset({
+        date: urlDate ? parseISO(urlDate) : new Date(),
+        time: urlTime || "18:00",
+        partySize: urlGuests ? parseInt(urlGuests) : 2,
+      });
+    }
+  }, [form, urlDate, urlTime, urlGuests, hasPreselectedSlot]);
 
   // Function to trigger confetti celebration
   const triggerConfetti = () => {
@@ -211,12 +251,6 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
       startVelocity: 45,
     });
   };
-
-  // Initialize form with default values
-  const form = useForm<BookingFormData>({
-    resolver: zodResolver(bookingSchema),
-    defaultValues: formData,
-  });
 
   // Fetch branch information when component mounts
   useEffect(() => {
@@ -355,13 +389,20 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
     }
   });
 
+  // Add a state to track popover open status for debugging
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [timePopoverOpen, setTimePopoverOpen] = useState(false);
+  
+  // Debug function for click events
+  const debugClick = (element: string) => {
+    console.log(`DEBUG - ${element} clicked at ${new Date().toISOString()}`);
+  };
+
   // Handle form submission
   async function onSubmit(data: BookingFormData) {
     console.log('Submitting booking:', data);
     await bookingMutation.mutateAsync(data);
   }
-
-  const hasPreselectedSlot = Boolean(urlDate && urlTime);
 
   return (
     // The main form component that handles validation and submission
@@ -374,23 +415,21 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           render={({ field }) => (
             <FormItem className="flex flex-col">
               <FormLabel>Date</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
+              <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+                <PopoverTrigger asChild onClick={() => {
+                  debugClick('Date popover trigger');
+                }}>
                   <FormControl>
                     <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full pl-3 text-left font-normal",
-                        !field.value && "text-muted-foreground"
-                      )}
-                      disabled={hasPreselectedSlot}
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
                     >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
                       {field.value ? (
-                        format(field.value, "PPP")
+                        format(field.value, "MMM d")
                       ) : (
-                        <span>Pick a date</span>
+                        <span>Select date</span>
                       )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
@@ -413,34 +452,61 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
         <FormField
           control={form.control}
           name="time"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Time</FormLabel>
-              <Select
-                disabled={isLoadingSlots || timeSlots.length === 0 || hasPreselectedSlot}
-                onValueChange={field.onChange}
-                value={field.value}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a time" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {timeSlots.map((slot) => (
-                    <SelectItem
-                      key={slot.time}
-                      value={slot.time}
-                      disabled={!slot.available}
-                    >
-                      {slot.time} ({slot.availableSeats} seats available)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            console.log('DEBUG - Time field rendering:', { 
+              fieldValue: field.value, 
+              hasPreselectedSlot, 
+              timeSlots: timeSlots.length,
+              urlTime
+            });
+            return (
+              <FormItem>
+                <FormLabel>Time</FormLabel>
+                <Popover open={timePopoverOpen} onOpenChange={setTimePopoverOpen}>
+                  <PopoverTrigger asChild onClick={() => {
+                    debugClick('Time popover trigger');
+                  }}>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <ClockIcon className="mr-2 h-4 w-4" />
+                        {field.value ? (
+                          format(parse(field.value, 'HH:mm', new Date()), "h:mm a")
+                        ) : (
+                          <span>Select time</span>
+                        )}
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-60 p-0" align="start">
+                    <ScrollArea className="h-80">
+                      <div className="grid grid-cols-1 gap-1 p-2">
+                        {timeSlots.map((slot) => (
+                          <Button
+                            key={slot.time}
+                            variant={field.value === slot.time ? "default" : "ghost"}
+                            className="justify-start font-normal"
+                            disabled={!slot.available}
+                            onClick={() => field.onChange(slot.time)}
+                          >
+                            {format(parse(slot.time, 'HH:mm', new Date()), "h:mm a")}
+                            {slot.availableSeats > 0 && (
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                {slot.availableSeats} seats
+                              </span>
+                            )}
+                          </Button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
         />
 
         {/* Party Size Field */}
@@ -450,16 +516,30 @@ export function BookingForm({ restaurantId, branchIndex, openingTime, closingTim
           render={({ field }) => (
             <FormItem>
               <FormLabel>Party Size</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  min={1}
-                  max={20}
-                  {...field}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                  disabled={hasPreselectedSlot}
-                />
-              </FormControl>
+              <Select
+                onValueChange={(value) => {
+                  console.log('Party size changed to:', value);
+                  field.onChange(parseInt(value));
+                }}
+                onOpenChange={(open) => console.log('Party size dropdown open state:', open)}
+                value={field.value.toString()}
+              >
+                <SelectTrigger className="w-full">
+                  <div className="flex items-center">
+                    <Users className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="People" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <ScrollArea className="h-[200px]">
+                    {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
+                      <SelectItem key={num} value={num.toString()}>
+                        {num} {num === 1 ? 'person' : 'people'}
+                      </SelectItem>
+                    ))}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
