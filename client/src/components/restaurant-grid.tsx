@@ -140,6 +140,9 @@ export function RestaurantGrid({
               <RestaurantCard
                 restaurant={restaurant}
                 branchIndex={branchIndex}
+                date={date}
+                time={time}
+                partySize={partySize}
               >
                 {slots.length > 0 && (
                   <div className="flex justify-center gap-3 mt-4">
@@ -151,9 +154,13 @@ export function RestaurantGrid({
                           size="sm"
                           variant="ehgezli"
                           className="px-4 py-1.5 h-auto rounded font-medium text-sm min-w-[90px]"
-                          onClick={() => setLocation(
-                            `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
-                          )}
+                          onClick={(e) => {
+                            // Stop propagation to prevent card click when clicking the time slot button
+                            e.stopPropagation();
+                            setLocation(
+                              `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
+                            );
+                          }}
                         >
                           {format(time, 'h:mm a')}
                         </Button>

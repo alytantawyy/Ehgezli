@@ -172,21 +172,60 @@ export default function HomePage() {
 
   const { mutate, isPending } = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/logout", { credentials: 'include' });
-      if (!response.ok) throw new Error("Failed to logout");
-      return response.json();
+      try {
+        const response = await fetch("/api/logout", { 
+          method: "POST",
+          credentials: 'include' 
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Logout failed:", errorText);
+          throw new Error("Failed to logout");
+        }
+        
+        // Check if response is JSON or not
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          return response.json();
+        }
+        
+        return { success: true };
+      } catch (error) {
+        console.error("Logout error:", error);
+        throw error;
+      }
     },
     onSuccess: () => {
+      // Invalidate user query to update UI
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      
+      // Redirect to home page or login page
+      window.location.href = "/";
     },
+    onError: (error) => {
+      console.error("Logout mutation error:", error);
+      // You could add a toast notification here
+    }
   });
 
   return (
     <div className="min-h-screen bg-background">
+      {/* start */}
       <header className="border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          {/* Left side: Logo */}
           <div className="flex items-center gap-4">
+            <a href="/" onClick={() => window.location.reload()}>
+              <img
+                src="/Ehgezli-logo.png"
+                alt="Ehgezli Logo"
+                className="h-16 w-auto object-contain"
+              />
+            </a>
           </div>
+
+          {/* Right side: User Avatar or other controls */}
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -199,19 +238,16 @@ export default function HomePage() {
               <DropdownMenuContent align="end" className="w-56">
                 <div className="px-4 py-3">
                   <p className="text-sm font-medium leading-none">Hello, {user.firstName}!</p>
-                  <p className="text-xs leading-none text-muted-foreground">
+                  <p className="text-xs leading-none text-muted-foreground mt-1.5">
                     {user.email}
                   </p>
                 </div>
+
                 <DropdownMenuItem asChild>
-                  <Link to="/bookings">
-                    My Bookings
-                  </Link>
+                  <Link to="/bookings">My Bookings</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/profile">
-                    My Profile
-                  </Link>
+                  <Link to="/profile">My Profile</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => mutate()}
@@ -226,7 +262,6 @@ export default function HomePage() {
           )}
         </div>
       </header>
-
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Search Controls - Using flex with justify-center */}

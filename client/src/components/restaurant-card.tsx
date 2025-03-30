@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Star, MapPin } from "lucide-react";
@@ -7,22 +6,30 @@ import { useState, useEffect } from "react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 
 interface RestaurantCardProps {
   restaurant: Restaurant;
   branchIndex: number;
   children?: React.ReactNode;
+  date?: Date;
+  time?: string;
+  partySize?: number;
 }
 
 export function RestaurantCard({
   restaurant,
   branchIndex,
-  children
+  children,
+  date,
+  time,
+  partySize
 }: RestaurantCardProps) {
   console.log("[RestaurantCard] rendering", { restaurantId: restaurant.id, branchIndex });
   const branch = restaurant.branches?.[branchIndex];
   const { toast } = useToast();
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
 
   // Debug auth state
   console.log("User auth state in RestaurantCard:", { user });
@@ -47,7 +54,10 @@ export function RestaurantCard({
     checkIfSaved();
   }, [restaurant.id, branchIndex, user]);
 
-  const handleSaveRestaurant = async () => {
+  const handleSaveRestaurant = async (e: React.MouseEvent) => {
+    // Stop propagation to prevent card click when clicking the save button
+    e.stopPropagation();
+    
     try {
       if (savedStatus) {
         await apiRequest("DELETE", `/api/saved-restaurants/${restaurant.id}/${branchIndex}`);
@@ -88,8 +98,20 @@ export function RestaurantCard({
     }
   };
 
+  const handleCardClick = () => {
+    // Create URL parameters for the restaurant page
+    const params = new URLSearchParams();
+    if (date) params.append("date", date.toISOString());
+    if (time) params.append("time", time);
+    params.append("partySize", (partySize || 2).toString());
+    params.append("branch", branchIndex.toString());
+    
+    // Navigate to the restaurant page with the parameters
+    setLocation(`/restaurant/${restaurant.id}?${params.toString()}`);
+  };
+
   return (
-    <Card className="overflow-hidden h-full">
+    <Card className="overflow-hidden h-full cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200" onClick={handleCardClick}>
       <div className="relative h-[180px] w-full">
         {restaurant.profile?.logo ? (
           <img
