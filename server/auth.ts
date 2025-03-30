@@ -292,20 +292,36 @@ export function setupAuth(app: Express) {
    */
   app.post("/api/restaurant/forgot-password", async (req, res) => {
     try {
+      console.log('Restaurant password reset request received:', req.body);
       // Validate request body
       const { email } = restaurantPasswordResetRequestSchema.parse(req.body);
+      console.log('Email validated:', email);
+      
       // Find restaurant by email
       const restaurant = await storage.getRestaurantAuthByEmail(email);
+      console.log('Restaurant found:', restaurant ? `ID: ${restaurant.id}` : 'Not found');
       
       if (restaurant) {
         // Create reset token and send email
         const token = await storage.createRestaurantPasswordResetToken(restaurant.id);
+        console.log('Reset token created:', token);
+        
         const info = await sendPasswordResetEmail(email, token, true);
+        console.log('Email sent:', info.messageId, 'Preview URL:', info.previewUrl);
+        
+        // Always return success, but include previewUrl in development mode
+        if (process.env.NODE_ENV !== 'production' && info.previewUrl) {
+          return res.json({
+            message: "If a restaurant account exists with that email, a password reset link has been sent.",
+            previewUrl: info.previewUrl
+          });
+        }
       }
       
       // Always return success to prevent email enumeration
       res.json({ message: "If a restaurant account exists with that email, a password reset link has been sent." });
     } catch (error) {
+      console.error('Error in restaurant password reset:', error);
       res.status(400).json({ message: "Invalid request" });
     }
   });

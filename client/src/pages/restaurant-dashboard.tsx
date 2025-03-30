@@ -267,15 +267,15 @@ function RestaurantDashboardContent() {
     }
 
     return true;
-  }).sort((a: BookingWithDetails, b: BookingWithDetails) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }).sort((a: BookingWithDetails, b: BookingWithDetails) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
   const upcomingBookings = filteredBookings
-    .filter((booking: BookingWithDetails) => {
+    ?.filter((booking: BookingWithDetails) => {
       const now = new Date();
       // Include bookings from today onwards that haven't arrived yet
       return (!booking.arrived && (isSameDay(booking.date, now) || isAfter(booking.date, now)));
     })
-    .sort((a: BookingWithDetails, b: BookingWithDetails) => a.date.getTime() - b.date.getTime());
+    .sort((a: BookingWithDetails, b: BookingWithDetails) => a.date.getTime() - b.date.getTime()) || [];
 
   const futureBookings = bookings?.filter((booking: BookingWithDetails) => {
     // Skip unconfirmed, completed, or arrived bookings

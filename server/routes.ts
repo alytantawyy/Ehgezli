@@ -418,6 +418,48 @@ export function registerRoutes(app: Express): Server {
   });
 
   /**
+   * Get Restaurant Details (Plural Route)
+   * GET /api/restaurants/:id
+   * 
+   * Public endpoint to get details of a specific restaurant
+   * This is an alternative route to match client expectations
+   * 
+   * URL parameters:
+   * - id: Restaurant ID
+   * 
+   * Returns:
+   * - 200: Restaurant details
+   * - 404: Restaurant not found
+   * - 500: Server error
+   */
+  app.get("/api/restaurants/:id", async (req: Request, res: Response) => {
+    console.log('[Debug] GET /api/restaurants/:id', {
+      params: req.params,
+      headers: req.headers
+    });
+    
+    try {
+      const { id } = req.params;
+      const restaurant = await storage.getRestaurant(parseInt(id));
+      
+      console.log('[Debug] Restaurant data:', restaurant);
+      
+      if (!restaurant) {
+        console.log('[Debug] Restaurant not found');
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+      
+      // Set content type header explicitly
+      res.setHeader('Content-Type', 'application/json');
+      console.log('[Debug] Sending response with headers:', res.getHeaders());
+      res.json(restaurant);
+    } catch (error) {
+      console.error("[Debug] Error getting restaurant:", error);
+      res.status(500).json({ message: "Error retrieving restaurant" });
+    }
+  });
+
+  /**
    * Get Branch Availability
    * GET /api/restaurant/:restaurantId/branch/:branchId/availability
    * 
@@ -843,6 +885,164 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error cancelling booking:', error);
       next(error);
+    }
+  });
+
+  /**
+   * Get Restaurant Bookings
+   * GET /api/restaurant/bookings/:restaurantId
+   * 
+   * Get all bookings for a specific restaurant
+   * 
+   * URL parameters:
+   * - restaurantId: ID of the restaurant to get bookings for
+   * 
+   * Returns:
+   * - 200: Array of bookings with user details
+   * - 401: Unauthorized (not logged in as restaurant)
+   * - 404: Restaurant not found
+   * - 500: Server error
+   */
+  app.get("/api/restaurant/bookings/:restaurantId", requireRestaurantAuth, async (req: Request, res: Response) => {
+    try {
+      const { restaurantId } = req.params;
+      const authUser = req.user as AuthenticatedUser;
+      
+      // Verify that the authenticated restaurant is requesting their own bookings
+      if (authUser.type !== 'restaurant' || authUser.id !== parseInt(restaurantId)) {
+        return res.status(403).json({ message: "Unauthorized access to restaurant bookings" });
+      }
+      
+      // Get all bookings for the restaurant
+      const bookings = await storage.getRestaurantBookings(parseInt(restaurantId));
+      
+      res.json(bookings);
+    } catch (error) {
+      console.error("Error fetching restaurant bookings:", error);
+      res.status(500).json({ message: "Failed to fetch restaurant bookings" });
+    }
+  });
+
+  /**
+   * Mark Booking as Arrived
+   * POST /api/restaurant/bookings/:bookingId/arrive
+   * 
+   * Mark a booking as arrived (customer has arrived at the restaurant)
+   * 
+   * URL parameters:
+   * - bookingId: ID of the booking to mark as arrived
+   * 
+   * Returns:
+   * - 200: Success message
+   * - 401: Unauthorized (not logged in as restaurant)
+   * - 404: Booking not found
+   * - 500: Server error
+   */
+  app.post("/api/restaurant/bookings/:bookingId/arrive", requireRestaurantAuth, async (req: Request, res: Response) => {
+    try {
+      const { bookingId } = req.params;
+      const authUser = req.user as AuthenticatedUser;
+      
+      // Verify booking exists and belongs to this restaurant
+      const booking = await storage.getBookingById(parseInt(bookingId));
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      
+      // Verify restaurant owns this booking
+      if (booking.restaurantId !== authUser.id) {
+        return res.status(403).json({ message: "Unauthorized access to booking" });
+      }
+      
+      // Mark booking as arrived
+      await storage.markBookingArrived(parseInt(bookingId), new Date());
+      
+      res.json({ success: true, message: "Booking marked as arrived" });
+    } catch (error) {
+      console.error("Error marking booking as arrived:", error);
+      res.status(500).json({ message: "Failed to mark booking as arrived" });
+    }
+  });
+
+  /**
+   * Mark Booking as Complete
+   * POST /api/restaurant/bookings/:bookingId/complete
+   * 
+   * Mark a booking as complete (customer has finished their meal)
+   * 
+   * URL parameters:
+   * - bookingId: ID of the booking to mark as complete
+   * 
+   * Returns:
+   * - 200: Success message
+   * - 401: Unauthorized (not logged in as restaurant)
+   * - 404: Booking not found
+   * - 500: Server error
+   */
+  app.post("/api/restaurant/bookings/:bookingId/complete", requireRestaurantAuth, async (req: Request, res: Response) => {
+    try {
+      const { bookingId } = req.params;
+      const authUser = req.user as AuthenticatedUser;
+      
+      // Verify booking exists and belongs to this restaurant
+      const booking = await storage.getBookingById(parseInt(bookingId));
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      
+      // Verify restaurant owns this booking
+      if (booking.restaurantId !== authUser.id) {
+        return res.status(403).json({ message: "Unauthorized access to booking" });
+      }
+      
+      // Mark booking as complete
+      await storage.markBookingComplete(parseInt(bookingId));
+      
+      res.json({ success: true, message: "Booking marked as complete" });
+    } catch (error) {
+      console.error("Error marking booking as complete:", error);
+      res.status(500).json({ message: "Failed to mark booking as complete" });
+    }
+  });
+
+  /**
+   * Cancel Restaurant Booking
+   * POST /api/restaurant/bookings/:bookingId/cancel
+   * 
+   * Cancel a booking from the restaurant side
+   * 
+   * URL parameters:
+   * - bookingId: ID of the booking to cancel
+   * 
+   * Returns:
+   * - 200: Success message
+   * - 401: Unauthorized (not logged in as restaurant)
+   * - 404: Booking not found
+   * - 500: Server error
+   */
+  app.post("/api/restaurant/bookings/:bookingId/cancel", requireRestaurantAuth, async (req: Request, res: Response) => {
+    try {
+      const { bookingId } = req.params;
+      const authUser = req.user as AuthenticatedUser;
+      
+      // Verify booking exists and belongs to this restaurant
+      const booking = await storage.getBookingById(parseInt(bookingId));
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      
+      // Verify restaurant owns this booking
+      if (booking.restaurantId !== authUser.id) {
+        return res.status(403).json({ message: "Unauthorized access to booking" });
+      }
+      
+      // Cancel booking
+      await storage.cancelBooking(parseInt(bookingId));
+      
+      res.json({ success: true, message: "Booking cancelled successfully" });
+    } catch (error) {
+      console.error("Error cancelling booking:", error);
+      res.status(500).json({ message: "Failed to cancel booking" });
     }
   });
 

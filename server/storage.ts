@@ -12,7 +12,7 @@ import {
 import { db, pool } from "./db";
 
 // Import helper functions from Drizzle ORM for writing SQL queries
-import { eq, and, gt, sql, or, ilike, exists, type SQL } from "drizzle-orm";
+import { eq, and, gt, sql, or, ilike, exists, type SQL, inArray } from "drizzle-orm";
 
 // Import session handling packages
 import session from "express-session";  // For managing user sessions
@@ -480,11 +480,26 @@ export class DatabaseStorage implements IStorage {
         throw new Error(`Restaurant ${restaurantId} not found`);
       }
 
+      // Get all branches for this restaurant
+      const branches = await db
+        .select()
+        .from(restaurantBranches)
+        .where(eq(restaurantBranches.restaurantId, restaurantId));
+
+      if (!branches.length) {
+        console.log(`No branches found for restaurant ${restaurantId}`);
+        return [];
+      }
+
+      const branchIds = branches.map(branch => branch.id);
+      console.log(`Found branches for restaurant ${restaurantId}:`, branchIds);
+
       // Get the bookings with user and branch information
       const bookingsWithDetails = await db
         .select({
           id: bookings.id,
           userId: bookings.userId,
+          restaurantId: restaurantBranches.restaurantId,
           branchId: bookings.branchId,
           date: bookings.date,
           partySize: bookings.partySize,
@@ -504,8 +519,9 @@ export class DatabaseStorage implements IStorage {
         .from(bookings)
         .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
         .innerJoin(users, eq(bookings.userId, users.id))
-        .where(eq(restaurantBranches.restaurantId, restaurantId));
+        .where(inArray(bookings.branchId, branchIds));
 
+      console.log(`Found ${bookingsWithDetails.length} bookings for restaurant ${restaurantId}`);
       return bookingsWithDetails;
     } catch (error) {
       console.error("Error fetching restaurant bookings:", error);
