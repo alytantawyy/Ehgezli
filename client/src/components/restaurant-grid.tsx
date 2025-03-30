@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { RestaurantWithAvailability, AvailableSlot } from "@shared/schema";
+import { RestaurantWithAvailability, AvailableSlot, BranchWithAvailability } from "@shared/schema";
 import { RestaurantCard } from "./restaurant-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -82,9 +82,9 @@ export function RestaurantGrid({
 
   // Query for user profile to get city and favorite cuisines
   const { data: userProfile } = useQuery({
-    queryKey: ["/api/profile"],
+    queryKey: ["/api/user/profile"],
     queryFn: async () => {
-      const response = await fetch("/api/profile", { credentials: 'include' });
+      const response = await fetch("/api/user/profile", { credentials: 'include' });
       if (!response.ok) {
         // If not logged in or other error, return null
         if (response.status === 401 || response.status === 403) {
@@ -97,6 +97,29 @@ export function RestaurantGrid({
     },
     enabled: !!user // Only run this query when user is logged in
   });
+
+  console.log("DEBUG - RestaurantGrid component state:", {
+    isUserLoggedIn: !!user,
+    hasSavedRestaurants: !!savedRestaurants,
+    hasUserProfile: !!userProfile,
+    savedRestaurantsCount: savedRestaurants?.length || 0,
+    restaurantsCount: restaurants?.length || 0,
+    showSavedOnly,
+    userCity: userProfile?.city,
+    userCuisines: userProfile?.favoriteCuisines
+  });
+
+  // If we have restaurants, log their structure to understand the data
+  if (restaurants && restaurants.length > 0) {
+    console.log("DEBUG - First restaurant structure:", {
+      id: restaurants[0].id,
+      name: restaurants[0].name,
+      hasProfile: !!restaurants[0].profile,
+      profileProperties: restaurants[0].profile ? Object.keys(restaurants[0].profile) : [],
+      branchCount: restaurants[0].branches.length,
+      firstBranchProperties: restaurants[0].branches.length > 0 ? Object.keys(restaurants[0].branches[0]) : []
+    });
+  }
 
   // Loading state
   if (isLoading || (showSavedOnly && isSavedLoading)) {
@@ -115,97 +138,73 @@ export function RestaurantGrid({
     );
   }
 
-  // Filter restaurants based on saved status if needed
-  let displayedRestaurants = restaurants || [];
+  // Create a flat list of all restaurant branches with their associated restaurant
+  let allBranches: { restaurant: RestaurantWithAvailability; branch: BranchWithAvailability; branchIndex: number }[] = [];
   
-  if (showSavedOnly && savedRestaurants) {
-    // Create a map of saved restaurant IDs and branch indexes for quick lookup
-    const savedMap = new Map();
+  // Create a map of saved restaurant IDs and branch indexes for quick lookup
+  const savedMap = new Map();
+  if (savedRestaurants) {
     savedRestaurants.forEach(saved => {
       savedMap.set(`${saved.restaurantId}-${saved.branchIndex}`, true);
     });
-    
-    // Filter the restaurants to only include saved ones
-    displayedRestaurants = displayedRestaurants.filter(restaurant => {
-      // Keep the restaurant if any of its branches are saved
-      return restaurant.branches.some((_, branchIndex) => {
-        return savedMap.has(`${restaurant.id}-${branchIndex}`);
+  }
+  
+  // Flatten the restaurants into branches
+  (restaurants || []).forEach(restaurant => {
+    restaurant.branches.forEach((branch, branchIndex) => {
+      // If showSavedOnly is true, only include saved branches
+      if (showSavedOnly && !savedMap.has(`${restaurant.id}-${branchIndex}`)) {
+        return; // Skip this branch
+      }
+      
+      allBranches.push({
+        restaurant,
+        branch,
+        branchIndex
       });
     });
+  });
+  
+  // Sort all branches according to our priority rules
+  allBranches.sort((a, b) => {
+    const aRestaurant = a.restaurant;
+    const bRestaurant = b.restaurant;
+    const aBranch = a.branch;
+    const bBranch = b.branch;
+    
+    // Check if branch is saved
+    const aIsSaved = savedMap.has(`${aRestaurant.id}-${a.branchIndex}`);
+    const bIsSaved = savedMap.has(`${bRestaurant.id}-${b.branchIndex}`);
+    
+    // 1. Saved branches first
+    if (aIsSaved && !bIsSaved) return -1;
+    if (!aIsSaved && bIsSaved) return 1;
+    
+    // 2. Branches in user's city
+    const normalizedUserCity = (userProfile?.city || '').toLowerCase().trim();
+    const aInUserCity = aBranch.city.toLowerCase().trim() === normalizedUserCity;
+    const bInUserCity = bBranch.city.toLowerCase().trim() === normalizedUserCity;
+    
+    if (aInUserCity && !bInUserCity) return -1;
+    if (!aInUserCity && bInUserCity) return 1;
+    
+    // 3. Branches with user's preferred cuisines
+    const userCuisines = userProfile?.favoriteCuisines || [];
+    const aCuisine = aRestaurant.profile?.cuisine || '';
+    const bCuisine = bRestaurant.profile?.cuisine || '';
+    const aHasUserCuisine = userCuisines.includes(aCuisine);
+    const bHasUserCuisine = userCuisines.includes(bCuisine);
+    
+    if (aHasUserCuisine && !bHasUserCuisine) return -1;
+    if (!aHasUserCuisine && bHasUserCuisine) return 1;
+    
+    // 4. Alphabetical by name
+    const aName = aRestaurant.name || aRestaurant.profile?.about || 'No name';
+    const bName = bRestaurant.name || bRestaurant.profile?.about || 'No name';
+    return aName.localeCompare(bName);
+  });
 
-    // For each restaurant, only keep the saved branches
-    displayedRestaurants = displayedRestaurants.map(restaurant => ({
-      ...restaurant,
-      branches: restaurant.branches.filter((_, branchIndex) => {
-        return savedMap.has(`${restaurant.id}-${branchIndex}`);
-      })
-    }));
-  } else if (savedRestaurants && userProfile) {
-    // When not in saved-only mode, sort restaurants by priority:
-    // 1. Saved restaurants first
-    // 2. Restaurants in user's city
-    // 3. Restaurants with user's preferred cuisines
-
-    // Create a map of saved restaurant IDs and branch indexes for quick lookup
-    const savedMap = new Map();
-    savedRestaurants.forEach(saved => {
-      // Use both restaurant ID and branch index as the key
-      savedMap.set(`${saved.restaurantId}-${saved.branchIndex}`, true);
-    });
-
-    console.log("DEBUG - Saved restaurants:", savedRestaurants);
-    console.log("DEBUG - Saved map:", [...savedMap.entries()]);
-    console.log("DEBUG - User profile:", userProfile);
-
-    const userCity = userProfile.city;
-    const userCuisines = userProfile.favoriteCuisines || [];
-
-    console.log("DEBUG - User city:", userCity);
-    console.log("DEBUG - User cuisines:", userCuisines);
-    console.log("DEBUG - Restaurants before sorting:", displayedRestaurants.map(r => ({ id: r.id, name: r.name })));
-
-    // Sort restaurants based on priority
-    displayedRestaurants = [...displayedRestaurants].sort((a, b) => {
-      // Check if any branch of restaurant is saved
-      const aHasSavedBranch = a.branches.some((_, branchIndex) => savedMap.has(`${a.id}-${branchIndex}`));
-      const bHasSavedBranch = b.branches.some((_, branchIndex) => savedMap.has(`${b.id}-${branchIndex}`));
-
-      console.log(`DEBUG - Comparing restaurants: ${a.id} (${a.name}) saved: ${aHasSavedBranch} vs ${b.id} (${b.name}) saved: ${bHasSavedBranch}`);
-
-      // If one has a saved branch and the other doesn't, prioritize the one with the saved branch
-      if (aHasSavedBranch && !bHasSavedBranch) return -1;
-      if (!aHasSavedBranch && bHasSavedBranch) return 1;
-
-      // If both have saved branches or both don't, check city
-      const aInUserCity = a.branches.some(branch => branch.city === userCity);
-      const bInUserCity = b.branches.some(branch => branch.city === userCity);
-
-      console.log(`DEBUG - City match: ${a.id} (${a.name}) in user city: ${aInUserCity} vs ${b.id} (${b.name}) in user city: ${bInUserCity}`);
-
-      // If one is in user's city and the other isn't, prioritize the one in user's city
-      if (aInUserCity && !bInUserCity) return -1;
-      if (!aInUserCity && bInUserCity) return 1;
-
-      // If both are in user's city or both are not, check cuisines
-      const aCuisine = a.profile?.cuisine || '';
-      const bCuisine = b.profile?.cuisine || '';
-      const aHasUserCuisine = userCuisines.includes(aCuisine);
-      const bHasUserCuisine = userCuisines.includes(bCuisine);
-
-      console.log(`DEBUG - Cuisine match: ${a.id} (${a.name}) cuisine: ${aCuisine} has user cuisine: ${aHasUserCuisine} vs ${b.id} (${b.name}) cuisine: ${bCuisine} has user cuisine: ${bHasUserCuisine}`);
-
-      // If one has user's cuisine and the other doesn't, prioritize the one with user's cuisine
-      if (aHasUserCuisine && !bHasUserCuisine) return -1;
-      if (!aHasUserCuisine && bHasUserCuisine) return 1;
-
-      // If all criteria are equal, maintain original order
-      return 0;
-    });
-
-    console.log("DEBUG - Restaurants after sorting:", displayedRestaurants.map(r => ({ id: r.id, name: r.name })));
-  }
-
-  if (!displayedRestaurants?.length) {
+  if (!allBranches.length) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">
@@ -219,47 +218,45 @@ export function RestaurantGrid({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-      {displayedRestaurants.map((restaurant) => 
-        restaurant.branches.map((branch, branchIndex) => {
-          const slots = branch.availableSlots || [];
-          return (
-            <div key={`${restaurant.id}-${branchIndex}`} className="w-full max-w-[600px] mx-auto">
-              <RestaurantCard
-                restaurant={restaurant}
-                branchIndex={branchIndex}
-                date={date}
-                time={time}
-                partySize={partySize}
-              >
-                {slots.length > 0 && (
-                  <div className="flex justify-center gap-3 mt-4">
-                    {slots.map((slot: AvailableSlot) => {
-                      const time = parse(slot.time, 'HH:mm', new Date());
-                      return (
-                        <Button
-                          key={`${branch.id}-${slot.time}`}
-                          size="sm"
-                          variant="ehgezli"
-                          className="px-4 py-1.5 h-auto rounded font-medium text-sm min-w-[90px]"
-                          onClick={(e) => {
-                            // Stop propagation to prevent card click when clicking the time slot button
-                            e.stopPropagation();
-                            setLocation(
-                              `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
-                            );
-                          }}
-                        >
-                          {format(time, 'h:mm a')}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                )}
-              </RestaurantCard>
-            </div>
-          );
-        })
-      )}
+      {allBranches.map(({ restaurant, branch, branchIndex }) => {
+        const slots = branch.availableSlots || [];
+        return (
+          <div key={`${restaurant.id}-${branchIndex}`} className="w-full max-w-[600px] mx-auto">
+            <RestaurantCard
+              restaurant={restaurant}
+              branchIndex={branchIndex}
+              date={date}
+              time={time}
+              partySize={partySize}
+            >
+              {slots.length > 0 && (
+                <div className="flex justify-center gap-3 mt-4">
+                  {slots.map((slot: AvailableSlot) => {
+                    const time = parse(slot.time, 'HH:mm', new Date());
+                    return (
+                      <Button
+                        key={`${branch.id}-${slot.time}`}
+                        size="sm"
+                        variant="ehgezli"
+                        className="px-4 py-1.5 h-auto rounded font-medium text-sm min-w-[90px]"
+                        onClick={(e) => {
+                          // Stop propagation to prevent card click when clicking the time slot button
+                          e.stopPropagation();
+                          setLocation(
+                            `/restaurant/${restaurant.id}?date=${date?.toISOString()}&time=${slot.time}&partySize=${partySize}&branch=${branchIndex}`
+                          );
+                        }}
+                      >
+                        {format(time, 'h:mm a')}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </RestaurantCard>
+          </div>
+        );
+      })}
     </div>
   );
 }
