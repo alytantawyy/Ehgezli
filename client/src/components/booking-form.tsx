@@ -54,7 +54,6 @@ import { Users } from "lucide-react";
 
 // Import utility functions
 import { format, startOfToday, parse, parseISO } from "date-fns";
-import { cn } from "@/lib/utils";
 
 // Import React hooks
 import { useEffect, useRef, useState } from "react";

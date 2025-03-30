@@ -1,8 +1,7 @@
 import { RestaurantGrid } from "@/components/restaurant-grid";
-import { UserNav } from "@/components/user-nav";
 import { SearchBar } from "@/components/SearchBar";
 import { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -24,12 +23,20 @@ import {
 } from "@/components/ui/drawer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Users, CalendarIcon, Star } from "lucide-react";
+import { Users, CalendarIcon, Star, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { generateTimeSlots } from "@/utils/time-slots";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Link } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
 const CUISINES = [
   "American",
@@ -86,9 +93,16 @@ export default function HomePage() {
 
   // Handle setting the default time when time slots are loaded
   useEffect(() => {
-    if (!time && timeSlots && timeSlots.length > 0) {
-      const defaultTime = timeSlots.length >= 3 ? timeSlots[1] : timeSlots[0];
-      setTime(defaultTime);
+    console.log("[HomePage] timeSlots loaded:", timeSlots);
+    console.log("[HomePage] current time value:", time);
+    
+    if (timeSlots && timeSlots.length > 0) {
+      // Always set a default time if time slots are available
+      if (!time) {
+        const defaultTime = timeSlots.length >= 3 ? timeSlots[1] : timeSlots[0];
+        console.log("[HomePage] setting default time to:", defaultTime);
+        setTime(defaultTime);
+      }
     }
   }, [timeSlots, time]);
 
@@ -156,17 +170,59 @@ export default function HomePage() {
     }
   });
 
+  const { mutate, isPending } = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/logout", { credentials: 'include' });
+      if (!response.ok) throw new Error("Failed to logout");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    },
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <UserNav />
           </div>
           {user && (
-            <div className="text-sm text-muted-foreground">
-              Hey, {user.firstName}!
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ehgezli" className="h-10 w-10 rounded-full bg-primary">
+                  <span className="text-white font-semibold">
+                    {user.firstName.charAt(0).toUpperCase() + user.lastName.charAt(0).toUpperCase()}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-4 py-3">
+                  <p className="text-sm font-medium leading-none">Hello, {user.firstName}!</p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {user.email}
+                  </p>
+                </div>
+                <DropdownMenuItem asChild>
+                  <Link to="/bookings">
+                    My Bookings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/profile">
+                    My Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => mutate()}
+                  disabled={isPending}
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  {isPending ? "Logging out..." : "Logout"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </header>
@@ -206,7 +262,7 @@ export default function HomePage() {
                     className="w-full sm:w-auto justify-start text-left font-normal"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {time ? format(parseISO(`2000-01-01T${time}`), "h:mm a") : <span>Select time</span>}
+                    {time ? format(new Date(`2000-01-01T${time}:00`), "h:mm a") : <span>Select time</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-60 p-0" align="start">
@@ -382,7 +438,10 @@ export default function HomePage() {
           <div className="text-center">
             <h1 className="text-2xl font-semibold">Available Restaurants</h1>
             <p className="text-sm text-muted-foreground mt-2">
-              Showing available restaurants for {format(date, "MMM d")} at {format(parseISO(`2000-01-01T${time}`), "h:mm a")}
+              Showing available restaurants for {format(date, "MMM d")} at {time ? 
+                (console.log("[HomePage] Rendering time in title:", time, new Date(`2000-01-01T${time}:00`)),
+                format(new Date(`2000-01-01T${time}:00`), "h:mm a")) : 
+                "selected time"}
             </p>
           </div>
 

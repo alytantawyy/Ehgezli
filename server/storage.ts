@@ -979,7 +979,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Helper function to get default time slots based on current time
-  private getDefaultTimeSlots(): string[] {
+  getDefaultTimeSlots(): string[] {
     // Add 5 hours to current time
     const now = new Date();
     const baseTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);

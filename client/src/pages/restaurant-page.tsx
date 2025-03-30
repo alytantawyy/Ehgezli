@@ -98,12 +98,14 @@ export default function RestaurantPage() {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8">
-          <Button variant="ghost" asChild className="mb-8">
-            <Link to="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Restaurants
-            </Link>
-          </Button>
+          <div className="flex items-center mb-8">
+            <Button variant="ghost" asChild>
+              <Link to="/">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Home
+              </Link>
+            </Button>
+          </div>
 
           <div className="grid md:grid-cols-2 gap-12">
             <div>
@@ -131,7 +133,7 @@ export default function RestaurantPage() {
           <Button variant="outline" asChild>
             <Link to="/">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Restaurants
+              Back to Home
             </Link>
           </Button>
         </div>
@@ -144,25 +146,60 @@ export default function RestaurantPage() {
   return (
     <div className="container mx-auto py-8">
       <div className="space-y-8">
-        <div className="flex items-start gap-8">
-          <div className="flex-1">
+        <div className="flex items-center mb-8">
+          <Button variant="ghost" asChild>
+            <Link to="/">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Link>
+          </Button>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-12">
+          <div>
+            {/* Restaurant Logo */}
             {restaurant.profile?.logo && (
               <div
                 className="w-full h-64 bg-center bg-cover rounded-lg"
                 style={{ backgroundImage: `url(${restaurant.profile.logo})` }}
               />
             )}
+
             <div className="mt-6 space-y-4">
+              {/* Restaurant Name */}
               <h1 className="text-4xl font-bold">{restaurant.name}</h1>
-              <div className="flex items-center gap-4">
-                <span className="text-sm">{restaurant.profile?.priceRange}</span>
+
+              {/* Cuisine & Price Range */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>{restaurant.profile?.cuisine}</span>
+                <span>•</span>
+                <span>{restaurant.profile?.priceRange}</span>
               </div>
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold">About</h2>
-                <span className="text-foreground">{restaurant.profile?.about || restaurant.profile?.description}</span>
-              </div>
+
+              {/* About / Description */}
+              {restaurant.profile?.about || restaurant.profile?.description ? (
+                <div>
+                  <h2 className="text-lg font-semibold">About</h2>
+                  <p className="text-foreground">
+                    {restaurant.profile?.about || restaurant.profile?.description}
+                  </p>
+                </div>
+              ) : null}
+
+              {/* Address (with icon) */}
+              {branch.address && (
+                <div>
+                  <h2 className="text-lg font-semibold">Address</h2>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    {/* Use an icon for location */}
+                    <MapPin className="h-4 w-4" />
+                    <span>{branch.address}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+
           <div className="bg-card p-6 rounded-lg border">
             <h2 className="text-xl font-semibold mb-6">Make a Reservation</h2>
             <BookingForm 

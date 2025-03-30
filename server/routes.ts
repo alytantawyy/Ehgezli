@@ -312,7 +312,8 @@ export function registerRoutes(app: Express): Server {
       '/restaurant',
       '/restaurant/branch', 
       '/restaurants',
-      '/restaurants/availability'
+      '/restaurants/availability',
+      '/default-time-slots'
     ];
     
     // If it's a public path, let them through
@@ -377,43 +378,65 @@ export function registerRoutes(app: Express): Server {
   });
 
   /**
-   * Get Restaurant Details
-   * GET /api/restaurant/:id
+   * Get Restaurants with Availability
+   * GET /api/restaurants/availability
    * 
-   * Public endpoint to get details of a specific restaurant
+   * Get restaurants with availability for a specific date and party size
    * 
-   * URL parameters:
-   * - id: Restaurant ID
+   * Query parameters:
+   * - date: Date to check availability for (YYYY-MM-DD format)
+   * - partySize: Number of people in the party
+   * - city: Filter by city
+   * - cuisine: Filter by cuisine
+   * - priceRange: Filter by price range
+   * - search: Search term
+   * - time: Specific time to check (HH:MM format)
    * 
    * Returns:
-   * - 200: Restaurant details
-   * - 404: Restaurant not found
+   * - 200: List of restaurants with availability
+   * - 400: Invalid parameters
    * - 500: Server error
    */
-  app.get("/api/restaurant/:id", async (req: Request, res: Response) => {
-    console.log('[Debug] GET /api/restaurant/:id', {
-      params: req.params,
-      headers: req.headers
-    });
-    
+  app.get('/api/restaurants/availability', async (req, res) => {
     try {
-      const { id } = req.params;
-      const restaurant = await storage.getRestaurant(parseInt(id));
+      console.log('SERVER: Availability request:', req.query);
       
-      console.log('[Debug] Restaurant data:', restaurant);
+      // Parse query parameters
+      const { date, partySize, city, cuisine, priceRange, search, time } = req.query;
       
-      if (!restaurant) {
-        console.log('[Debug] Restaurant not found');
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
+      // Default to current date if not provided
+      let searchDate = date ? new Date(date as string) : new Date();
       
-      // Set content type header explicitly
-      res.setHeader('Content-Type', 'application/json');
-      console.log('[Debug] Sending response with headers:', res.getHeaders());
-      res.json(restaurant);
+      // Default to 2 people if not provided
+      let searchPartySize = partySize ? parseInt(partySize as string) : 2;
+      
+      // Find restaurants with availability
+      const restaurants = await storage.findRestaurantsWithAvailability(
+        searchDate,
+        searchPartySize,
+        {
+          city: city as string,
+          cuisine: cuisine as string,
+          priceRange: priceRange as string,
+          search: search as string
+        },
+        time as string | undefined
+      );
+
+      console.log('SERVER: Found restaurants:', {
+        count: restaurants.length,
+        restaurants: restaurants.map(r => ({
+          id: r.id,
+          name: r.name,
+          branchCount: r.branches.length,
+          totalSlots: r.branches.reduce((acc, b) => acc + b.availableSlots.length, 0)
+        }))
+      });
+
+      res.json(restaurants);
     } catch (error) {
-      console.error("[Debug] Error getting restaurant:", error);
-      res.status(500).json({ message: "Error retrieving restaurant" });
+      console.error('SERVER: Error in availability endpoint:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -440,6 +463,61 @@ export function registerRoutes(app: Express): Server {
     
     try {
       const { id } = req.params;
+      
+      // Validate that id is a number
+      if (isNaN(parseInt(id))) {
+        console.log('[Debug] Invalid restaurant ID:', id);
+        return res.status(400).json({ message: "Invalid restaurant ID" });
+      }
+      
+      const restaurant = await storage.getRestaurant(parseInt(id));
+      
+      console.log('[Debug] Restaurant data:', restaurant);
+      
+      if (!restaurant) {
+        console.log('[Debug] Restaurant not found');
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+      
+      // Set content type header explicitly
+      res.setHeader('Content-Type', 'application/json');
+      console.log('[Debug] Sending response with headers:', res.getHeaders());
+      res.json(restaurant);
+    } catch (error) {
+      console.error("[Debug] Error getting restaurant:", error);
+      res.status(500).json({ message: "Error retrieving restaurant" });
+    }
+  });
+
+  /**
+   * Get Restaurant Details
+   * GET /api/restaurant/:id
+   * 
+   * Public endpoint to get details of a specific restaurant
+   * 
+   * URL parameters:
+   * - id: Restaurant ID
+   * 
+   * Returns:
+   * - 200: Restaurant details
+   * - 404: Restaurant not found
+   * - 500: Server error
+   */
+  app.get("/api/restaurant/:id", async (req: Request, res: Response) => {
+    console.log('[Debug] GET /api/restaurant/:id', {
+      params: req.params,
+      headers: req.headers
+    });
+    
+    try {
+      const { id } = req.params;
+      
+      // Validate that id is a number
+      if (isNaN(parseInt(id))) {
+        console.log('[Debug] Invalid restaurant ID:', id);
+        return res.status(400).json({ message: "Invalid restaurant ID" });
+      }
+      
       const restaurant = await storage.getRestaurant(parseInt(id));
       
       console.log('[Debug] Restaurant data:', restaurant);
@@ -507,62 +585,6 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("[Debug] Error getting branch availability:", error);
       res.status(500).json({ message: "Error retrieving branch availability" });
-    }
-  });
-
-  /**
-   * Get restaurants with availability
-   */
-  app.get('/api/restaurants/availability', async (req, res) => {
-    try {
-      console.log('SERVER: Received availability request:', {
-        query: req.query,
-        params: req.params,
-        body: req.body
-      });
-
-      const { date, time, partySize, city, cuisine, priceRange, search } = req.query;
-      
-      // All parameters are now optional - using defaults from storage layer
-      const parsedDate = date ? parseISO(date as string) : new Date();
-      const parsedPartySize = partySize ? parseInt(partySize as string) : 2;
-
-      console.log('SERVER: Parsed parameters:', {
-        parsedDate,
-        time,
-        parsedPartySize,
-        city,
-        cuisine,
-        priceRange,
-        search
-      });
-
-      const restaurants = await storage.findRestaurantsWithAvailability(
-        parsedDate,
-        parsedPartySize,
-        {
-          city: city as string,
-          cuisine: cuisine as string,
-          priceRange: priceRange as string,
-          search: search as string
-        },
-        time as string | undefined
-      );
-
-      console.log('SERVER: Found restaurants:', {
-        count: restaurants.length,
-        restaurants: restaurants.map(r => ({
-          id: r.id,
-          name: r.name,
-          branchCount: r.branches.length,
-          totalSlots: r.branches.reduce((acc, b) => acc + b.availableSlots.length, 0)
-        }))
-      });
-
-      res.json(restaurants);
-    } catch (error) {
-      console.error('SERVER: Error in availability endpoint:', error);
-      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -693,6 +715,27 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error checking if restaurant is saved:", error);
       res.status(500).json({ message: "Failed to check if restaurant is saved" });
+    }
+  });
+
+  /**
+   * Get Default Time Slots
+   * GET /api/default-time-slots
+   * 
+   * Get default time slots based on current time + 5 hours
+   * 
+   * Returns:
+   * - 200: Array of time slots in HH:MM format
+   */
+  app.get("/api/default-time-slots", (req: Request, res: Response) => {
+    try {
+      // Use the existing getDefaultTimeSlots method from storage
+      const timeSlots = storage.getDefaultTimeSlots();
+      console.log("Sending default time slots:", timeSlots);
+      res.json(timeSlots);
+    } catch (error) {
+      console.error("Error getting default time slots:", error);
+      res.status(500).json({ message: "Failed to get default time slots" });
     }
   });
 
