@@ -79,8 +79,20 @@ interface WebSocketClient {
 // Extend Express Request type
 declare global {
   namespace Express {
-    interface User extends AuthenticatedUser {}
+    // Ensure the User interface has a non-optional id property
+    interface User {
+      id: number;
+      type: 'user' | 'restaurant';
+    }
   }
+}
+
+// Helper function to get user ID safely
+function getUserId(req: Request): number {
+  if (!req.user) {
+    throw new Error("User not authenticated");
+  }
+  return Number(req.user.id);
 }
 
 // Define authentication middleware
@@ -606,24 +618,30 @@ export function registerRoutes(app: Express): Server {
    */
   app.post("/api/saved-restaurants", requireUserAuth, async (req: Request, res: Response) => {
     try {
-      const { restaurantId, branchIndex } = req.body;
-      const userId = (req.user as AuthenticatedUser).id;
+      // Get user ID safely
+      const userId = getUserId(req);
       
+      const { restaurantId, branchIndex } = req.body;
+
       // Validate input
       if (!restaurantId || branchIndex === undefined) {
         return res.status(400).json({ message: "Missing required fields" });
       }
 
+      // Ensure restaurantId and branchIndex are numbers
+      const restaurantIdNum = Number(restaurantId);
+      const branchIndexNum = Number(branchIndex);
+
       // Check if already saved
-      const alreadySaved = await storage.isRestaurantSaved(userId, restaurantId, branchIndex);
+      const alreadySaved = await storage.isRestaurantSaved(userId, restaurantIdNum, branchIndexNum);
       if (alreadySaved) {
         return res.json({ message: "Restaurant already saved", alreadySaved: true });
       }
 
       // Save to database
-      await storage.saveRestaurant(userId, restaurantId, branchIndex);
+      await storage.saveRestaurant(userId, restaurantIdNum, branchIndexNum);
       
-      console.log(`User ${userId} saved restaurant ${restaurantId} branch ${branchIndex}`);
+      console.log(`User ${userId} saved restaurant ${restaurantIdNum} branch ${branchIndexNum}`);
       res.json({ success: true, message: "Restaurant saved successfully" });
     } catch (error) {
       console.error("Error saving restaurant:", error);
@@ -649,13 +667,19 @@ export function registerRoutes(app: Express): Server {
    */
   app.delete("/api/saved-restaurants/:restaurantId/:branchIndex", requireUserAuth, async (req: Request, res: Response) => {
     try {
+      // Get user ID safely
+      const userId = getUserId(req);
+      
       const { restaurantId, branchIndex } = req.params;
-      const userId = (req.user as AuthenticatedUser).id;
-      
+
+      // Ensure restaurantId and branchIndex are numbers
+      const restaurantIdNum = parseInt(restaurantId);
+      const branchIndexNum = parseInt(branchIndex);
+
       // Remove from database
-      await storage.removeSavedRestaurant(userId, parseInt(restaurantId), parseInt(branchIndex));
+      await storage.removeSavedRestaurant(userId, restaurantIdNum, branchIndexNum);
       
-      console.log(`User ${userId} removed restaurant ${restaurantId} branch ${branchIndex}`);
+      console.log(`User ${userId} removed restaurant ${restaurantIdNum} branch ${branchIndexNum}`);
       res.json({ success: true, message: "Restaurant removed from saved list" });
     } catch (error) {
       console.error("Error removing saved restaurant:", error);
@@ -676,7 +700,8 @@ export function registerRoutes(app: Express): Server {
    */
   app.get("/api/saved-restaurants", requireUserAuth, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as AuthenticatedUser).id;
+      // Get user ID safely
+      const userId = getUserId(req);
       
       // Get saved restaurants
       const saved = await storage.getSavedRestaurants(userId);
@@ -705,11 +730,17 @@ export function registerRoutes(app: Express): Server {
    */
   app.get("/api/saved-restaurants/:restaurantId/:branchIndex", requireUserAuth, async (req: Request, res: Response) => {
     try {
-      const { restaurantId, branchIndex } = req.params;
-      const userId = (req.user as AuthenticatedUser).id;
+      // Get user ID safely
+      const userId = getUserId(req);
       
+      const { restaurantId, branchIndex } = req.params;
+
+      // Ensure restaurantId and branchIndex are numbers
+      const restaurantIdNum = parseInt(restaurantId);
+      const branchIndexNum = parseInt(branchIndex);
+
       // Check if restaurant is saved
-      const saved = await storage.isRestaurantSaved(userId, parseInt(restaurantId), parseInt(branchIndex));
+      const saved = await storage.isRestaurantSaved(userId, restaurantIdNum, branchIndexNum);
       
       res.json({ saved });
     } catch (error) {
@@ -739,6 +770,90 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // === USER PROFILE ENDPOINTS ===
+
+  /**
+   * Get User Profile
+   * GET /api/user/profile
+   * 
+   * Returns the current user's detailed profile information.
+   * 
+   * Returns:
+   * - 200: User profile data
+   * - 401: Not authenticated
+   * - 500: Server error
+   */
+  app.get("/api/user/profile", requireUserAuth, async (req: Request, res: Response) => {
+    try {
+      // Get user ID safely
+      const userId = getUserId(req);
+      
+      const userProfile = await storage.getUserById(userId);
+      
+      if (!userProfile) {
+        return res.status(404).json({ message: "User profile not found" });
+      }
+      
+      // Add created date to the response
+      const userWithCreatedDate = {
+        ...userProfile,
+        createdAt: userProfile.createdAt || new Date().toISOString()
+      };
+      
+      res.json(userWithCreatedDate);
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      res.status(500).json({ message: "Failed to fetch user profile" });
+    }
+  });
+
+  /**
+   * Update User Profile
+   * PUT /api/user/profile
+   * 
+   * Updates the current user's profile information.
+   * 
+   * Request body:
+   * - firstName: User's first name
+   * - lastName: User's last name
+   * - city: User's city
+   * - gender: User's gender
+   * - favoriteCuisines: Array of user's preferred cuisine types
+   * 
+   * Returns:
+   * - 200: Profile updated successfully
+   * - 400: Invalid request data
+   * - 401: Not authenticated
+   * - 500: Server error
+   */
+  app.put("/api/user/profile", requireUserAuth, async (req: Request, res: Response) => {
+    try {
+      // Get user ID safely
+      const userId = getUserId(req);
+      
+      const { firstName, lastName, city, gender, favoriteCuisines } = req.body;
+      
+      // Validate required fields
+      if (!firstName || !lastName || !city || !gender || !Array.isArray(favoriteCuisines)) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
+      
+      // Update user profile
+      await storage.updateUserProfile(userId, {
+        firstName,
+        lastName,
+        city,
+        gender,
+        favoriteCuisines
+      });
+      
+      res.json({ message: "Profile updated successfully" });
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      res.status(500).json({ message: "Failed to update user profile" });
+    }
+  });
+
   // PROTECTED ROUTES (login required)
 
   /**
@@ -746,11 +861,8 @@ export function registerRoutes(app: Express): Server {
    */
   app.get("/api/bookings", requireUserAuth, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Get user ID from authenticated request
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-      const userId = req.user.id;
+      // Get user ID safely
+      const userId = getUserId(req);
 
       // Get all bookings for the user
       const bookings = await storage.getUserBookings(userId);
@@ -769,11 +881,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const { bookingId } = req.params;
       
-      // Get user ID from authenticated request
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-      const userId = req.user.id;
+      // Get user ID safely
+      const userId = getUserId(req);
 
       // Parse and validate bookingId
       const bookingIdNum = parseInt(bookingId, 10);
@@ -816,11 +925,8 @@ export function registerRoutes(app: Express): Server {
       console.log('Creating new booking:', req.body);
       const { branchId, date, partySize } = req.body;
       
-      // Get user ID from authenticated request
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-      const userId = req.user.id;
+      // Get user ID safely
+      const userId = getUserId(req);
       
       // Validate input
       if (!branchId || !date || !partySize) {
@@ -872,11 +978,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const { bookingId } = req.params;
       
-      // Get user ID from authenticated request
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-      const userId = req.user.id;
+      // Get user ID safely
+      const userId = getUserId(req);
 
       // Parse and validate bookingId
       const bookingIdNum = parseInt(bookingId, 10);
@@ -906,14 +1009,14 @@ export function registerRoutes(app: Express): Server {
         data: {
           bookingId: bookingIdNum,
           userId: booking.userId,
-          restaurantId: booking.branchRestaurantId
+          restaurantId: booking.restaurantId
         }
       };
       
       // Broadcast the message to relevant clients
       clients.forEach((clientInfo, clientWs) => {
         if (
-          (clientInfo.userType === 'restaurant' && clientInfo.userId === booking.branchRestaurantId) ||
+          (clientInfo.userType === 'restaurant' && clientInfo.userId === booking.restaurantId) ||
           (clientInfo.userType === 'user' && clientInfo.userId === booking.userId)
         ) {
           try {

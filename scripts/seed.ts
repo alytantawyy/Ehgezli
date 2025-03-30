@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { users, restaurantAuth, restaurantProfiles, restaurantBranches, bookings, passwordResetTokens, restaurantPasswordResetTokens } from '../shared/schema';
+import { users, restaurantAuth, restaurantProfiles, restaurantBranches, bookings, passwordResetTokens, restaurantPasswordResetTokens, savedRestaurants } from '../shared/schema';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { sql } from 'drizzle-orm';
@@ -21,11 +21,29 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, saltRounds);
 }
 
+// Helper function to generate a random date within a range
+function randomDate(start: Date, end: Date) {
+  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+}
+
+// Helper function to pick random items from an array
+function pickRandom<T>(arr: T[], count: number): T[] {
+  const result: T[] = [];
+  const copy = [...arr];
+  for (let i = 0; i < count && copy.length > 0; i++) {
+    const index = Math.floor(Math.random() * copy.length);
+    result.push(copy[index]);
+    copy.splice(index, 1);
+  }
+  return result;
+}
+
 async function seed() {
   console.log('🌱 Seeding database...');
 
   // Clear existing data in correct order (respecting foreign keys)
   console.log('Clearing existing data...');
+  await db.delete(savedRestaurants);
   await db.delete(passwordResetTokens);
   await db.delete(restaurantPasswordResetTokens);
   await db.delete(bookings);
@@ -37,8 +55,22 @@ async function seed() {
   await db.execute(sql`DELETE FROM session`);
   console.log('✅ Cleared existing data');
 
-  // Create test users
-  const [user1, user2, user3, user4] = await Promise.all([
+  // Available cuisines
+  const cuisines = [
+    'Italian', 'Japanese', 'Chinese', 'Indian', 'Mexican', 'Lebanese', 
+    'Egyptian', 'American', 'French', 'Thai', 'Mediterranean', 'Greek', 
+    'Turkish', 'Spanish', 'Korean', 'Vietnamese'
+  ];
+
+  // Available cities
+  const cities = [
+    'Cairo', 'Alexandria', 'Giza', 'Sharm El Sheikh', 'Hurghada', 
+    'Luxor', 'Aswan', 'Port Said', 'Suez', 'Ismailia'
+  ];
+
+  // Create test users (10 users)
+  const userEntries = await Promise.all([
+    // Original users
     db.insert(users).values({
       firstName: 'John',
       lastName: 'Doe',
@@ -47,7 +79,9 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1990-01-01'),
       city: 'Alexandria',
-      favoriteCuisines: ['Italian', 'Japanese']
+      favoriteCuisines: ['Italian', 'Japanese'],
+      createdAt: new Date(),
+      updatedAt: new Date()
     }).returning(),
     db.insert(users).values({
       firstName: 'Jane',
@@ -57,7 +91,9 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1992-05-15'),
       city: 'Cairo',
-      favoriteCuisines: ['Mexican', 'Indian']
+      favoriteCuisines: ['Mexican', 'Indian'],
+      createdAt: new Date(),
+      updatedAt: new Date()
     }).returning(),
     db.insert(users).values({
       firstName: 'Ahmed',
@@ -67,7 +103,9 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1988-03-20'),
       city: 'Alexandria',
-      favoriteCuisines: ['Egyptian', 'Lebanese']
+      favoriteCuisines: ['Egyptian', 'Lebanese'],
+      createdAt: new Date(),
+      updatedAt: new Date()
     }).returning(),
     db.insert(users).values({
       firstName: 'Sara',
@@ -77,118 +115,379 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1995-11-10'),
       city: 'Cairo',
-      favoriteCuisines: ['Chinese', 'Thai']
+      favoriteCuisines: ['Chinese', 'Thai'],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning(),
+    // Additional users
+    db.insert(users).values({
+      firstName: 'Mohamed',
+      lastName: 'Ibrahim',
+      email: 'mohamed@example.com',
+      password: await hashPassword('password123'),
+      gender: 'male',
+      birthday: new Date('1985-07-22'),
+      city: 'Giza',
+      favoriteCuisines: ['Egyptian', 'Mediterranean', 'Greek'],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning(),
+    db.insert(users).values({
+      firstName: 'Fatima',
+      lastName: 'Ali',
+      email: 'fatima@example.com',
+      password: await hashPassword('password123'),
+      gender: 'female',
+      birthday: new Date('1993-09-05'),
+      city: 'Sharm El Sheikh',
+      favoriteCuisines: ['Seafood', 'Italian', 'French'],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning(),
+    db.insert(users).values({
+      firstName: 'Omar',
+      lastName: 'Mahmoud',
+      email: 'omar@example.com',
+      password: await hashPassword('password123'),
+      gender: 'male',
+      birthday: new Date('1991-12-15'),
+      city: 'Hurghada',
+      favoriteCuisines: ['Mediterranean', 'Seafood', 'Turkish'],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning(),
+    db.insert(users).values({
+      firstName: 'Layla',
+      lastName: 'Kamal',
+      email: 'layla@example.com',
+      password: await hashPassword('password123'),
+      gender: 'female',
+      birthday: new Date('1989-04-30'),
+      city: 'Luxor',
+      favoriteCuisines: ['Egyptian', 'Middle Eastern', 'Indian'],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning(),
+    db.insert(users).values({
+      firstName: 'Khaled',
+      lastName: 'Samir',
+      email: 'khaled@example.com',
+      password: await hashPassword('password123'),
+      gender: 'male',
+      birthday: new Date('1987-08-12'),
+      city: 'Aswan',
+      favoriteCuisines: ['Nubian', 'Egyptian', 'African'],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning(),
+    db.insert(users).values({
+      firstName: 'Nour',
+      lastName: 'Hamed',
+      email: 'nour@example.com',
+      password: await hashPassword('password123'),
+      gender: 'female',
+      birthday: new Date('1994-02-28'),
+      city: 'Cairo',
+      favoriteCuisines: ['Lebanese', 'Syrian', 'Turkish'],
+      createdAt: new Date(),
+      updatedAt: new Date()
     }).returning()
   ]);
 
-  console.log('✅ Created test users');
+  const users_data = userEntries.map(entry => entry[0]);
+  console.log(`✅ Created ${users_data.length} test users`);
 
-  // Create test restaurants with auth and profiles
+  // Create test restaurants with auth and profiles (8 restaurants)
+  const restaurantData = [
+    // Original restaurants
+    {
+      auth: {
+        email: 'italiano@example.com',
+        password: 'password123',
+        name: 'Italiano Authentic',
+        verified: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      profile: {
+        about: 'Experience authentic Italian cuisine in the heart of Alexandria.',
+        description: 'Our chefs bring the flavors of Italy to your table with fresh ingredients and traditional recipes.',
+        cuisine: 'Italian',
+        priceRange: '$$$',
+        logo: 'https://example.com/italiano-logo.png',
+        isProfileComplete: true
+      },
+      branches: [
+        {
+          address: '123 Mediterranean Ave',
+          city: 'Alexandria',
+          tablesCount: 15,
+          seatsCount: 60,
+          openingTime: '12:00',
+          closingTime: '23:00'
+        },
+        {
+          address: '456 Nile View St',
+          city: 'Cairo',
+          tablesCount: 20,
+          seatsCount: 80,
+          openingTime: '12:00',
+          closingTime: '00:00'
+        }
+      ]
+    },
+    {
+      auth: {
+        email: 'sakura@example.com',
+        password: 'password123',
+        name: 'Sakura Japanese',
+        verified: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      profile: {
+        about: 'Traditional Japanese cuisine with a modern twist.',
+        description: 'Sakura offers an authentic Japanese dining experience with sushi, sashimi, and teppanyaki prepared by master chefs.',
+        cuisine: 'Japanese',
+        priceRange: '$$$$',
+        logo: 'https://example.com/sakura-logo.png',
+        isProfileComplete: true
+      },
+      branches: [
+        {
+          address: '789 Coastal Road',
+          city: 'Alexandria',
+          tablesCount: 12,
+          seatsCount: 48,
+          openingTime: '13:00',
+          closingTime: '23:00'
+        }
+      ]
+    },
+    {
+      auth: {
+        email: 'lebanese@example.com',
+        password: 'password123',
+        name: 'Lebanese House',
+        verified: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      profile: {
+        about: 'Authentic Lebanese cuisine and mezze.',
+        description: 'Lebanese House serves traditional mezze, grilled meats, and freshly baked bread in a warm, welcoming atmosphere.',
+        cuisine: 'Lebanese',
+        priceRange: '$$',
+        logo: 'https://example.com/lebanese-logo.png',
+        isProfileComplete: true
+      },
+      branches: [
+        {
+          address: '321 Downtown Square',
+          city: 'Cairo',
+          tablesCount: 25,
+          seatsCount: 100,
+          openingTime: '11:00',
+          closingTime: '01:00'
+        },
+        {
+          address: '654 Seafront Road',
+          city: 'Alexandria',
+          tablesCount: 18,
+          seatsCount: 72,
+          openingTime: '11:00',
+          closingTime: '00:00'
+        }
+      ]
+    },
+    // Additional restaurants
+    {
+      auth: {
+        email: 'spice@example.com',
+        password: 'password123',
+        name: 'Spice of India',
+        verified: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      profile: {
+        about: 'Authentic Indian flavors and spices.',
+        description: 'Experience the rich and diverse flavors of India with our carefully crafted dishes using traditional spices and cooking methods.',
+        cuisine: 'Indian',
+        priceRange: '$$',
+        logo: 'https://example.com/spice-logo.png',
+        isProfileComplete: true
+      },
+      branches: [
+        {
+          address: '45 Tahrir Square',
+          city: 'Cairo',
+          tablesCount: 22,
+          seatsCount: 88,
+          openingTime: '12:00',
+          closingTime: '23:30'
+        }
+      ]
+    },
+    {
+      auth: {
+        email: 'dragon@example.com',
+        password: 'password123',
+        name: 'Golden Dragon',
+        verified: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      profile: {
+        about: 'Authentic Chinese cuisine in an elegant setting.',
+        description: 'Golden Dragon offers a wide range of traditional Chinese dishes from different regions of China, prepared by expert chefs.',
+        cuisine: 'Chinese',
+        priceRange: '$$$',
+        logo: 'https://example.com/dragon-logo.png',
+        isProfileComplete: true
+      },
+      branches: [
+        {
+          address: '78 Corniche Road',
+          city: 'Alexandria',
+          tablesCount: 20,
+          seatsCount: 80,
+          openingTime: '11:30',
+          closingTime: '23:00'
+        },
+        {
+          address: '123 Pyramids Road',
+          city: 'Giza',
+          tablesCount: 25,
+          seatsCount: 100,
+          openingTime: '12:00',
+          closingTime: '00:00'
+        }
+      ]
+    },
+    {
+      auth: {
+        email: 'nile@example.com',
+        password: 'password123',
+        name: 'Nile View',
+        verified: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      profile: {
+        about: 'Traditional Egyptian cuisine with a spectacular view of the Nile.',
+        description: 'Enjoy authentic Egyptian dishes while taking in breathtaking views of the Nile River. Our menu features classic recipes passed down through generations.',
+        cuisine: 'Egyptian',
+        priceRange: '$$$',
+        logo: 'https://example.com/nile-logo.png',
+        isProfileComplete: true
+      },
+      branches: [
+        {
+          address: '56 Nile Corniche',
+          city: 'Cairo',
+          tablesCount: 30,
+          seatsCount: 120,
+          openingTime: '10:00',
+          closingTime: '01:00'
+        },
+        {
+          address: '89 Luxor Corniche',
+          city: 'Luxor',
+          tablesCount: 25,
+          seatsCount: 100,
+          openingTime: '10:00',
+          closingTime: '00:00'
+        }
+      ]
+    },
+    {
+      auth: {
+        email: 'seafood@example.com',
+        password: 'password123',
+        name: 'Red Sea Treasures',
+        verified: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      profile: {
+        about: 'Fresh seafood caught daily from the Red Sea.',
+        description: 'We serve the freshest seafood from the Red Sea, prepared using traditional recipes that highlight the natural flavors of our catch.',
+        cuisine: 'Seafood',
+        priceRange: '$$$$',
+        logo: 'https://example.com/seafood-logo.png',
+        isProfileComplete: true
+      },
+      branches: [
+        {
+          address: '34 Beach Road',
+          city: 'Hurghada',
+          tablesCount: 18,
+          seatsCount: 72,
+          openingTime: '12:00',
+          closingTime: '23:00'
+        },
+        {
+          address: '67 Naama Bay',
+          city: 'Sharm El Sheikh',
+          tablesCount: 22,
+          seatsCount: 88,
+          openingTime: '12:00',
+          closingTime: '00:00'
+        }
+      ]
+    },
+    {
+      auth: {
+        email: 'bistro@example.com',
+        password: 'password123',
+        name: 'Parisian Bistro',
+        verified: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      profile: {
+        about: 'A taste of Paris in the heart of Cairo.',
+        description: 'Our bistro brings authentic French cuisine to Cairo, with a menu featuring classic dishes prepared with a modern twist by our French-trained chefs.',
+        cuisine: 'French',
+        priceRange: '$$$',
+        logo: 'https://example.com/bistro-logo.png',
+        isProfileComplete: true
+      },
+      branches: [
+        {
+          address: '12 Zamalek Street',
+          city: 'Cairo',
+          tablesCount: 15,
+          seatsCount: 60,
+          openingTime: '11:00',
+          closingTime: '23:00'
+        }
+      ]
+    }
+  ];
+
   const restaurants = await Promise.all(
-    [
-      {
-        auth: {
-          email: 'italiano@example.com',
-          password: 'password123',
-          name: 'Italiano Authentic'
-        },
-        profile: {
-          about: 'Experience authentic Italian cuisine in the heart of Alexandria.',
-          cuisine: 'Italian',
-          priceRange: '$$$',
-          logo: 'https://example.com/italiano-logo.png'
-        },
-        branches: [
-          {
-            address: '123 Mediterranean Ave',
-            city: 'Alexandria',
-            tablesCount: 15,
-            seatsCount: 60,
-            openingTime: '12:00',
-            closingTime: '23:00'
-          },
-          {
-            address: '456 Nile View St',
-            city: 'Cairo',
-            tablesCount: 20,
-            seatsCount: 80,
-            openingTime: '12:00',
-            closingTime: '00:00'
-          }
-        ]
-      },
-      {
-        auth: {
-          email: 'sakura@example.com',
-          password: 'password123',
-          name: 'Sakura Japanese'
-        },
-        profile: {
-          about: 'Traditional Japanese cuisine with a modern twist.',
-          cuisine: 'Japanese',
-          priceRange: '$$$$',
-          logo: 'https://example.com/sakura-logo.png'
-        },
-        branches: [
-          {
-            address: '789 Coastal Road',
-            city: 'Alexandria',
-            tablesCount: 12,
-            seatsCount: 48,
-            openingTime: '13:00',
-            closingTime: '23:00'
-          }
-        ]
-      },
-      {
-        auth: {
-          email: 'lebanese@example.com',
-          password: 'password123',
-          name: 'Lebanese House'
-        },
-        profile: {
-          about: 'Authentic Lebanese cuisine and mezze.',
-          cuisine: 'Lebanese',
-          priceRange: '$$',
-          logo: 'https://example.com/lebanese-logo.png'
-        },
-        branches: [
-          {
-            address: '321 Downtown Square',
-            city: 'Cairo',
-            tablesCount: 25,
-            seatsCount: 100,
-            openingTime: '11:00',
-            closingTime: '01:00'
-          },
-          {
-            address: '654 Seafront Road',
-            city: 'Alexandria',
-            tablesCount: 18,
-            seatsCount: 72,
-            openingTime: '11:00',
-            closingTime: '00:00'
-          }
-        ]
-      }
-    ].map(async (restaurant) => {
+    restaurantData.map(async (restaurant) => {
       // Create restaurant auth
       const [authEntry] = await db.insert(restaurantAuth).values({
         email: restaurant.auth.email,
         password: await hashPassword(restaurant.auth.password),
         name: restaurant.auth.name,
-        verified: true
+        verified: restaurant.auth.verified,
+        createdAt: restaurant.auth.createdAt,
+        updatedAt: restaurant.auth.updatedAt
       }).returning();
 
       // Create restaurant profile
       const [profileEntry] = await db.insert(restaurantProfiles).values({
         restaurantId: authEntry.id,
         about: restaurant.profile.about,
-        description: restaurant.profile.about, 
+        description: restaurant.profile.description,
         cuisine: restaurant.profile.cuisine,
         priceRange: restaurant.profile.priceRange,
         logo: restaurant.profile.logo,
-        isProfileComplete: true
+        isProfileComplete: restaurant.profile.isProfileComplete
       }).returning();
 
       // Create restaurant branches
@@ -202,6 +501,7 @@ async function seed() {
       );
 
       return {
+        id: authEntry.id,
         auth: authEntry,
         profile: profileEntry,
         branches: branchEntries.map(b => b[0])
@@ -209,7 +509,7 @@ async function seed() {
     })
   );
 
-  console.log('✅ Created test restaurants with branches');
+  console.log(`✅ Created ${restaurants.length} test restaurants with ${restaurants.reduce((acc, r) => acc + r.branches.length, 0)} branches`);
 
   // Create test bookings
   const now = new Date();
@@ -217,6 +517,8 @@ async function seed() {
   tomorrow.setDate(now.getDate() + 1);
   const nextWeek = new Date(now);
   nextWeek.setDate(now.getDate() + 7);
+  const lastWeek = new Date(now);
+  lastWeek.setDate(now.getDate() - 7);
 
   // Helper to create a booking time
   const createBookingTime = (baseDate: Date, hours: number, minutes = 0) => {
@@ -225,114 +527,122 @@ async function seed() {
     return date;
   };
 
-  await Promise.all([
-    // Past bookings
-    db.insert(bookings).values({
-      date: createBookingTime(now, now.getHours() - 3),
-      userId: user1[0].id,
-      branchId: restaurants[0].branches[0].id,
-      partySize: 4,
-      confirmed: true,
-      arrived: true,
-      completed: true,
-      arrivedAt: createBookingTime(now, now.getHours() - 2)
-    }),
-    db.insert(bookings).values({
-      date: createBookingTime(now, now.getHours() - 2),
-      userId: user2[0].id,
-      branchId: restaurants[1].branches[0].id,
-      partySize: 2,
-      confirmed: true,
-      arrived: true,
-      completed: true,
-      arrivedAt: createBookingTime(now, now.getHours() - 1)
-    }),
+  // Create a variety of bookings
+  const bookingPromises: Promise<any>[] = [];
 
-    // Currently seated bookings
-    db.insert(bookings).values({
-      date: createBookingTime(now, now.getHours() - 1),
-      userId: user3[0].id,
-      branchId: restaurants[0].branches[1].id,
-      partySize: 6,
-      confirmed: true,
-      arrived: true,
-      completed: false,
-      arrivedAt: now
-    }),
-    db.insert(bookings).values({
-      date: createBookingTime(now, now.getHours() - 1),
-      userId: user4[0].id,
-      branchId: restaurants[2].branches[0].id,
-      partySize: 3,
-      confirmed: true,
-      arrived: true,
-      completed: false,
-      arrivedAt: now
-    }),
+  // Past completed bookings (15)
+  for (let i = 0; i < 15; i++) {
+    const randomUser = users_data[Math.floor(Math.random() * users_data.length)];
+    const randomRestaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
+    const randomBranch = randomRestaurant.branches[Math.floor(Math.random() * randomRestaurant.branches.length)];
+    const bookingDate = randomDate(lastWeek, now);
+    const arrivedDate = new Date(bookingDate);
+    arrivedDate.setMinutes(arrivedDate.getMinutes() + 10);
+    
+    bookingPromises.push(
+      db.insert(bookings).values({
+        date: bookingDate,
+        userId: randomUser.id,
+        branchId: randomBranch.id,
+        partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+        confirmed: true,
+        arrived: true,
+        completed: true,
+        arrivedAt: arrivedDate
+      })
+    );
+  }
 
-    // Upcoming bookings for today
-    db.insert(bookings).values({
-      date: createBookingTime(now, now.getHours() + 2),
-      userId: user1[0].id,
-      branchId: restaurants[2].branches[1].id,
-      partySize: 4,
-      confirmed: true,
-      arrived: false,
-      completed: false
-    }),
-    db.insert(bookings).values({
-      date: createBookingTime(now, now.getHours() + 3),
-      userId: user2[0].id,
-      branchId: restaurants[1].branches[0].id,
-      partySize: 2,
-      confirmed: true,
-      arrived: false,
-      completed: false
-    }),
+  // Currently seated bookings (5)
+  for (let i = 0; i < 5; i++) {
+    const randomUser = users_data[Math.floor(Math.random() * users_data.length)];
+    const randomRestaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
+    const randomBranch = randomRestaurant.branches[Math.floor(Math.random() * randomRestaurant.branches.length)];
+    const bookingDate = createBookingTime(now, now.getHours() - 1);
+    
+    bookingPromises.push(
+      db.insert(bookings).values({
+        date: bookingDate,
+        userId: randomUser.id,
+        branchId: randomBranch.id,
+        partySize: Math.floor(Math.random() * 4) + 2, // 2-6 people
+        confirmed: true,
+        arrived: true,
+        completed: false,
+        arrivedAt: now
+      })
+    );
+  }
 
-    // Future bookings
-    db.insert(bookings).values({
-      date: createBookingTime(tomorrow, 19),
-      userId: user3[0].id,
-      branchId: restaurants[0].branches[0].id,
-      partySize: 8,
-      confirmed: true,
-      arrived: false,
-      completed: false
-    }),
-    db.insert(bookings).values({
-      date: createBookingTime(tomorrow, 20),
-      userId: user4[0].id,
-      branchId: restaurants[2].branches[0].id,
-      partySize: 5,
-      confirmed: true,
-      arrived: false,
-      completed: false
-    }),
-    db.insert(bookings).values({
-      date: createBookingTime(nextWeek, 19, 30),
-      userId: user1[0].id,
-      branchId: restaurants[1].branches[0].id,
-      partySize: 4,
-      confirmed: false,
-      arrived: false,
-      completed: false
-    }),
-    db.insert(bookings).values({
-      date: createBookingTime(nextWeek, 20, 30),
-      userId: user2[0].id,
-      branchId: restaurants[0].branches[1].id,
-      partySize: 6,
-      confirmed: false,
-      arrived: false,
-      completed: false
-    })
-  ]);
+  // Upcoming bookings for today (10)
+  for (let i = 0; i < 10; i++) {
+    const randomUser = users_data[Math.floor(Math.random() * users_data.length)];
+    const randomRestaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
+    const randomBranch = randomRestaurant.branches[Math.floor(Math.random() * randomRestaurant.branches.length)];
+    const hours = now.getHours() + Math.floor(Math.random() * 5) + 1; // 1-6 hours from now
+    
+    bookingPromises.push(
+      db.insert(bookings).values({
+        date: createBookingTime(now, hours),
+        userId: randomUser.id,
+        branchId: randomBranch.id,
+        partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+        confirmed: true,
+        arrived: false,
+        completed: false
+      })
+    );
+  }
 
-  console.log('✅ Created test bookings');
-  console.log('✨ Seeding complete!');
-  
-  process.exit(0);
+  // Future bookings (20)
+  for (let i = 0; i < 20; i++) {
+    const randomUser = users_data[Math.floor(Math.random() * users_data.length)];
+    const randomRestaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
+    const randomBranch = randomRestaurant.branches[Math.floor(Math.random() * randomRestaurant.branches.length)];
+    const futureDate = new Date(tomorrow.getTime() + Math.random() * (nextWeek.getTime() - tomorrow.getTime()));
+    const hours = 12 + Math.floor(Math.random() * 10); // Between 12 PM and 10 PM
+    
+    bookingPromises.push(
+      db.insert(bookings).values({
+        date: createBookingTime(futureDate, hours),
+        userId: randomUser.id,
+        branchId: randomBranch.id,
+        partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+        confirmed: true,
+        arrived: false,
+        completed: false
+      })
+    );
+  }
+
+  await Promise.all(bookingPromises);
+  console.log(`✅ Created ${bookingPromises.length} test bookings`);
+
+  // Create saved restaurants for users
+  const savedRestaurantPromises: Promise<any>[] = [];
+
+  // Each user saves 2-5 random restaurants
+  for (const user of users_data) {
+    const numToSave = Math.floor(Math.random() * 4) + 2; // 2-5 restaurants
+    const restaurantsToSave = pickRandom(restaurants, numToSave);
+    
+    for (const restaurant of restaurantsToSave) {
+      const randomBranchIndex = Math.floor(Math.random() * restaurant.branches.length);
+      
+      savedRestaurantPromises.push(
+        db.insert(savedRestaurants).values({
+          userId: user.id,
+          restaurantId: restaurant.id,
+          branchIndex: randomBranchIndex
+        })
+      );
+    }
+  }
+
+  await Promise.all(savedRestaurantPromises);
+  console.log(`✅ Created ${savedRestaurantPromises.length} saved restaurant entries`);
+
+  console.log('✅ Database seeded successfully!');
 }
 
 seed().catch((error) => {

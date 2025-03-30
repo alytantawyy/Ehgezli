@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { format, parse } from "date-fns";
+import { useAuth } from "@/hooks/use-auth";
 
 interface RestaurantGridProps {
   searchQuery?: string;
@@ -29,6 +30,7 @@ export function RestaurantGrid({
 }: RestaurantGridProps) {
   console.log("[RestaurantGrid] rendering", { showSavedOnly });
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
 
   // Query for all restaurants with availability
   const { data: restaurants, isLoading } = useQuery<RestaurantWithAvailability[]>({
@@ -60,18 +62,40 @@ export function RestaurantGrid({
     refetchOnWindowFocus: false // Prevent refetching when window regains focus
   });
 
-  // Query for saved restaurants when showSavedOnly is true
+  // Query for saved restaurants - always fetch this for ordering
   const { data: savedRestaurants, isLoading: isSavedLoading } = useQuery<{ restaurantId: number; branchIndex: number }[]>({
     queryKey: ["/api/saved-restaurants"],
     queryFn: async () => {
       const response = await fetch("/api/saved-restaurants", { credentials: 'include' });
       if (!response.ok) {
+        // If not logged in or other error, return empty array
+        if (response.status === 401 || response.status === 403) {
+          return [];
+        }
         const error = await response.json();
         throw new Error(error.message || "Failed to fetch saved restaurants");
       }
       return response.json();
     },
-    enabled: showSavedOnly // Only run this query when showSavedOnly is true
+    enabled: !!user // Only run this query when user is logged in
+  });
+
+  // Query for user profile to get city and favorite cuisines
+  const { data: userProfile } = useQuery({
+    queryKey: ["/api/profile"],
+    queryFn: async () => {
+      const response = await fetch("/api/profile", { credentials: 'include' });
+      if (!response.ok) {
+        // If not logged in or other error, return null
+        if (response.status === 401 || response.status === 403) {
+          return null;
+        }
+        const error = await response.json();
+        throw new Error(error.message || "Failed to fetch user profile");
+      }
+      return response.json();
+    },
+    enabled: !!user // Only run this query when user is logged in
   });
 
   // Loading state
@@ -116,6 +140,69 @@ export function RestaurantGrid({
         return savedMap.has(`${restaurant.id}-${branchIndex}`);
       })
     }));
+  } else if (savedRestaurants && userProfile) {
+    // When not in saved-only mode, sort restaurants by priority:
+    // 1. Saved restaurants first
+    // 2. Restaurants in user's city
+    // 3. Restaurants with user's preferred cuisines
+
+    // Create a map of saved restaurant IDs and branch indexes for quick lookup
+    const savedMap = new Map();
+    savedRestaurants.forEach(saved => {
+      // Use both restaurant ID and branch index as the key
+      savedMap.set(`${saved.restaurantId}-${saved.branchIndex}`, true);
+    });
+
+    console.log("DEBUG - Saved restaurants:", savedRestaurants);
+    console.log("DEBUG - Saved map:", [...savedMap.entries()]);
+    console.log("DEBUG - User profile:", userProfile);
+
+    const userCity = userProfile.city;
+    const userCuisines = userProfile.favoriteCuisines || [];
+
+    console.log("DEBUG - User city:", userCity);
+    console.log("DEBUG - User cuisines:", userCuisines);
+    console.log("DEBUG - Restaurants before sorting:", displayedRestaurants.map(r => ({ id: r.id, name: r.name })));
+
+    // Sort restaurants based on priority
+    displayedRestaurants = [...displayedRestaurants].sort((a, b) => {
+      // Check if any branch of restaurant is saved
+      const aHasSavedBranch = a.branches.some((_, branchIndex) => savedMap.has(`${a.id}-${branchIndex}`));
+      const bHasSavedBranch = b.branches.some((_, branchIndex) => savedMap.has(`${b.id}-${branchIndex}`));
+
+      console.log(`DEBUG - Comparing restaurants: ${a.id} (${a.name}) saved: ${aHasSavedBranch} vs ${b.id} (${b.name}) saved: ${bHasSavedBranch}`);
+
+      // If one has a saved branch and the other doesn't, prioritize the one with the saved branch
+      if (aHasSavedBranch && !bHasSavedBranch) return -1;
+      if (!aHasSavedBranch && bHasSavedBranch) return 1;
+
+      // If both have saved branches or both don't, check city
+      const aInUserCity = a.branches.some(branch => branch.city === userCity);
+      const bInUserCity = b.branches.some(branch => branch.city === userCity);
+
+      console.log(`DEBUG - City match: ${a.id} (${a.name}) in user city: ${aInUserCity} vs ${b.id} (${b.name}) in user city: ${bInUserCity}`);
+
+      // If one is in user's city and the other isn't, prioritize the one in user's city
+      if (aInUserCity && !bInUserCity) return -1;
+      if (!aInUserCity && bInUserCity) return 1;
+
+      // If both are in user's city or both are not, check cuisines
+      const aCuisine = a.profile?.cuisine || '';
+      const bCuisine = b.profile?.cuisine || '';
+      const aHasUserCuisine = userCuisines.includes(aCuisine);
+      const bHasUserCuisine = userCuisines.includes(bCuisine);
+
+      console.log(`DEBUG - Cuisine match: ${a.id} (${a.name}) cuisine: ${aCuisine} has user cuisine: ${aHasUserCuisine} vs ${b.id} (${b.name}) cuisine: ${bCuisine} has user cuisine: ${bHasUserCuisine}`);
+
+      // If one has user's cuisine and the other doesn't, prioritize the one with user's cuisine
+      if (aHasUserCuisine && !bHasUserCuisine) return -1;
+      if (!aHasUserCuisine && bHasUserCuisine) return 1;
+
+      // If all criteria are equal, maintain original order
+      return 0;
+    });
+
+    console.log("DEBUG - Restaurants after sorting:", displayedRestaurants.map(r => ({ id: r.id, name: r.name })));
   }
 
   if (!displayedRestaurants?.length) {

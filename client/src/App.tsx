@@ -17,6 +17,7 @@ import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
 import RestaurantForgotPasswordPage from "@/pages/restaurant/forgot-password";
 import RestaurantResetPasswordPage from "@/pages/restaurant/reset-password";
+import ProfilePage from "@/pages/profile-page";
 import { ProtectedRoute } from "./lib/protected-route";
 import { ProtectedRestaurantRoute } from "./lib/protected-restaurant-route";
 
@@ -40,6 +41,7 @@ function Router() {
         <ProtectedRoute path="/" component={HomePage} />
         <ProtectedRoute path="/restaurant/:id" component={RestaurantPage} />
         <ProtectedRoute path="/bookings" component={UserBookings} />
+        <ProtectedRoute path="/profile" component={ProfilePage} />
         <Route component={NotFound} />
       </Switch>
     </ErrorBoundary>

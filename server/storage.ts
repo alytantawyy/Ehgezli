@@ -30,6 +30,14 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;  // Find a user by their ID
   getUserByEmail(email: string): Promise<User | undefined>;  // Find a user by their email
   createUser(user: InsertUser): Promise<User>;  // Create a new user
+  getUserById(id: number): Promise<User | undefined>;  // Get a user by their ID
+  updateUserProfile(userId: number, profileData: { 
+    firstName: string; 
+    lastName: string; 
+    city: string; 
+    gender: string; 
+    favoriteCuisines: string[] 
+  }): Promise<void>;  // Update a user's profile information
 
   // Restaurant operations
   getRestaurants(filters?: { 
@@ -935,47 +943,48 @@ export class DatabaseStorage implements IStorage {
    * Get detailed restaurant data for saved restaurants
    */
   async getDetailedRestaurantData(restaurantId: number): Promise<RestaurantAuth & { profile?: RestaurantProfile } | undefined> {
-    const [restaurantData] = await db
-      .select({
-        id: restaurantAuth.id,
-        email: restaurantAuth.email,
-        name: restaurantAuth.name,
-        about: restaurantProfiles.about,
-        description: restaurantProfiles.description,
-        cuisine: restaurantProfiles.cuisine,
-        priceRange: restaurantProfiles.priceRange,
-        logo: restaurantProfiles.logo,
-        isProfileComplete: restaurantProfiles.isProfileComplete,
-        createdAt: restaurantProfiles.createdAt,
-        updatedAt: restaurantProfiles.updatedAt
-      })
-      .from(restaurantAuth)
-      .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId))
-      .where(eq(restaurantAuth.id, restaurantId));
+    try {
+      // First, get the restaurant auth data
+      const [restaurantData] = await db
+        .select()
+        .from(restaurantAuth)
+        .leftJoin(restaurantProfiles, eq(restaurantAuth.id, restaurantProfiles.restaurantId))
+        .where(eq(restaurantAuth.id, restaurantId));
 
-    if (!restaurantData) return undefined;
-
-    const { about, description, cuisine, priceRange, logo, isProfileComplete, createdAt: profileCreatedAt, updatedAt, ...auth } = restaurantData;
-
-    const now = new Date();
-    return {
-      ...auth,
-      password: "",  // We don't want to expose the password
-      verified: false,  // Default to false if not present
-      createdAt: now,  // Use current date since auth.createdAt doesn't exist
-      profile: {
-        id: restaurantId,
-        restaurantId,
-        about: about || "",
-        description: description || "",
-        cuisine: cuisine || "",
-        priceRange: priceRange || "$",
-        logo: logo || "",
-        isProfileComplete: isProfileComplete || false,
-        createdAt: profileCreatedAt || now,
-        updatedAt: updatedAt || now
+      if (!restaurantData) {
+        return undefined;
       }
-    };
+
+      // Extract profile data from the joined result
+      const auth = restaurantData.restaurant_auth;
+      const profile = restaurantData.restaurant_profiles;
+
+      const now = new Date();
+      return {
+        id: auth.id,
+        email: auth.email,
+        password: "",  // We don't want to expose the password
+        name: auth.name,
+        verified: auth.verified,
+        createdAt: auth.createdAt,
+        updatedAt: auth.updatedAt,
+        profile: profile ? {
+          id: profile.id,
+          restaurantId: profile.restaurantId,
+          about: profile.about,
+          description: profile.description,
+          cuisine: profile.cuisine,
+          priceRange: profile.priceRange,
+          logo: profile.logo,
+          isProfileComplete: profile.isProfileComplete,
+          createdAt: profile.createdAt,
+          updatedAt: profile.updatedAt
+        } : undefined
+      };
+    } catch (error) {
+      console.error("Error getting detailed restaurant data:", error);
+      return undefined;
+    }
   }
 
   // Helper function to get default time slots based on current time
@@ -1066,6 +1075,7 @@ export class DatabaseStorage implements IStorage {
         password: restaurantAuth.password,
         verified: restaurantAuth.verified,
         createdAt: restaurantAuth.createdAt,
+        updatedAt: restaurantAuth.updatedAt,
         profile: restaurantProfiles
       })
       .from(restaurantAuth)
@@ -1082,6 +1092,7 @@ export class DatabaseStorage implements IStorage {
       // Ensure all required fields have values
       verified: restaurant.verified ?? false,
       createdAt: restaurant.createdAt ?? new Date(),
+      updatedAt: restaurant.updatedAt ?? new Date(),
       password: restaurant.password ?? "",
       // Transform null profile to undefined and ensure all profile fields
       profile: restaurant.profile ? {
@@ -1349,6 +1360,7 @@ export class DatabaseStorage implements IStorage {
 
         return {
           ...restaurant,
+          updatedAt: restaurant.createdAt || new Date(), // Add updatedAt field using createdAt as fallback
           branches: branchesWithSlots
         };
       })
@@ -1429,6 +1441,46 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error getting saved restaurants:', error);
       return [];
+    }
+  }
+
+  /**
+   * Get a user by their ID
+   */
+  async getUserById(id: number): Promise<User | undefined> {
+    try {
+      const result = await db.query.users.findFirst({
+        where: eq(users.id, id),
+      });
+      return result;
+    } catch (error) {
+      console.error("Error fetching user by ID:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update a user's profile information
+   */
+  async updateUserProfile(userId: number, profileData: { 
+    firstName: string; 
+    lastName: string; 
+    city: string; 
+    gender: string; 
+    favoriteCuisines: string[] 
+  }): Promise<void> {
+    try {
+      await db.update(users).set({
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        city: profileData.city,
+        gender: profileData.gender,
+        favoriteCuisines: profileData.favoriteCuisines,
+        updatedAt: new Date(),
+      }).where(eq(users.id, userId));
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      throw error;
     }
   }
 }

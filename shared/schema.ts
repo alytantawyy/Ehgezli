@@ -31,6 +31,8 @@ export const users = pgTable("users", {
   birthday: timestamp("birthday").notNull(),                      // User's birthday
   city: text("city").notNull(),                                  // User's city
   favoriteCuisines: text("favorite_cuisines").array().notNull(), // Array of favorite food types
+  createdAt: timestamp("created_at").notNull().defaultNow(),     // Account creation date
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),     // Last update date
 });
 
 // ==================== Password Reset Tables ====================
@@ -89,6 +91,7 @@ export const restaurantAuth = pgTable("restaurant_auth", {
   name: text("name").notNull(),                               // Restaurant name
   verified: boolean("verified").notNull().default(false),     // If email is verified
   createdAt: timestamp("created_at").notNull().defaultNow(), // Account creation date
+  updatedAt: timestamp("updated_at").notNull().defaultNow(), // Last update date
 });
 
 // Restaurant profile information
@@ -176,7 +179,8 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export const insertRestaurantAuthSchema = createInsertSchema(restaurantAuth).omit({
   id: true,
   verified: true,
-  createdAt: true
+  createdAt: true,
+  updatedAt: true
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
   email: z.string().email("Invalid email format")

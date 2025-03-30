@@ -43,6 +43,7 @@ export function RestaurantCard({
     const checkIfSaved = async () => {
       try {
         if (user) {
+          // Use restaurant.id directly since Restaurant extends RestaurantAuth
           const response = await apiRequest<{ saved: boolean }>("GET", `/api/saved-restaurants/${restaurant.id}/${branchIndex}`);
           setSavedStatus(response.saved);
         }
@@ -60,6 +61,7 @@ export function RestaurantCard({
     
     try {
       if (savedStatus) {
+        // Use restaurant.id directly
         await apiRequest("DELETE", `/api/saved-restaurants/${restaurant.id}/${branchIndex}`);
         setSavedStatus(false);
         toast({
@@ -68,6 +70,7 @@ export function RestaurantCard({
         });
       } else {
         await apiRequest("POST", "/api/saved-restaurants", {
+          // Use restaurant.id directly
           restaurantId: restaurant.id,
           branchIndex
         });
