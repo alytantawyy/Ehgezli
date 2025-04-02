@@ -55,18 +55,23 @@ async function seed() {
   await db.execute(sql`DELETE FROM session`);
   console.log('✅ Cleared existing data');
 
-  // Available cuisines
+  // Available cuisines - matching the list from home-page.tsx
   const cuisines = [
-    'Italian', 'Japanese', 'Chinese', 'Indian', 'Mexican', 'Lebanese', 
-    'Egyptian', 'American', 'French', 'Thai', 'Mediterranean', 'Greek', 
-    'Turkish', 'Spanish', 'Korean', 'Vietnamese'
+    'American',
+    'Egyptian',
+    'Italian',
+    'Japanese',
+    'Chinese',
+    'Indian',
+    'Mexican',
+    'French',
+    'Thai',
+    'Mediterranean',
+    'Middle Eastern'
   ];
 
-  // Available cities
-  const cities = [
-    'Cairo', 'Alexandria', 'Giza', 'Sharm El Sheikh', 'Hurghada', 
-    'Luxor', 'Aswan', 'Port Said', 'Suez', 'Ismailia'
-  ];
+  // Available cities - only Cairo and Alexandria
+  const cities = ['Cairo', 'Alexandria'];
 
   // Create test users (10 users)
   const userEntries = await Promise.all([
@@ -127,7 +132,7 @@ async function seed() {
       password: await hashPassword('password123'),
       gender: 'male',
       birthday: new Date('1985-07-22'),
-      city: 'Giza',
+      city: 'Cairo',
       favoriteCuisines: ['Egyptian', 'Mediterranean', 'Greek'],
       createdAt: new Date(),
       updatedAt: new Date()
@@ -139,7 +144,7 @@ async function seed() {
       password: await hashPassword('password123'),
       gender: 'female',
       birthday: new Date('1993-09-05'),
-      city: 'Sharm El Sheikh',
+      city: 'Alexandria',
       favoriteCuisines: ['Seafood', 'Italian', 'French'],
       createdAt: new Date(),
       updatedAt: new Date()
@@ -151,7 +156,7 @@ async function seed() {
       password: await hashPassword('password123'),
       gender: 'male',
       birthday: new Date('1991-12-15'),
-      city: 'Hurghada',
+      city: 'Cairo',
       favoriteCuisines: ['Mediterranean', 'Seafood', 'Turkish'],
       createdAt: new Date(),
       updatedAt: new Date()
@@ -163,7 +168,7 @@ async function seed() {
       password: await hashPassword('password123'),
       gender: 'female',
       birthday: new Date('1989-04-30'),
-      city: 'Luxor',
+      city: 'Alexandria',
       favoriteCuisines: ['Egyptian', 'Middle Eastern', 'Indian'],
       createdAt: new Date(),
       updatedAt: new Date()
@@ -175,7 +180,7 @@ async function seed() {
       password: await hashPassword('password123'),
       gender: 'male',
       birthday: new Date('1987-08-12'),
-      city: 'Aswan',
+      city: 'Cairo',
       favoriteCuisines: ['Nubian', 'Egyptian', 'African'],
       createdAt: new Date(),
       updatedAt: new Date()
@@ -187,7 +192,7 @@ async function seed() {
       password: await hashPassword('password123'),
       gender: 'female',
       birthday: new Date('1994-02-28'),
-      city: 'Cairo',
+      city: 'Alexandria',
       favoriteCuisines: ['Lebanese', 'Syrian', 'Turkish'],
       createdAt: new Date(),
       updatedAt: new Date()
@@ -214,7 +219,7 @@ async function seed() {
         description: 'Our chefs bring the flavors of Italy to your table with fresh ingredients and traditional recipes.',
         cuisine: 'Italian',
         priceRange: '$$$',
-        logo: 'https://example.com/italiano-logo.png',
+        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
         isProfileComplete: true
       },
       branches: [
@@ -250,7 +255,7 @@ async function seed() {
         description: 'Sakura offers an authentic Japanese dining experience with sushi, sashimi, and teppanyaki prepared by master chefs.',
         cuisine: 'Japanese',
         priceRange: '$$$$',
-        logo: 'https://example.com/sakura-logo.png',
+        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
         isProfileComplete: true
       },
       branches: [
@@ -276,9 +281,9 @@ async function seed() {
       profile: {
         about: 'Authentic Lebanese cuisine and mezze.',
         description: 'Lebanese House serves traditional mezze, grilled meats, and freshly baked bread in a warm, welcoming atmosphere.',
-        cuisine: 'Lebanese',
+        cuisine: 'Middle Eastern',
         priceRange: '$$',
-        logo: 'https://example.com/lebanese-logo.png',
+        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
         isProfileComplete: true
       },
       branches: [
@@ -315,7 +320,7 @@ async function seed() {
         description: 'Experience the rich and diverse flavors of India with our carefully crafted dishes using traditional spices and cooking methods.',
         cuisine: 'Indian',
         priceRange: '$$',
-        logo: 'https://example.com/spice-logo.png',
+        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
         isProfileComplete: true
       },
       branches: [
@@ -343,7 +348,7 @@ async function seed() {
         description: 'Golden Dragon offers a wide range of traditional Chinese dishes from different regions of China, prepared by expert chefs.',
         cuisine: 'Chinese',
         priceRange: '$$$',
-        logo: 'https://example.com/dragon-logo.png',
+        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
         isProfileComplete: true
       },
       branches: [
@@ -356,8 +361,8 @@ async function seed() {
           closingTime: '23:00'
         },
         {
-          address: '123 Pyramids Road',
-          city: 'Giza',
+          address: '123 Downtown Road',
+          city: 'Cairo',
           tablesCount: 25,
           seatsCount: 100,
           openingTime: '12:00',
@@ -379,7 +384,7 @@ async function seed() {
         description: 'Enjoy authentic Egyptian dishes while taking in breathtaking views of the Nile River. Our menu features classic recipes passed down through generations.',
         cuisine: 'Egyptian',
         priceRange: '$$$',
-        logo: 'https://example.com/nile-logo.png',
+        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
         isProfileComplete: true
       },
       branches: [
@@ -392,8 +397,8 @@ async function seed() {
           closingTime: '01:00'
         },
         {
-          address: '89 Luxor Corniche',
-          city: 'Luxor',
+          address: '89 Alexandria Corniche',
+          city: 'Alexandria',
           tablesCount: 25,
           seatsCount: 100,
           openingTime: '10:00',
@@ -413,23 +418,23 @@ async function seed() {
       profile: {
         about: 'Fresh seafood caught daily from the Red Sea.',
         description: 'We serve the freshest seafood from the Red Sea, prepared using traditional recipes that highlight the natural flavors of our catch.',
-        cuisine: 'Seafood',
+        cuisine: 'Mediterranean',
         priceRange: '$$$$',
-        logo: 'https://example.com/seafood-logo.png',
+        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
         isProfileComplete: true
       },
       branches: [
         {
           address: '34 Beach Road',
-          city: 'Hurghada',
+          city: 'Alexandria',
           tablesCount: 18,
           seatsCount: 72,
           openingTime: '12:00',
           closingTime: '23:00'
         },
         {
-          address: '67 Naama Bay',
-          city: 'Sharm El Sheikh',
+          address: '67 Nile Bay',
+          city: 'Cairo',
           tablesCount: 22,
           seatsCount: 88,
           openingTime: '12:00',
@@ -451,7 +456,7 @@ async function seed() {
         description: 'Our bistro brings authentic French cuisine to Cairo, with a menu featuring classic dishes prepared with a modern twist by our French-trained chefs.',
         cuisine: 'French',
         priceRange: '$$$',
-        logo: 'https://example.com/bistro-logo.png',
+        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
         isProfileComplete: true
       },
       branches: [
