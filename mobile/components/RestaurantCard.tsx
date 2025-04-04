@@ -1,13 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
 import { RelativePathString, useRouter } from 'expo-router';
-import { BranchWithAvailability, RestaurantWithAvailability } from '../shared/types';
 import { formatTimeWithAMPM } from '../shared/utils/time-slots';
-import { getSavedStatus, toggleSavedStatus } from '../shared/api/client';
+import { getSavedStatus, toggleSavedStatus, Restaurant, Branch } from '../shared/api/client';
 import { useAuth } from '../context/auth-context';
 import Colors from '../constants/Colors';
 import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+// Define extended types for the restaurant data
+interface RestaurantWithAvailability extends Restaurant {
+  profile?: {
+    logo?: string;
+    cuisine?: string;
+    priceRange?: string;
+  };
+}
+
+// Define time slot interface
+interface TimeSlot {
+  time: string;
+}
+
+// Define a custom branch type that doesn't extend Branch to avoid type conflicts
+interface BranchWithAvailability {
+  id: number;
+  location: string;
+  address: string;
+  city?: string;
+  slots: TimeSlot[];
+}
 
 interface RestaurantCardProps {
   restaurant: RestaurantWithAvailability;
@@ -32,13 +54,21 @@ export function RestaurantCard({
   const [isSaved, setIsSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const branch = restaurant.branches[branchIndex];
+  // Transform the branch data to include the expected fields
+  const originalBranch = restaurant.branches[branchIndex];
+  const branch: BranchWithAvailability = {
+    id: originalBranch.id,
+    location: originalBranch.location,
+    address: originalBranch.address,
+    city: 'Cairo', // Default city or get from elsewhere if available
+    slots: originalBranch.slots.map(timeStr => ({ time: timeStr }))
+  };
   
   // Check if restaurant is saved when component mounts
   useEffect(() => {
     const checkSavedStatus = async () => {
       try {
-        const { saved } = await getSavedStatus(restaurant.id, branchIndex);
+        const saved = await getSavedStatus(restaurant.id);
         setIsSaved(saved);
       } catch (error) {
         console.error('Error checking saved status:', error);
@@ -51,7 +81,7 @@ export function RestaurantCard({
   const handleSaveToggle = async () => {
     try {
       setIsLoading(true);
-      const { saved } = await toggleSavedStatus(restaurant.id, branch.id);
+      const saved = await toggleSavedStatus(restaurant.id);
       setIsSaved(saved);
     } catch (error: any) {
       // Handle authentication errors

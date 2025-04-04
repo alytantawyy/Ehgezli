@@ -2,14 +2,35 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getRestaurantById, createBooking } from '@/shared/api/client';
+import { getRestaurantById, createBooking, Restaurant, Branch } from '@/shared/api/client';
 import { formatTimeWithAMPM } from '@/shared/utils/time-slots';
 import { EhgezliButton } from '@/components/EhgezliButton';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from 'react-native';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { useAuth } from '@/context/auth-context';
+
+// Define extended types for the restaurant data that includes profile information
+interface RestaurantWithProfile extends Restaurant {
+  profile?: {
+    logo?: string;
+    cuisine?: string;
+    priceRange?: string;
+    about?: string;
+  };
+}
+
+// Define time slot interface for type safety
+interface TimeSlot {
+  time: string;
+}
+
+// Extend Branch type to include city
+interface BranchWithCity extends Omit<Branch, 'slots'> {
+  city?: string;
+  slots: (string | TimeSlot)[];
+}
 
 export default function RestaurantDetailScreen() {
   const { id, date, time, partySize, branchId } = useLocalSearchParams<{
@@ -28,7 +49,7 @@ export default function RestaurantDetailScreen() {
   const [selectedTime, setSelectedTime] = useState(time || '');
   
   // Query restaurant details
-  const { data: restaurant, isLoading, error } = useQuery({
+  const { data: restaurant, isLoading, error } = useQuery<RestaurantWithProfile | null>({ 
     queryKey: ['restaurant', id],
     queryFn: () => getRestaurantById(Number(id)),
   });
@@ -49,7 +70,7 @@ export default function RestaurantDetailScreen() {
   });
   
   // Find the selected branch
-  const selectedBranch = restaurant?.branches.find(branch => branch.id === Number(branchId));
+  const selectedBranch = restaurant?.branches.find((branch) => branch.id === Number(branchId)) as unknown as BranchWithCity | undefined;
   
   const handleBooking = () => {
     if (!user) {
@@ -163,26 +184,30 @@ export default function RestaurantDetailScreen() {
         
         {selectedBranch?.slots && selectedBranch.slots.length > 0 ? (
           <View style={styles.timeSlots}>
-            {selectedBranch.slots.map((slot, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.timeSlot,
-                  selectedTime === slot.time && { backgroundColor: colors.primary },
-                  selectedTime !== slot.time && { borderColor: colors.border, borderWidth: 1 }
-                ]}
-                onPress={() => setSelectedTime(slot.time)}
-              >
-                <Text
+            {selectedBranch.slots.map((slot, index) => {
+              // Handle both string and TimeSlot types
+              const timeValue = typeof slot === 'string' ? slot : slot.time;
+              return (
+                <TouchableOpacity
+                  key={index}
                   style={[
-                    styles.timeSlotText,
-                    { color: selectedTime === slot.time ? '#fff' : colors.text }
+                    styles.timeSlot,
+                    selectedTime === timeValue && { backgroundColor: colors.primary },
+                    selectedTime !== timeValue && { borderColor: colors.border, borderWidth: 1 }
                   ]}
+                  onPress={() => setSelectedTime(timeValue)}
                 >
-                  {formatTimeWithAMPM(slot.time)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.timeSlotText,
+                      { color: selectedTime === timeValue ? '#fff' : colors.text }
+                    ]}
+                  >
+                    {formatTimeWithAMPM(timeValue)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         ) : (
           <Text style={[styles.noTimeSlotsText, { color: colors.text }]}>

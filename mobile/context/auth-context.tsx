@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { User } from '../shared/types';
-import { getCurrentUser, loginUser, logoutUser, registerUser } from '../shared/api/client';
+import { getCurrentUser, loginUser, logoutUser, registerUser, User } from '../shared/api/client';
 import * as SecureStore from 'expo-secure-store';
 
 interface AuthContextType {
@@ -41,8 +40,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const userData = await loginUser(email, password);
-      setUser(userData);
+      const response = await loginUser(email, password);
+      setUser(response.user);
     } catch (err) {
       setError('Invalid email or password');
       throw err;
@@ -55,8 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const newUser = await registerUser(userData);
-      setUser(newUser);
+      const response = await registerUser(userData);
+      setUser(response.user);
     } catch (err) {
       setError('Registration failed. Please try again.');
       throw err;

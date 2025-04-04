@@ -347,9 +347,6 @@ const styles = StyleSheet.create<Styles>({
   imageContainer: {
     flex: 1,
     backgroundColor: '#333',
-    backgroundImage: 'url(https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=1000)',
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
   },
   imageOverlay: {
     flex: 1,
