@@ -5,6 +5,7 @@ import "dotenv/config";
 // express: Web framework for Node.js
 // Request, Response, NextFunction: Types for Express request handling
 import express, { type Request, Response, NextFunction } from "express";
+import cors from 'cors';
 
 // Import our custom functions from other files
 import { registerRoutes } from "./routes";        // Function to set up all API routes
@@ -13,6 +14,23 @@ import { setupEmailTransporter } from "./email";  // Email service setup
 
 // Create a new Express application
 const app = express();
+
+// Configure CORS to allow requests from mobile app
+app.use(cors({
+  origin: [
+    'http://localhost:8081', 
+    'http://localhost:19006', 
+    'http://localhost:19000', 
+    'http://localhost:19001', 
+    'http://localhost:19002', 
+    'exp://localhost:8081',
+    'http://localhost:3000',
+    'http://localhost:8080'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 
 // Middleware to parse JSON bodies
 // This allows us to read JSON data sent in POST requests

@@ -101,7 +101,12 @@ export interface IStorage {
   findRestaurantsWithAvailability(
     date?: Date,
     partySize?: number,
-    filters?: { city?: string; cuisine?: string; priceRange?: string; search?: string },
+    filters?: { 
+      city?: string; 
+      cuisine?: string; 
+      priceRange?: string; 
+      search?: string;
+    },
     requestedTime?: string
   ): Promise<(RestaurantAuth & { 
     profile?: RestaurantProfile;
@@ -109,6 +114,18 @@ export interface IStorage {
       availableSlots: Array<{ time: string; seats: number }> 
     })[];
   })[]>;
+
+  // Get a user by their ID
+  getUserById(id: number): Promise<User | undefined>;
+
+  // Update a user's profile information
+  updateUserProfile(userId: number, profileData: { 
+    firstName: string; 
+    lastName: string; 
+    city: string; 
+    gender: string; 
+    favoriteCuisines: string[] 
+  }): Promise<void>;
 }
 
 // This class implements all the database operations defined in IStorage
@@ -1017,7 +1034,12 @@ export class DatabaseStorage implements IStorage {
   async findRestaurantsWithAvailability(
     date?: Date,
     partySize?: number,
-    filters?: { city?: string; cuisine?: string; priceRange?: string; search?: string },
+    filters?: { 
+      city?: string; 
+      cuisine?: string; 
+      priceRange?: string; 
+      search?: string;
+    },
     requestedTime?: string
   ): Promise<(RestaurantAuth & { 
     profile?: RestaurantProfile;
