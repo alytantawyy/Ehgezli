@@ -5,6 +5,7 @@ import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '../context/auth-context';
+import { Asset } from 'expo-asset';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -17,11 +18,45 @@ SplashScreen.preventAutoHideAsync();
 // Create a client
 const queryClient = new QueryClient();
 
+// Preload assets function
+const preloadAssets = async () => {
+  const images = [
+    require('../assets/icon.png'),
+    require('../assets/adaptive-icon.png'),
+    require('../assets/splash-icon.png'),
+    require('../assets/favicon.png'),
+  ];
+  
+  // Preload all images
+  const imageAssets = images.map(image => Asset.fromModule(image).downloadAsync());
+  
+  await Promise.all([...imageAssets]);
+};
+
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
+
+  // State to track if assets are loaded
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
+
+  // Load assets
+  useEffect(() => {
+    async function prepare() {
+      try {
+        await preloadAssets();
+        setAssetsLoaded(true);
+      } catch (e) {
+        console.warn('Error preloading assets:', e);
+        // Continue anyway
+        setAssetsLoaded(true);
+      }
+    }
+
+    prepare();
+  }, []);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -29,12 +64,12 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
+    if (loaded && assetsLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, assetsLoaded]);
 
-  if (!loaded) {
+  if (!loaded || !assetsLoaded) {
     return null;
   }
 
