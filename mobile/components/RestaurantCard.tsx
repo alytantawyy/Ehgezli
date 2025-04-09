@@ -9,7 +9,15 @@ import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Define extended types for the restaurant data
-interface RestaurantWithAvailability extends Restaurant {
+interface RestaurantWithAvailability {
+  id: number;
+  name: string;
+  description?: string;
+  cuisine?: string;
+  priceRange?: string;
+  rating?: number;
+  imageUrl?: string;
+  branches: any[];
   profile?: {
     logo?: string;
     cuisine?: string;
@@ -61,14 +69,14 @@ export function RestaurantCard({
     location: originalBranch.location,
     address: originalBranch.address,
     city: 'Cairo', // Default city or get from elsewhere if available
-    slots: originalBranch.slots.map(timeStr => ({ time: timeStr }))
+    slots: originalBranch.slots.map((timeStr: any) => ({ time: timeStr }))
   };
   
   // Check if restaurant is saved when component mounts
   useEffect(() => {
     const checkSavedStatus = async () => {
       try {
-        const saved = await getSavedStatus(restaurant.id);
+        const saved = await getSavedStatus(restaurant.id, branchIndex);
         setIsSaved(saved);
       } catch (error) {
         console.error('Error checking saved status:', error);
@@ -81,7 +89,7 @@ export function RestaurantCard({
   const handleSaveToggle = async () => {
     try {
       setIsLoading(true);
-      const saved = await toggleSavedStatus(restaurant.id);
+      const saved = await toggleSavedStatus(restaurant.id, branchIndex);
       setIsSaved(saved);
     } catch (error: any) {
       // Handle authentication errors

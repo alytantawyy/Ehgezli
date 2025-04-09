@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-nativ
 import { useQuery } from '@tanstack/react-query';
 import { RestaurantCard } from './RestaurantCard';
 import { RestaurantWithAvailability, BranchWithAvailability } from '../shared/types';
-import { getRestaurants, getSavedRestaurants } from '../shared/api/client';
+import { getRestaurants, getSavedRestaurants, SavedRestaurantItem } from '../shared/api/client';
 
 interface RestaurantListProps {
   searchQuery?: string;
@@ -37,7 +37,64 @@ export function RestaurantList({
       
       // If showSavedOnly is true, return saved restaurants only
       if (showSavedOnly) {
-        return getSavedRestaurants();
+        const savedData = await getSavedRestaurants();
+        console.log('Raw saved restaurants data:', savedData);
+        
+        if (!savedData || savedData.length === 0) {
+          console.log('No saved restaurants found');
+          return [];
+        }
+        
+        // Transform the saved restaurants data to match the expected format
+        const transformedData = savedData.map((item: SavedRestaurantItem) => {
+          console.log(`Processing saved restaurant: ${item.restaurant?.name || 'unnamed'}, ID: ${item.restaurantId}`);
+          
+          // Extract the restaurant object from the saved item
+          const restaurant = item.restaurant as unknown as RestaurantWithAvailability;
+          
+          // Copy profile properties to the top level
+          if (restaurant.profile) {
+            console.log(`Restaurant profile: ${JSON.stringify(restaurant.profile)}`);
+            restaurant.cuisine = restaurant.profile.cuisine;
+            restaurant.priceRange = restaurant.profile.priceRange;
+            restaurant.description = restaurant.profile.description;
+            restaurant.imageUrl = restaurant.profile.logo;
+            restaurant.rating = restaurant.profile.rating;
+          } else {
+            console.log(`No profile found for restaurant ${restaurant.name}`);
+          }
+          
+          // Ensure restaurant has branches array (even if empty)
+          if (!restaurant.branches) {
+            console.log(`No branches found for restaurant ${restaurant.name}, creating empty array`);
+            restaurant.branches = [];
+          } else {
+            console.log(`Restaurant ${restaurant.name} has ${restaurant.branches.length} branches`);
+          }
+          
+          // Ensure each branch has slots array (even if empty)
+          restaurant.branches.forEach((branch, index) => {
+            if (!branch.slots) {
+              console.log(`Branch ${index} of restaurant ${restaurant.name} has no slots, creating empty array`);
+              branch.slots = [];
+            } else {
+              console.log(`Branch ${index} of restaurant ${restaurant.name} has ${branch.slots.length} slots`);
+            }
+          });
+          
+          // Mark this restaurant as saved
+          restaurant.isSaved = true;
+          
+          // Make sure we're using the restaurant ID, not the saved record ID
+          restaurant.id = restaurant.id || item.restaurantId;
+          
+          console.log(`Transformed restaurant: ${restaurant.name}, branches: ${restaurant.branches.length}`);
+          return restaurant;
+        });
+        
+        console.log(`Total transformed restaurants: ${transformedData.length}`);
+        console.log('Transformed saved restaurants:', transformedData);
+        return transformedData;
       }
       
       const params: Record<string, any> = {
@@ -54,7 +111,7 @@ export function RestaurantList({
       
       console.log('[RestaurantList] Fetching with params:', params);
       
-      return getRestaurants(params);
+      return getRestaurants() as unknown as RestaurantWithAvailability[];
     },
     staleTime: 0, // Ensure data is always considered stale and will refetch
     refetchOnWindowFocus: false, // Prevent refetching when window regains focus
@@ -67,7 +124,7 @@ export function RestaurantList({
       try {
         // Use the existing client function which handles the API call properly
         // and now marks branches with isSaved=true
-        return await getSavedRestaurants();
+        return (await getSavedRestaurants()) as unknown as RestaurantWithAvailability[];
       } catch (error) {
         console.error('Error fetching saved restaurants:', error);
         return [];
@@ -88,11 +145,19 @@ export function RestaurantList({
   
   // No restaurants found
   if (!restaurants || restaurants.length === 0) {
+    console.log('No restaurants to display. showSavedOnly:', showSavedOnly, 'restaurants array:', restaurants);
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>
-          No restaurants available for the selected criteria
+          {showSavedOnly 
+            ? "You haven't saved any restaurants yet." 
+            : "No restaurants found matching your criteria."}
         </Text>
+        {showSavedOnly && (
+          <Text style={styles.emptyStateSubtext}>
+            Browse restaurants and tap the star icon to save your favorites.
+          </Text>
+        )}
       </View>
     );
   }
@@ -116,65 +181,94 @@ export function RestaurantList({
     });
   }
   
-  // Flatten the restaurants into branches
-  restaurants.forEach(restaurant => {
-    if (!restaurant.branches) {
-      console.log(`[RestaurantList] Restaurant ${restaurant.id} has no branches`);
-      return;
-    }
-    
-    console.log(`[RestaurantList] Processing restaurant ${restaurant.id} with ${restaurant.branches.length} branches`);
-    
-    restaurant.branches.forEach((branch, branchIndex) => {
-      // Ensure branch has required properties
-      if (!branch) {
-        console.log(`[RestaurantList] Branch ${branchIndex} of restaurant ${restaurant.id} is undefined`);
+  // Process the restaurants data
+  if (restaurants && restaurants.length > 0) {
+    restaurants.forEach(restaurant => {
+      console.log(`[RestaurantList] Restaurant ${restaurant.id} has ${restaurant.branches ? restaurant.branches.length : 0} branches`);
+      
+      // Skip if no branches
+      if (!restaurant.branches || restaurant.branches.length === 0) {
         return;
       }
       
-      // Ensure branch has slots array (even if empty)
-      if (!branch.slots) {
-        console.log(`[RestaurantList] Branch ${branchIndex} of restaurant ${restaurant.id} has no slots, initializing empty array`);
-        branch.slots = [];
-      }
-      
-      // If showSavedOnly is true, we already have only saved restaurants from the API
-      // Otherwise, check the savedMap
-      if (!showSavedOnly && savedMap.has(`${restaurant.id}-${branchIndex}`)) {
-        // Mark as saved for UI purposes
-        (branch as any).isSaved = true;
-      }
-      
-      allBranches.push({
-        restaurant,
-        branch,
-        branchIndex
+      // Process each branch
+      restaurant.branches.forEach((branch, branchIndex) => {
+        // Initialize slots array if it doesn't exist
+        if (!branch.slots) {
+          branch.slots = [];
+        }
+        
+        // Create a BranchWithAvailability object
+        const branchWithAvailability: BranchWithAvailability = {
+          id: branch.id,
+          location: branch.location,
+          address: branch.address,
+          city: branch.city || '',
+          slots: branch.slots.map((slot: any) => {
+            // Handle both string slots and object slots
+            if (typeof slot === 'string') {
+              return { time: slot, availableSeats: 0 }; // Default to 0 available seats
+            } else if (typeof slot === 'object') {
+              return { 
+                time: slot.time || '', 
+                availableSeats: typeof slot.availableSeats === 'number' ? slot.availableSeats : 0 
+              };
+            }
+            return { time: '', availableSeats: 0 }; // Fallback
+          }),
+          isSaved: branch.isSaved || false
+        };
+        
+        // If showSavedOnly is true, only include saved branches
+        if (showSavedOnly && !branch.isSaved && !restaurant.isSaved) {
+          return;
+        }
+        
+        // Otherwise, check the savedMap
+        if (!showSavedOnly && savedMap.has(`${restaurant.id}-${branchIndex}`)) {
+          // Mark as saved for UI purposes
+          branchWithAvailability.isSaved = true;
+        }
+        
+        allBranches.push({
+          restaurant,
+          branch: branchWithAvailability,
+          branchIndex
+        });
       });
     });
-  });
+  }
   
   console.log(`[RestaurantList] Total branches to display: ${allBranches.length}`);
   
   return (
-    <FlatList
-      data={allBranches}
-      keyExtractor={(item) => `${item.restaurant.id}-${item.branchIndex}`}
-      renderItem={({ item }) => (
-        <RestaurantCard
-          restaurant={item.restaurant}
-          branchIndex={item.branchIndex}
-          date={date.toISOString()}
-          time={time}
-          partySize={partySize}
-        />
-      )}
-      contentContainerStyle={styles.listContainer}
-      showsVerticalScrollIndicator={false}
-    />
+    <View style={styles.container}>
+      <FlatList
+        data={allBranches}
+        keyExtractor={(item) => `${item.restaurant.id}-${item.branchIndex}`}
+        renderItem={({ item }) => {
+          console.log(`Rendering restaurant: ${item.restaurant.name}, has branches: ${item.restaurant.branches?.length || 0}`);
+          return (
+            <RestaurantCard
+              restaurant={item.restaurant}
+              branchIndex={item.branchIndex}
+              date={date.toISOString()}
+              time={time}
+              partySize={partySize}
+            />
+          );
+        }}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -195,6 +289,12 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#666',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
     textAlign: 'center',
   },
   listContainer: {

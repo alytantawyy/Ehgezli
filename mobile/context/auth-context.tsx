@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { getCurrentUser, loginUser, logoutUser, registerUser, User } from '../shared/api/client';
-import * as SecureStore from 'expo-secure-store';
 
 interface AuthContextType {
   user: User | null;
@@ -40,8 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await loginUser(email, password);
-      setUser(response.user);
+      // This stores the token in SecureStore
+      await loginUser(email, password);
+      
+      // Now fetch the user data using the stored token
+      const userData = await getCurrentUser();
+      
+      // Set the user state with the fetched data
+      setUser(userData);
     } catch (err) {
       setError('Invalid email or password');
       throw err;

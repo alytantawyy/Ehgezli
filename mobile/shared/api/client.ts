@@ -44,6 +44,16 @@ export interface Booking {
   branchCity?: string;
 }
 
+// Define type for saved restaurant item
+export interface SavedRestaurantItem {
+  id: number;
+  branchIndex: number;
+  restaurantId: number;
+  userId: number;
+  createdAt: string;
+  restaurant: Restaurant;
+}
+
 // Base API URL - replace with your actual API endpoint
 const API_BASE_URL = 'http://localhost:4000';
 
@@ -228,7 +238,7 @@ export const updateUserProfile = async (profileData: {
 };
 
 // Saved restaurants functions
-export const getSavedRestaurants = async (): Promise<Restaurant[]> => {
+export const getSavedRestaurants = async (): Promise<SavedRestaurantItem[]> => {
   try {
     const token = await getAuthToken();
     if (!token) throw new Error('Authentication required');

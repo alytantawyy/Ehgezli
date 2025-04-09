@@ -15,6 +15,8 @@ export interface RestaurantProfile {
   about: string;
   priceRange: string; // "$", "$$", "$$$", or "$$$$"
   logo?: string;
+  description?: string;
+  rating?: number;
 }
 
 export interface RestaurantBranch {
@@ -36,7 +38,9 @@ export interface BranchWithAvailability {
   id: number;
   city: "Alexandria" | "Cairo";
   location?: string;
+  address?: string;
   slots: AvailableSlot[];
+  isSaved?: boolean;
 }
 
 export interface RestaurantWithAvailability {
@@ -45,6 +49,12 @@ export interface RestaurantWithAvailability {
   email?: string;
   profile?: RestaurantProfile;
   branches: BranchWithAvailability[];
+  isSaved?: boolean;
+  cuisine?: string;
+  priceRange?: string;
+  description?: string;
+  imageUrl?: string;
+  rating?: number;
 }
 
 export interface Booking {
