@@ -13,8 +13,9 @@ import { WebSocketServer } from 'ws';
 import WebSocket from 'ws';
 
 // === Authentication & Security ===
-import { setupAuth, hashPassword, cookieSettings } from "./auth";
+import { setupAuth, authenticateJWT, generateToken, hashPassword } from "./auth";
 import passport from 'passport';
+import jwt from 'jsonwebtoken';
 
 // === Database & Storage ===
 import { DatabaseStorage } from "./storage";
@@ -22,10 +23,6 @@ import { pool } from "./db";
 
 // === Utilities ===
 import { parseISO} from 'date-fns';
-
-// === Session Management ===
-import connectPg from 'connect-pg-simple';
-import session from 'express-session';
 
 // Initialize our database operations helper
 const storage = new DatabaseStorage();
@@ -51,14 +48,10 @@ type WebSocketMessage = {
  * Tracks information about connected clients for real-time updates
  */
 interface WebSocketClient {
-  sessionID: string;      // Unique session identifier
   userId: number;         // User's database ID
   userType: 'user' | 'restaurant';  // Type of user connected
   isAlive: boolean;      // Connection health status
 }
-
-// Create PostgreSQL session store for persistent sessions
-const PgStore = connectPg(session) as any;
 
 // Track connected WebSocket clients
 const clients = new Map<WebSocket, WebSocketClient & { isAlive: boolean }>();
@@ -70,7 +63,6 @@ interface AuthenticatedUser {
 }
 
 interface WebSocketClient {
-  sessionID: string;
   userId: number;
   userType: 'user' | 'restaurant';
   isAlive: boolean;
@@ -97,14 +89,14 @@ function getUserId(req: Request): number {
 
 // Define authentication middleware
 const requireRestaurantAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated() || !req.user || req.user.type !== 'restaurant') {
+  if (!req.user || req.user.type !== 'restaurant') {
     return res.status(401).json({ message: "Not authenticated as restaurant" });
   }
   next();
 };
 
 const requireUserAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated() || !req.user || req.user.type !== 'user') {
+  if (!req.user || req.user.type !== 'user') {
     return res.status(401).json({ message: "Not authenticated as user" });
   }
   next();
@@ -133,38 +125,9 @@ export function registerRoutes(app: Express): Server {
     next(err);
   });
 
-  // === SESSION CONFIGURATION ===
-
-  // Set up database-backed session storage
-  const sessionStore = new PgStore({
-    pool,                           // Database connection
-    tableName: 'session',          // Where to store sessions
-    createTableIfMissing: true,    // Auto-create table
-    pruneSessionInterval: 60 * 15,  // Clean up every 15 mins
-    errorLog: console.error.bind(console, 'Session store error:')
-  });
-
-  // Give our storage class access to sessions
-  storage.setSessionStore(sessionStore);
-
-  // Configure session behavior
-  const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || 'your-secret-key',  // For security
-    resave: true,              // Save all sessions
-    saveUninitialized: false,  // Don't save empty sessions
-    store: sessionStore,       // Use PostgreSQL storage
-    cookie: cookieSettings,    // Cookie configuration
-    name: 'connect.sid',       // Cookie name
-    rolling: true,            // Extend session on activity
-    proxy: true               // Trust our proxy server
-  };
-
-  // Enable session handling
-  app.use(session(sessionSettings));
-
-  // Initialize authentication
-  app.use(passport.initialize());
-  app.use(passport.session());
+  // Set up authentication (from auth.ts)
+  // This needs to be called before defining other routes to avoid conflicts
+  setupAuth(app);
 
   // === PUBLIC ROUTES (No Login Required) ===
 
@@ -216,16 +179,11 @@ export function registerRoutes(app: Express): Server {
         favoriteCuisines: Array.isArray(favoriteCuisines) ? favoriteCuisines : []
       });
 
-      // Log the new user in automatically
-      req.login({ ...user, type: 'user' as const }, (err) => {
-        if (err) {
-          return res.status(500).json({ message: "Login error occurred" });
-        }
-        // Set their session cookie
-        res.cookie('connect.sid', req.sessionID, cookieSettings);
-        // Send back the user data
-        res.status(200).json(user);
-      });
+      // Generate JWT token for the new user
+      const token = generateToken({ id: user.id, type: 'user' });
+      
+      // Send back the user data and token
+      res.status(200).json({ ...user, token });
     } catch (error) {
       console.error("Registration error:", error);
       res.status(500).json({ message: "Registration failed" });
@@ -233,80 +191,9 @@ export function registerRoutes(app: Express): Server {
   });
 
   /**
-   * Restaurant Login
-   * POST /api/restaurant/login
-   * 
-   * Authenticates restaurant accounts using their credentials.
-   * Uses a special passport strategy for restaurant authentication.
-   * 
-   * Request body:
-   * - email: Restaurant's email address
-   * - password: Restaurant's password
-   * 
-   * Returns:
-   * - 200: Login successful (includes restaurant data)
-   * - 401: Invalid credentials
-   * - 500: Server error
+   * Restaurant Login and User Login endpoints are now defined in auth.ts
+   * They use JWT token-based authentication instead of session-based authentication
    */
-  app.post("/api/restaurant/login", (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate('restaurant-local', (err: any, user: any, info: any) => {
-      if (err) {
-        return res.status(500).json({ message: "Authentication error occurred" });
-      }
-      if (!user) {
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-
-      // Log the restaurant in
-      req.login(user, (err) => {
-        if (err) {
-          return res.status(500).json({ message: "Login error occurred" });
-        }
-
-        // Set their session cookie and return their data
-        res.cookie('connect.sid', req.sessionID, cookieSettings);
-        res.status(200).json({ ...user, type: 'restaurant' });
-      });
-    })(req, res, next);
-  });
-
-  /**
-   * User Login
-   * POST /api/login
-   * 
-   * Authenticates regular user accounts using their credentials.
-   * Uses the default passport local strategy for authentication.
-   * 
-   * Request body:
-   * - email: User's email address
-   * - password: User's password
-   * 
-   * Returns:
-   * - 200: Login successful (includes user data)
-   * - 401: Invalid credentials
-   * - 500: Server error
-   */
-  app.post("/api/login", (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate('local', (err: any, user: any, info: any) => {
-      if (err) {
-        return res.status(500).json({ message: "Authentication error occurred" });
-      }
-      if (!user) {
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-
-      // Log the user in
-      req.login(user, (err) => {
-        if (err) {
-          return res.status(500).json({ message: "Login error occurred" });
-        }
-
-        // Set their session cookie and return their data
-        res.cookie('connect.sid', req.sessionID, cookieSettings);
-        res.status(200).json(user);
-      });
-    })(req, res, next);
-  });
 
   // AUTHENTICATION MIDDLEWARE
   // This protects all routes that come after it
@@ -333,17 +220,19 @@ export function registerRoutes(app: Express): Server {
       return next();
     }
     
-    // If not logged in, stop here
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Authentication required" });
-    }
-    
-    // If logged in, continue to the route
-    next();
+    // Apply JWT authentication middleware
+    authenticateJWT(req, res, (err: any) => {
+      if (err) return res.status(401).json({ message: "Authentication required" });
+      
+      // If not authenticated after JWT check, stop here
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      // If authenticated, continue to the route
+      next();
+    });
   });
-
-  // Set up authentication (from auth.ts)
-  setupAuth(app);
 
   /**
    * Get All Restaurants
@@ -1192,149 +1081,142 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // === WEBSOCKET SETUP ===
-  const wss = new WebSocketServer({
-    server: httpServer,
-    path: '/ws',
-  });
+  // === WEBSOCKET SERVER SETUP ===
+  const wss = new WebSocketServer({ server: httpServer });
 
-  // Heartbeat interval to keep connections alive (check every 60 seconds)
-  const heartbeatInterval = setInterval(() => {
-    wss.clients.forEach((ws: WebSocket) => {
-      const client = clients.get(ws);
-      if (!client || !client.isAlive) {
-        clients.delete(ws);
-        ws.terminate();
+  // Handle new WebSocket connections
+  wss.on('connection', async (ws: WebSocket, req) => {
+    try {
+      // Extract token from URL query parameters
+      const url = new URL(req.url || '', `http://${req.headers.host}`);
+      const token = url.searchParams.get('token');
+      
+      if (!token) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Authentication required' }));
+        ws.close();
         return;
       }
-      client.isAlive = false;
+      
+      // Verify token and get user info
+      let userId: number;
+      let userType: 'user' | 'restaurant';
+      
       try {
-        ws.ping();
+        // Verify token (you'll need to implement this function)
+        const decoded = verifyToken(token);
+        userId = decoded.id;
+        userType = decoded.type;
       } catch (error) {
-        console.error('Error sending ping:', error);
+        ws.send(JSON.stringify({ type: 'error', message: 'Invalid token' }));
+        ws.close();
+        return;
+      }
+
+      // Store client information
+      clients.set(ws, {
+        userId,
+        userType,
+        isAlive: true
+      });
+
+      // Send confirmation message
+      ws.send(JSON.stringify({
+        type: 'connection_established',
+        data: { userId, userType }
+      }));
+
+      // Handle incoming messages
+      ws.on('message', (data: string) => {
+        try {
+          const message: WebSocketMessage = JSON.parse(data);
+          console.log('Received message:', message.type);
+          
+          // Handle different message types
+          switch (message.type) {
+            case 'heartbeat':
+              const client = clients.get(ws);
+              if (client) {
+                client.isAlive = true;
+              }
+              break;
+
+            case 'init':
+              if (!message.data?.userId || !message.data?.userType) {
+                console.error('Invalid init message:', message);
+                return;
+              }
+              // Initialize client connection
+              clients.set(ws, {
+                userId: message.data.userId,
+                userType: message.data.userType as 'user' | 'restaurant',
+                isAlive: true
+              });
+              // Send confirmation
+              ws.send(JSON.stringify({
+                type: 'connection_established',
+                data: { message: 'Successfully initialized connection' }
+              }));
+              break;
+
+            case 'logout':
+              clients.delete(ws);
+              ws.close();
+              break;
+
+            case 'new_booking':
+            case 'booking_cancelled':
+            case 'booking_arrived':
+            case 'booking_completed':
+              // Forward booking-related messages to relevant clients
+              const { restaurantId, userId } = message.data;
+              clients.forEach((clientInfo, clientWs) => {
+                if (
+                  (clientInfo.userType === 'restaurant' && clientInfo.userId === restaurantId) ||
+                  (clientInfo.userType === 'user' && clientInfo.userId === userId)
+                ) {
+                  try {
+                    clientWs.send(JSON.stringify(message));
+                  } catch (error) {
+                    console.error('Error sending message to client:', error);
+                    clients.delete(clientWs);
+                    clientWs.terminate();
+                  }
+                }
+              });
+              break;
+
+            default:
+              console.warn('Unknown message type:', message.type);
+          }
+        } catch (error) {
+          console.error('Error handling WebSocket message:', error);
+        }
+      });
+
+      // Handle WebSocket close event
+      ws.on('close', () => {
+        console.log('Client disconnected from /ws');
+        clients.delete(ws);
+      });
+
+      // Handle WebSocket error event
+      ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
         clients.delete(ws);
         ws.terminate();
-      }
-    });
-  }, 60000); // 60 seconds
+      });
 
-  // Clean up interval on server close
-  httpServer.on('close', () => {
-    clearInterval(heartbeatInterval);
-    wss.clients.forEach((ws) => {
-      ws.terminate();
-    });
-    clients.clear();
-  });
-
-  wss.on('connection', (ws: WebSocket) => {
-    console.log('New WebSocket connection on /ws path');
-
-    // Send connection established message
-    ws.send(JSON.stringify({
-      type: 'connection_established',
-      data: { message: 'Connected to server' }
-    }));
-
-    ws.on('message', (data: string) => {
-      try {
-        const message: WebSocketMessage = JSON.parse(data);
-        console.log('Received message:', message.type);
-        
-        // Handle different message types
-        switch (message.type) {
-          case 'heartbeat':
-            const client = clients.get(ws);
-            if (client) {
-              client.isAlive = true;
-            }
-            break;
-
-          case 'init':
-            if (!message.data?.sessionID || !message.data?.userId || !message.data?.userType) {
-              console.error('Invalid init message:', message);
-              return;
-            }
-            // Initialize client connection
-            clients.set(ws, {
-              sessionID: message.data.sessionID,
-              userId: message.data.userId,
-              userType: message.data.userType as 'user' | 'restaurant',
-              isAlive: true
-            });
-            // Send confirmation
-            ws.send(JSON.stringify({
-              type: 'connection_established',
-              data: { message: 'Successfully initialized connection' }
-            }));
-            break;
-
-          case 'logout':
-            const clientToLogout = clients.get(ws);
-            if (clientToLogout?.sessionID) {
-              // Find and destroy the session
-              sessionStore.destroy(clientToLogout.sessionID, (err: Error | null) => {
-                if (err) console.error('Error destroying session:', err);
-                clients.delete(ws);
-                ws.close();
-              });
-            }
-            break;
-
-          case 'new_booking':
-          case 'booking_cancelled':
-          case 'booking_arrived':
-          case 'booking_completed':
-            // Forward booking-related messages to relevant clients
-            const { restaurantId, userId } = message.data;
-            clients.forEach((clientInfo, clientWs) => {
-              if (
-                clientInfo.userType === 'restaurant' && clientInfo.userId === restaurantId ||
-                clientInfo.userType === 'user' && clientInfo.userId === userId
-              ) {
-                try {
-                  clientWs.send(JSON.stringify(message));
-                } catch (error) {
-                  console.error('Error sending message to client:', error);
-                  clients.delete(clientWs);
-                  clientWs.terminate();
-                }
-              }
-            });
-            break;
-
-          default:
-            console.warn('Unknown message type:', message.type);
+      // Handle WebSocket pong event
+      ws.on('pong', () => {
+        const client = clients.get(ws);
+        if (client) {
+          client.isAlive = true;
         }
-      } catch (error) {
-        console.error('Error handling WebSocket message:', error);
-      }
-    });
-
-    ws.on('close', () => {
-      console.log('Client disconnected from /ws');
-      const client = clients.get(ws);
-      if (client?.sessionID) {
-        // Clean up session when tab closes
-        sessionStore.destroy(client.sessionID, (err: Error | null) => {
-          if (err) console.error('Error destroying session:', err);
-        });
-      }
-      clients.delete(ws);
-    });
-
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
-      clients.delete(ws);
-      ws.terminate();
-    });
-
-    ws.on('pong', () => {
-      const client = clients.get(ws);
-      if (client) {
-        client.isAlive = true;
-      }
-    });
+      });
+    } catch (error) {
+      console.error('WebSocket connection error:', error);
+      ws.close();
+    }
   });
 
   // Error handling middleware
@@ -1344,4 +1226,23 @@ export function registerRoutes(app: Express): Server {
   });
 
   return httpServer;
+}
+
+// Helper function to verify JWT token
+function verifyToken(token: string): { id: number; type: 'user' | 'restaurant' } {
+  try {
+    // This should match the JWT verification in authenticateJWT
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-jwt-secret-key');
+    
+    if (typeof decoded !== 'object' || !decoded.id || !decoded.type) {
+      throw new Error('Invalid token data');
+    }
+    
+    return {
+      id: decoded.id,
+      type: decoded.type as 'user' | 'restaurant'
+    };
+  } catch (error) {
+    throw new Error('Invalid token');
+  }
 }

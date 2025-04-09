@@ -102,22 +102,21 @@ export default function BookingsScreen() {
         <View style={styles.bookingDetails}>
           <View style={styles.detailRow}>
             <Ionicons name="location-outline" size={16} color={colors.text} style={styles.detailIcon} />
-            <Text style={[styles.detailText, { color: colors.text }]}>{item.branchCity}</Text>
+            <Text style={[styles.detailText, { color: colors.text }]}>
+              {item.branchCity || 'Location not specified'}
+            </Text>
           </View>
-          
           <View style={styles.detailRow}>
             <Ionicons name="calendar-outline" size={16} color={colors.text} style={styles.detailIcon} />
             <Text style={[styles.detailText, { color: colors.text }]}>{formattedDate}</Text>
           </View>
-          
           <View style={styles.detailRow}>
             <Ionicons name="time-outline" size={16} color={colors.text} style={styles.detailIcon} />
             <Text style={[styles.detailText, { color: colors.text }]}>{formatTimeWithAMPM(item.time)}</Text>
           </View>
-          
           <View style={styles.detailRow}>
             <Ionicons name="people-outline" size={16} color={colors.text} style={styles.detailIcon} />
-            <Text style={[styles.detailText, { color: colors.text }]}>Party of {item.partySize}</Text>
+            <Text style={[styles.detailText, { color: colors.text }]}>{item.partySize} {item.partySize === 1 ? 'person' : 'people'}</Text>
           </View>
         </View>
 

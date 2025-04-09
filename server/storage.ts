@@ -130,44 +130,49 @@ export interface IStorage {
 
 // This class implements all the database operations defined in IStorage
 export class DatabaseStorage implements IStorage {
-  // Store the session management system
-  private _sessionStore: session.Store;
 
+  // Constructor - initialize database connections
   constructor() {
-    // Set up session storage in PostgreSQL when this class is created
-    this._sessionStore = new PostgresSessionStore({
-      pool,  // Database connection pool
-      tableName: 'session',  // Table name for storing sessions
-      createTableIfMissing: true,  // Create the table if it doesn't exist
-      pruneSessionInterval: 60 * 15,  // Clean up old sessions every 15 minutes
-      errorLog: (err) => console.error('Session store error:', err)  // Log any errors
-    });
+    // Session store has been removed as we've migrated to token-based authentication
   }
 
   // Getter method to access the session store
   get sessionStore(): session.Store {
-    return this._sessionStore;
+    console.warn('Session store is deprecated as we have migrated to token-based authentication');
+    return {} as session.Store; // Return empty object as we're not using sessions anymore
   }
 
   // Setter method to update the session store
   setSessionStore(store: session.Store): void {
-    this._sessionStore = store;
+    console.warn('Session store is deprecated as we have migrated to token-based authentication');
+    // No-op as we're not using sessions anymore
   }
 
   // Find a restaurant's login info by their email address
   async getRestaurantAuthByEmail(email: string): Promise<RestaurantAuth | undefined> {
     try {
-      // Use Drizzle ORM to make a SELECT query
-      // The [auth] destructuring takes the first result (if any)
-      const [auth] = await db
-        .select()  // SELECT *
-        .from(restaurantAuth)  // FROM restaurant_auth
-        .where(eq(restaurantAuth.email, email));  // WHERE email = ?
-      return auth;  // Return the found restaurant or undefined
+      console.log(`Looking up restaurant with email: ${email}`);
+      // Select all fields explicitly to ensure we get the password
+      const [auth] = await db.select({
+        id: restaurantAuth.id,
+        email: restaurantAuth.email,
+        password: restaurantAuth.password,
+        name: restaurantAuth.name,
+        verified: restaurantAuth.verified,
+        createdAt: restaurantAuth.createdAt,
+        updatedAt: restaurantAuth.updatedAt
+      }).from(restaurantAuth).where(eq(restaurantAuth.email, email));
+      
+      if (!auth) {
+        console.log(`No restaurant found with email: ${email}`);
+        return undefined;
+      }
+      
+      console.log(`Found restaurant: ${auth.id}, password exists: ${Boolean(auth.password)}`);
+      return auth;
     } catch (error) {
-      // If anything goes wrong, log it and return undefined
-      console.error('Error getting restaurant by email:', error);
-      return undefined;
+      console.error('Error in getRestaurantAuthByEmail:', error);
+      throw error;
     }
   }
 
@@ -195,9 +200,34 @@ export class DatabaseStorage implements IStorage {
 
   // Find a user by their email address
   async getUserByEmail(email: string): Promise<User | undefined> {
-    // Similar to getUser but searches by email instead
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
+    try {
+      console.log(`Looking up user with email: ${email}`);
+      // Select all fields explicitly to ensure we get the password
+      const [user] = await db.select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        password: users.password,
+        gender: users.gender,
+        birthday: users.birthday,
+        city: users.city,
+        favoriteCuisines: users.favoriteCuisines,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt
+      }).from(users).where(eq(users.email, email));
+      
+      if (!user) {
+        console.log(`No user found with email: ${email}`);
+        return undefined;
+      }
+      
+      console.log(`Found user: ${user.id}, password exists: ${Boolean(user.password)}`);
+      return user;
+    } catch (error) {
+      console.error('Error in getUserByEmail:', error);
+      throw error;
+    }
   }
 
   // Create a new user in the database

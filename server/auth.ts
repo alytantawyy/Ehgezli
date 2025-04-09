@@ -1,8 +1,7 @@
-// Import required packages for authentication and session management
+// Import required packages for authentication and token management
 import passport from "passport";  // Main authentication middleware
 import { Strategy as LocalStrategy } from "passport-local";  // Username/password authentication strategy
-import { Express } from "express";  // Type definition for Express app
-import session from "express-session";  // Session middleware
+import { Express, Request, Response, NextFunction } from "express";  // Type definitions for Express
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";  // Cryptographic functions for password hashing
 import { promisify } from "util";  // Convert callback-based functions to Promise-based
 import { storage } from "./storage";  // Database operations
@@ -14,9 +13,9 @@ import {
   restaurantPasswordResetRequestSchema, 
   restaurantPasswordResetSchema 
 } from "@shared/schema";  // Type definitions and validation schemas
-import connectPg from "connect-pg-simple";  // PostgreSQL session store
-import { pool } from "./db";  // Database connection pool
 import { sendPasswordResetEmail } from "./email";  // Email functionality
+import jwt from 'jsonwebtoken';  // JSON Web Token library for token generation and verification
+import bcrypt from 'bcrypt';  // Bcrypt library for password hashing and comparison
 
 // Extend Express.User interface to support both user and restaurant types
 // This tells TypeScript that req.user can be either a regular user or a restaurant
@@ -49,7 +48,7 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 // Function to securely compare a supplied password with a stored hash
-// Uses timing-safe comparison to prevent timing attacks
+// Uses bcrypt's built-in compare function
 /**
  * Compares a supplied password with a stored hash.
  * 
@@ -58,27 +57,131 @@ export async function hashPassword(password: string): Promise<string> {
  * @returns A promise that resolves to true if the passwords match, false otherwise.
  */
 async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
-  // Split stored value into salt and hash
-  const [salt, hashed] = stored.split(":");
-  // Convert stored hash to Buffer
-  const hashedBuf = Buffer.from(hashed, "hex");
-  // Hash supplied password with same salt
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  // Compare hashes in constant time
-  return timingSafeEqual(hashedBuf, suppliedBuf);
+  try {
+    // Check if the stored password is in the format we expect
+    if (!stored) {
+      console.error('Stored password is undefined or empty');
+      return false;
+    }
+    
+    console.log('Comparing password with stored hash');
+    
+    // If the stored password contains a colon, it's using our custom format
+    if (stored.includes(':')) {
+      // Split stored value into salt and hash
+      const [salt, hashed] = stored.split(':');
+      
+      if (!hashed) {
+        console.error('Invalid stored password format');
+        return false;
+      }
+      
+      // Convert stored hash to Buffer
+      const hashedBuf = Buffer.from(hashed, 'hex');
+      // Hash supplied password with same salt
+      const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+      // Compare hashes in constant time
+      return timingSafeEqual(hashedBuf, suppliedBuf);
+    } 
+    // Otherwise, assume it's a bcrypt hash
+    else {
+      return bcrypt.compare(supplied, stored);
+    }
+  } catch (error) {
+    console.error('Error comparing passwords:', error);
+    return false;
+  }
 }
 
-// Settings for session cookies
+// JWT Configuration
+const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
+const JWT_EXPIRES_IN = '30d'; // Token expires in 30 days
+
 /**
- * Configuration for session cookies.
+ * Generates a JWT token for a user or restaurant.
+ * 
+ * @param user The user or restaurant to generate a token for.
+ * @returns A JWT token.
  */
-export const cookieSettings = {
-  maxAge: 30 * 24 * 60 * 60 * 1000,  // Cookie expires in 30 days
-  httpOnly: true,  // Prevent JavaScript access to cookie
-  secure: false,   // Allow HTTP in development (should be true in production)
-  sameSite: 'lax' as const,  // CSRF protection
-  path: '/'  // Cookie is valid for all paths
-};
+export function generateToken(user: { id: number; type: 'user' | 'restaurant' }): string {
+  try {
+    console.log('Generating token for:', JSON.stringify(user, null, 2));
+    
+    if (!user || typeof user.id !== 'number') {
+      console.error('Invalid user object:', user);
+      throw new Error('Invalid user object provided to generateToken');
+    }
+    
+    // Create a payload with minimal user information
+    const payload = {
+      id: user.id,
+      type: user.type
+    };
+    
+    // Sign the token with our secret key and set expiration
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    console.log('Token generated successfully');
+    return token;
+  } catch (error) {
+    console.error('Error generating token:', error);
+    throw error;
+  }
+}
+
+/**
+ * Middleware to verify JWT token and set req.user.
+ */
+export function authenticateJWT(req: Request, res: Response, next: NextFunction) {
+  // Get the token from the Authorization header
+  const authHeader = req.headers.authorization;
+  
+  if (authHeader) {
+    const token = authHeader.split(' ')[1]; // Format: 'Bearer TOKEN'
+    
+    jwt.verify(token, JWT_SECRET, async (err: any, decoded: any) => {
+      if (err) {
+        return res.status(401).json({ message: 'Invalid or expired token' });
+      }
+      
+      try {
+        // Validate token data
+        if (!decoded?.id || !decoded?.type) {
+          throw new Error('Invalid token data');
+        }
+
+        // Handle restaurant users
+        if (decoded.type === 'restaurant') {
+          const auth = await storage.getRestaurantAuth(decoded.id);
+          if (!auth) {
+            throw new Error('Restaurant not found');
+          }
+          const restaurant = await storage.getRestaurant(decoded.id);
+          if (!restaurant) {
+            throw new Error('Restaurant profile not found');
+          }
+          req.user = { ...auth, ...restaurant, type: 'restaurant' as const };
+        } 
+        // Handle regular users
+        else {
+          const user = await storage.getUser(decoded.id);
+          if (!user) {
+            throw new Error('User not found');
+          }
+          req.user = { ...user, type: 'user' as const };
+        }
+        
+        next();
+      } catch (error) {
+        console.error('Authentication error:', error);
+        return res.status(401).json({ message: 'Authentication failed' });
+      }
+    });
+  } else {
+    // No token provided
+    req.user = undefined;
+    next();
+  }
+}
 
 // Main function to set up authentication
 /**
@@ -88,100 +191,10 @@ export const cookieSettings = {
  * @returns The Express app with authentication set up.
  */
 export function setupAuth(app: Express) {
-  // Trust first proxy in production environments
-  app.set("trust proxy", 1);
-
-  // Set up PostgreSQL session store
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    pool,  // Database connection pool
-    tableName: 'session',  // Table to store sessions
-    createTableIfMissing: true,  // Auto-create session table
-    pruneSessionInterval: 60 * 15,  // Clean up expired sessions every 15 minutes
-    errorLog: (err) => console.error('Session store error:', err)
-  });
-
-  // Give storage access to session store for operations
-  storage.setSessionStore(sessionStore);
-
-  // Configure session middleware
-  const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || 'your-secret-key',  // Key to sign session ID cookie
-    resave: true,  // Save session even if unmodified
-    saveUninitialized: false,  // Don't save empty sessions
-    store: sessionStore,  // Use PostgreSQL to store sessions
-    cookie: cookieSettings,  // Use cookie settings defined above
-    name: 'connect.sid',  // Name of session ID cookie
-    rolling: true,  // Reset cookie expiration on activity
-    proxy: true  // Trust proxy headers
-  };
-
-  // Apply session middleware
-  app.use(session(sessionSettings));
-
-  // Initialize Passport and restore authentication state from session
+  // Initialize Passport
   app.use(passport.initialize());
-  app.use(passport.session());
-
-  // Tell Passport how to serialize user for storage in session
-  /**
-   * Serializes a user for storage in the session.
-   * 
-   * @param user The user to serialize.
-   * @param done A callback to call when serialization is complete.
-   */
-  passport.serializeUser((user, done) => {
-    // Only store user ID and type in session
-    done(null, {
-      id: user.id,
-      type: user.type
-    });
-  });
-
-  // Tell Passport how to get user data from stored session ID
-  /**
-   * Deserializes a user from the session.
-   * 
-   * @param serialized The serialized user data.
-   * @param done A callback to call when deserialization is complete.
-   */
-  passport.deserializeUser(async (serialized: { id: number; type: string }, done) => {
-    try {
-      // Validate session data
-      if (!serialized?.id || !serialized?.type) {
-        throw new Error('Invalid session data');
-      }
-
-      // Handle restaurant users
-      if (serialized.type === 'restaurant') {
-        const auth = await storage.getRestaurantAuth(serialized.id);
-        if (!auth) {
-          throw new Error('Restaurant not found');
-        }
-        const restaurant = await storage.getRestaurant(serialized.id);
-        if (!restaurant) {
-          throw new Error('Restaurant profile not found');
-        }
-        return done(null, { ...auth, ...restaurant, type: 'restaurant' as const });
-      } 
-      // Handle regular users
-      else {
-        const user = await storage.getUser(serialized.id);
-        if (!user) {
-          throw new Error('User not found');
-        }
-        return done(null, { ...user, type: 'user' as const });
-      }
-    } catch (error) {
-      console.error('Deserialization error:', error);
-      done(error);
-    }
-  });
 
   // Set up restaurant login strategy
-  /* *
-   * Sets up the restaurant login strategy.
-   */
   passport.use('restaurant-local', new LocalStrategy({
     usernameField: 'email',  // Use email instead of username
     passwordField: 'password'
@@ -207,9 +220,6 @@ export function setupAuth(app: Express) {
   }));
 
   // Set up regular user login strategy
-  /**
-   * Sets up the regular user login strategy.
-   */
   passport.use('local', new LocalStrategy({
     usernameField: 'email',
     passwordField: 'password'
@@ -234,32 +244,59 @@ export function setupAuth(app: Express) {
     }
   }));
 
+  // Login endpoint
+  app.post("/api/login", (req, res, next) => {
+    console.log('Login attempt with:', { email: req.body.email });
+    
+    passport.authenticate('local', { session: false }, (err: any, user: any, info: any) => {
+      if (err) {
+        console.error('Passport authentication error:', err);
+        return res.status(500).json({ message: "Authentication error occurred" });
+      }
+      
+      if (!user) {
+        console.log('Authentication failed:', info?.message || 'Invalid credentials');
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      }
+      
+      try {
+        console.log('Generating token for user:', { id: user.id, type: user.type });
+        const token = generateToken(user);
+        console.log('Token generated successfully');
+        return res.json({ token });
+      } catch (tokenError) {
+        console.error('Token generation error:', tokenError);
+        return res.status(500).json({ message: "Login error occurred" });
+      }
+    })(req, res, next);
+  });
+
+  // Restaurant login endpoint
+  app.post("/api/restaurant/login", passport.authenticate('restaurant-local', { session: false }), (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+    const token = generateToken(req.user);
+    res.json({ token });
+  });
+
   // Get current user data endpoint
-  /**
-   * Returns the current user's data.
-   */
-  app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) {
+  app.get("/api/user", authenticateJWT, (req, res) => {
+    if (!req.user) {
       return res.status(401).json({ message: "Not authenticated" });
     }
     res.json(req.user);
   });
 
   // Get current restaurant data endpoint
-  /**
-   * Returns the current restaurant's data.
-   */
-  app.get("/api/restaurant", (req, res) => {
-    if (!req.isAuthenticated() || req.user?.type !== 'restaurant') {
+  app.get("/api/restaurant", authenticateJWT, (req, res) => {
+    if (!req.user || req.user.type !== 'restaurant') {
       return res.status(401).json({ message: "Not authenticated as restaurant" });
     }
     res.json(req.user);
   });
 
   // Password reset request endpoint
-  /**
-   * Handles password reset requests.
-   */
   app.post("/api/forgot-password", async (req, res) => {
     try {
       // Validate request body
@@ -287,9 +324,6 @@ export function setupAuth(app: Express) {
   });
 
   // Restaurant password reset request endpoint
-  /**
-   * Handles restaurant password reset requests.
-   */
   app.post("/api/restaurant/forgot-password", async (req, res) => {
     try {
       console.log('Restaurant password reset request received:', req.body);
@@ -327,9 +361,6 @@ export function setupAuth(app: Express) {
   });
 
   // Password reset endpoint
-  /**
-   * Handles password resets.
-   */
   app.post("/api/reset-password", async (req, res) => {
     try {
       // Validate request body
@@ -353,9 +384,6 @@ export function setupAuth(app: Express) {
   });
 
   // Restaurant password reset endpoint
-  /**
-   * Handles restaurant password resets.
-   */
   app.post("/api/restaurant/reset-password", async (req, res) => {
     try {
       // Validate request body
@@ -376,30 +404,6 @@ export function setupAuth(app: Express) {
     } catch (error) {
       res.status(400).json({ message: "Invalid request" });
     }
-  });
-
-  // Logout endpoint
-  app.post("/api/logout", (req, res) => {
-    // Check if user is authenticated
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Authentication required" });
-    }
-
-    // Destroy the session
-    req.session.destroy((err) => {
-      if (err) {
-        console.error("Logout error:", err);
-        return res.status(500).json({ message: "Error during logout" });
-      }
-      
-      // Clear the session cookie
-      res.clearCookie("connect.sid", {
-        ...cookieSettings,
-        expires: new Date(0)
-      });
-      
-      res.json({ message: "Logged out successfully" });
-    });
   });
 
   return app;

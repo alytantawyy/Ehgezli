@@ -32,18 +32,20 @@ export interface Branch {
 
 export interface Booking {
   id: number;
+  userId: number;
   restaurantId: number;
   restaurantName: string;
   branchId: number;
-  branchLocation: string;
-  date: string;
-  time: string;
+  date: string; // ISO string
+  time: string; // Format: "HH:MM"
   partySize: number;
-  status: 'confirmed' | 'pending' | 'cancelled';
+  status: "pending" | "confirmed" | "cancelled" | "completed";
+  createdAt: string; // ISO string
+  branchCity?: string;
 }
 
 // Base API URL - replace with your actual API endpoint
-const API_BASE_URL = 'https://api.ehgezli.com';
+const API_BASE_URL = 'http://localhost:4000';
 
 // Create axios instance
 const api = axios.create({
@@ -62,25 +64,15 @@ api.interceptors.request.use(async (config) => {
 // Auth functions
 export const loginUser = async (email: string, password: string) => {
   try {
-    // For development, return mock data
-    // In production, uncomment the API call
-    // const response = await api.post('/auth/login', { email, password });
-    // return response.data;
+    const response = await axios.post(`${API_BASE_URL}/api/login`, { email, password });
+    console.log('Login response:', response.data);
     
-    // Mock response
-    await SecureStore.setItemAsync('authToken', 'mock-token-123');
-    return {
-      user: {
-        id: 1,
-        firstName: 'John',
-        lastName: 'Doe',
-        email: email,
-        city: 'Cairo',
-        gender: 'male',
-        favoriteCuisines: ['Italian', 'Japanese']
-      },
-      token: 'mock-token-123'
-    };
+    // Save the auth token
+    if (response.data.token) {
+      await SecureStore.setItemAsync('authToken', response.data.token);
+    }
+    
+    return response.data;
   } catch (error) {
     console.error('Login error:', error);
     throw error;
@@ -94,21 +86,15 @@ export const registerUser = async (userData: {
   password: string;
 }) => {
   try {
-    // For development, return mock data
-    // const response = await api.post('/auth/register', userData);
-    // return response.data;
+    const response = await axios.post(`${API_BASE_URL}/api/register`, userData);
+    console.log('Registration response:', response.data);
     
-    // Mock response
-    await SecureStore.setItemAsync('authToken', 'mock-token-123');
-    return {
-      user: {
-        id: 1,
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        email: userData.email,
-      },
-      token: 'mock-token-123'
-    };
+    // Save the auth token
+    if (response.data.token) {
+      await SecureStore.setItemAsync('authToken', response.data.token);
+    }
+    
+    return response.data;
   } catch (error) {
     console.error('Registration error:', error);
     throw error;
@@ -117,34 +103,36 @@ export const registerUser = async (userData: {
 
 export const logoutUser = async () => {
   try {
+    const token = await getAuthToken();
+    if (token) {
+      // Call the logout endpoint if your API has one
+      await axios.post(`${API_BASE_URL}/api/logout`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    }
+    
+    // Remove the token from storage
     await SecureStore.deleteItemAsync('authToken');
-    // In production: await api.post('/auth/logout');
     return true;
   } catch (error) {
     console.error('Logout error:', error);
+    // Still delete the token even if the API call fails
+    await SecureStore.deleteItemAsync('authToken');
     throw error;
   }
 };
 
 export const getCurrentUser = async (): Promise<User | null> => {
   try {
-    const token = await SecureStore.getItemAsync('authToken');
+    const token = await getAuthToken();
     if (!token) return null;
     
-    // For development, return mock data
-    // const response = await api.get('/auth/me');
-    // return response.data;
+    const response = await axios.get(`${API_BASE_URL}/api/user`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     
-    // Mock response
-    return {
-      id: 1,
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'john.doe@example.com',
-      city: 'Cairo',
-      gender: 'male',
-      favoriteCuisines: ['Italian', 'Japanese']
-    };
+    console.log('Current user response:', response.data);
+    return response.data;
   } catch (error) {
     console.error('Get current user error:', error);
     return null;
@@ -154,75 +142,44 @@ export const getCurrentUser = async (): Promise<User | null> => {
 // Restaurant functions
 export const getRestaurants = async (): Promise<Restaurant[]> => {
   try {
-    // For development, return mock data
-    // const response = await api.get('/restaurants');
-    // return response.data;
-    
-    // Mock response
-    return [
-      {
-        id: 1,
-        name: 'Bella Italia',
-        description: 'Authentic Italian cuisine',
-        cuisine: 'Italian',
-        priceRange: '$$',
-        rating: 4.5,
-        imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4',
-        branches: [
-          {
-            id: 1,
-            location: 'Downtown',
-            address: '123 Main St',
-            slots: ['12:00', '13:00', '14:00', '18:00', '19:00', '20:00']
-          },
-          {
-            id: 2,
-            location: 'Uptown',
-            address: '456 Oak Ave',
-            slots: ['12:30', '13:30', '14:30', '18:30', '19:30', '20:30']
-          }
-        ]
-      },
-      {
-        id: 2,
-        name: 'Sakura Sushi',
-        description: 'Fresh Japanese sushi',
-        cuisine: 'Japanese',
-        priceRange: '$$$',
-        rating: 4.8,
-        imageUrl: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c',
-        branches: [
-          {
-            id: 3,
-            location: 'City Center',
-            address: '789 Elm St',
-            slots: ['12:00', '13:00', '14:00', '18:00', '19:00', '20:00']
-          }
-        ]
-      }
-    ];
+    const response = await axios.get(`${API_BASE_URL}/api/restaurants`);
+    console.log('Restaurants response:', response.data);
+    return response.data;
   } catch (error) {
     console.error('Get restaurants error:', error);
-    return [];
+    throw error;
   }
 };
 
 export const getRestaurantById = async (id: number): Promise<Restaurant | null> => {
   try {
-    // For development, return mock data
-    // const response = await api.get(`/restaurants/${id}`);
-    // return response.data;
-    
-    // Mock data
-    const restaurants = await getRestaurants();
-    return restaurants.find(r => r.id === id) || null;
+    const response = await axios.get(`${API_BASE_URL}/api/restaurants/${id}`);
+    console.log(`Restaurant ${id} response:`, response.data);
+    return response.data;
   } catch (error) {
     console.error(`Get restaurant ${id} error:`, error);
-    return null;
+    throw error;
   }
 };
 
 // Bookings functions
+export const getUserBookings = async (): Promise<Booking[]> => {
+  try {
+    const token = await getAuthToken();
+    if (!token) throw new Error('Authentication required');
+
+    const response = await axios.get(`${API_BASE_URL}/api/bookings`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    console.log('User bookings response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Get user bookings error:', error);
+    throw error;
+  }
+};
+
 export const createBooking = async (bookingData: {
   restaurantId: number;
   branchId: number;
@@ -231,66 +188,18 @@ export const createBooking = async (bookingData: {
   partySize: number;
 }): Promise<Booking> => {
   try {
-    // For development, return mock data
-    // const response = await api.post('/bookings', bookingData);
-    // return response.data;
+    const token = await getAuthToken();
+    if (!token) throw new Error('Authentication required');
+
+    const response = await axios.post(`${API_BASE_URL}/bookings`, bookingData, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     
-    // Get restaurant name for the mock
-    const restaurant = await getRestaurantById(bookingData.restaurantId);
-    const branch = restaurant?.branches.find(b => b.id === bookingData.branchId);
-    
-    // Mock response
-    return {
-      id: Math.floor(Math.random() * 1000),
-      restaurantId: bookingData.restaurantId,
-      restaurantName: restaurant?.name || 'Unknown Restaurant',
-      branchId: bookingData.branchId,
-      branchLocation: branch?.location || 'Unknown Location',
-      date: bookingData.date,
-      time: bookingData.time,
-      partySize: bookingData.partySize,
-      status: 'confirmed'
-    };
+    console.log('Create booking response:', response.data);
+    return response.data;
   } catch (error) {
     console.error('Create booking error:', error);
     throw error;
-  }
-};
-
-export const getUserBookings = async (): Promise<Booking[]> => {
-  try {
-    // For development, return mock data
-    // const response = await api.get('/bookings/me');
-    // return response.data;
-    
-    // Mock response
-    return [
-      {
-        id: 101,
-        restaurantId: 1,
-        restaurantName: 'Bella Italia',
-        branchId: 1,
-        branchLocation: 'Downtown',
-        date: '2025-04-10',
-        time: '19:00',
-        partySize: 2,
-        status: 'confirmed'
-      },
-      {
-        id: 102,
-        restaurantId: 2,
-        restaurantName: 'Sakura Sushi',
-        branchId: 3,
-        branchLocation: 'City Center',
-        date: '2025-04-15',
-        time: '20:00',
-        partySize: 4,
-        status: 'pending'
-      }
-    ];
-  } catch (error) {
-    console.error('Get user bookings error:', error);
-    return [];
   }
 };
 
@@ -303,20 +212,15 @@ export const updateUserProfile = async (profileData: {
   favoriteCuisines: string[];
 }): Promise<User> => {
   try {
-    // For development, return mock data
-    // const response = await api.put('/users/profile', profileData);
-    // return response.data;
+    const token = await getAuthToken();
+    if (!token) throw new Error('Authentication required');
+
+    const response = await axios.put(`${API_BASE_URL}/api/user/profile`, profileData, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     
-    // Mock response
-    return {
-      id: 1,
-      firstName: profileData.firstName,
-      lastName: profileData.lastName,
-      email: 'john.doe@example.com',
-      city: profileData.city,
-      gender: profileData.gender,
-      favoriteCuisines: profileData.favoriteCuisines
-    };
+    console.log('Update profile response:', response.data);
+    return response.data;
   } catch (error) {
     console.error('Update profile error:', error);
     throw error;
@@ -326,51 +230,72 @@ export const updateUserProfile = async (profileData: {
 // Saved restaurants functions
 export const getSavedRestaurants = async (): Promise<Restaurant[]> => {
   try {
-    // For development, return mock data
-    // const response = await api.get('/saved-restaurants');
-    // return response.data;
+    const token = await getAuthToken();
+    if (!token) throw new Error('Authentication required');
+
+    const response = await axios.get(`${API_BASE_URL}/api/saved-restaurants`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     
-    // Mock response - just return a subset of all restaurants
-    const allRestaurants = await getRestaurants();
-    return [allRestaurants[0]];
+    console.log('Saved restaurants response:', response.data);
+    return response.data;
   } catch (error) {
     console.error('Get saved restaurants error:', error);
-    return [];
+    throw error;
   }
 };
 
-export const getSavedStatus = async (restaurantId: number): Promise<boolean> => {
+export const getSavedStatus = async (restaurantId: number, branchIndex: number): Promise<boolean> => {
   try {
-    // For development, return mock data
-    // const response = await api.get(`/saved-restaurants/${restaurantId}/status`);
-    // return response.data.saved;
+    const token = await getAuthToken();
+    if (!token) return false;
+
+    const response = await axios.get(`${API_BASE_URL}/api/saved-restaurants/${restaurantId}/${branchIndex}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     
-    // Mock response
-    const savedRestaurants = await getSavedRestaurants();
-    return savedRestaurants.some(r => r.id === restaurantId);
+    console.log(`Saved status for restaurant ${restaurantId} response:`, response.data);
+    return response.data.saved;
   } catch (error) {
     console.error(`Get saved status for restaurant ${restaurantId} error:`, error);
-    return false;
+    // If we get a 404, it means the restaurant is not saved
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return false;
+    }
+    throw error;
   }
 };
 
-export const toggleSavedStatus = async (restaurantId: number): Promise<boolean> => {
+export const toggleSavedStatus = async (restaurantId: number, branchIndex: number): Promise<boolean> => {
   try {
-    // For development, return mock data
-    // const currentStatus = await getSavedStatus(restaurantId);
-    // if (currentStatus) {
-    //   await api.delete(`/saved-restaurants/${restaurantId}`);
-    //   return false;
-    // } else {
-    //   await api.post('/saved-restaurants', { restaurantId });
-    //   return true;
-    // }
+    const token = await getAuthToken();
+    if (!token) throw new Error('Authentication required');
+
+    // Get current saved status
+    const currentStatus = await getSavedStatus(restaurantId, branchIndex);
     
-    // Mock response - just toggle the current status
-    const currentStatus = await getSavedStatus(restaurantId);
-    return !currentStatus;
+    if (currentStatus) {
+      // If currently saved, unsave it
+      await axios.delete(`${API_BASE_URL}/api/saved-restaurants/${restaurantId}/${branchIndex}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log(`Restaurant ${restaurantId} removed from saved list`);
+      return false;
+    } else {
+      // If not saved, save it
+      await axios.post(`${API_BASE_URL}/saved-restaurants`, { restaurantId }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log(`Restaurant ${restaurantId} added to saved list`);
+      return true;
+    }
   } catch (error) {
     console.error(`Toggle saved status for restaurant ${restaurantId} error:`, error);
     throw error;
   }
+};
+
+// Helper function to get auth token
+export const getAuthToken = async (): Promise<string | null> => {
+  return await SecureStore.getItemAsync('authToken');
 };
