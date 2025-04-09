@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useAuth } from '@/context/auth-context';
 import { EhgezliButton } from '@/components/EhgezliButton';
+import { Avatar } from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from 'react-native';
@@ -104,11 +105,11 @@ export default function ProfileScreen() {
 
         <View style={[styles.profileCard, { borderColor: colors.border, backgroundColor: colorScheme === 'dark' ? colors.background : '#fff' }]}>
           <View style={styles.profileHeader}>
-            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-              <Text style={styles.avatarText}>
-                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-              </Text>
-            </View>
+            <Avatar 
+              firstName={user.firstName}
+              lastName={user.lastName}
+              size={60}
+            />
             <View style={styles.profileInfo}>
               {isEditing ? (
                 <>
@@ -332,19 +333,6 @@ const styles = StyleSheet.create({
   profileHeader: {
     flexDirection: 'row',
     marginBottom: 24,
-  },
-  avatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  avatarText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
   },
   profileInfo: {
     flex: 1,

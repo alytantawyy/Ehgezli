@@ -68,7 +68,7 @@ export function RestaurantCard({
     id: originalBranch.id,
     location: originalBranch.location,
     address: originalBranch.address,
-    city: 'Cairo', // Default city or get from elsewhere if available
+    city: originalBranch.city, 
     slots: originalBranch.slots.map((timeStr: any) => ({ time: timeStr }))
   };
   
@@ -198,39 +198,39 @@ export function RestaurantCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    marginBottom: 16,
-    padding: 16,
+    marginBottom: 10,
+    padding: 12,
     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 2,
     backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   logo: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 12,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 10,
   },
   headerText: {
     flex: 1,
     justifyContent: 'center',
   },
   name: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   cuisine: {
-    fontSize: 14,
-    marginBottom: 4,
+    fontSize: 13,
+    marginBottom: 2,
   },
   location: {
-    fontSize: 14,
+    fontSize: 13,
     opacity: 0.7,
   },
   saveButton: {
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   price: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   timeSlotsContainer: {
@@ -251,8 +251,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   availabilityText: {
-    fontSize: 14,
-    marginBottom: 4,
+    fontSize: 13,
+    marginBottom: 2,
   },
   timeSlots: {
     flexDirection: 'row',
@@ -260,19 +260,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   timeSlot: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginLeft: 8,
-    marginBottom: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 6,
+    marginBottom: 3,
   },
   timeSlotText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
   },
   noAvailability: {
-    fontSize: 14,
+    fontSize: 13,
     fontStyle: 'italic',
     opacity: 0.7,
   },

@@ -15,6 +15,7 @@ import {
   TextStyle,
   ViewStyle,
   ImageStyle,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/auth-context';
@@ -38,6 +39,8 @@ type Styles = {
   taglineOnImage: TextStyle;
   header: ViewStyle;
   logo: TextStyle;
+  logoImage: ImageStyle;
+  logoImageOnBackground: ImageStyle;
   tagline: TextStyle;
   formContainer: ViewStyle;
   tabs: ViewStyle;
@@ -204,10 +207,11 @@ export default function LoginScreen() {
         >
           <ScrollView contentContainerStyle={styles.scrollContainer}>
             <View style={styles.header}>
-              <Text style={styles.logo}>Ehgezli</Text>
-              <Text style={styles.tagline}>
-                Your gateway to exceptional dining experiences.
-              </Text>
+              <Image 
+                source={require('../assets/Ehgezli-logo.png')} 
+                style={styles.logoImage} 
+                resizeMode="contain"
+              />
             </View>
             
             <ImageBackground
@@ -216,7 +220,6 @@ export default function LoginScreen() {
               resizeMode="cover"
             >
               <View style={styles.imageOverlay}>
-                <Text style={styles.logoOnImage}>Ehgezli</Text>
                 <Text style={styles.taglineOnImage}>
                   Your gateway to exceptional dining experiences. Book tables at the finest restaurants with just a few clicks.
                 </Text>
@@ -373,10 +376,21 @@ const styles = StyleSheet.create<Styles>({
     marginTop: 40,
   },
   logo: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: Colors.light.primary,
+    color: '#B71C1C',
+    marginBottom: 5,
+  },
+  logoImage: {
+    width: 120,
+    height: 60,
+    marginBottom: 5,
+  },
+  logoImageOnBackground: {
+    width: 150,
+    height: 75,
     marginBottom: 10,
+    tintColor: '#ffffff',
   },
   tagline: {
     fontSize: 16,

@@ -5,15 +5,19 @@ import { SearchBar } from '@/components/SearchBar';
 import { RestaurantList } from '@/components/RestaurantList';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { EhgezliButton } from '@/components/EhgezliButton';
+import { Avatar } from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from 'react-native';
 import { format } from 'date-fns';
+import { useAuth } from '@/context/auth-context';
+import { router } from 'expo-router';
 
 export default function TabOneScreen() {
   console.log('[HomePage] rendering');
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
+  const { user } = useAuth();
   
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,8 +43,30 @@ export default function TabOneScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Ehgezli</Text>
-        <Text style={styles.subtitle}>Find and book restaurants</Text>
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.title}>Ehgezli</Text>
+            <Text style={styles.subtitle}>Find and book restaurants</Text>
+          </View>
+          
+          {user && (
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
+              <Avatar 
+                firstName={user.firstName} 
+                lastName={user.lastName} 
+                size={40} 
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {user && (
+          <View style={styles.userInfo}>
+            <Text style={styles.welcomeText}>
+              Welcome, {user.firstName}!
+            </Text>
+          </View>
+        )}
       </View>
       
       <View style={styles.searchContainer}>
@@ -111,27 +137,38 @@ export default function TabOneScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 12,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     opacity: 0.7,
   },
+  userInfo: {
+    marginTop: 4,
+  },
+  welcomeText: {
+    fontSize: 14,
+  },
   searchContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   filterButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 6,
   },
   filterButton: {
     flex: 1,
@@ -152,10 +189,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primary,
   },
   dateInfo: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   dateText: {
-    fontSize: 14,
+    fontSize: 13,
     opacity: 0.7,
   },
 });

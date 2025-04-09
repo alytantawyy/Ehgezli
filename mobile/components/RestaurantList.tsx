@@ -111,7 +111,7 @@ export function RestaurantList({
       
       console.log('[RestaurantList] Fetching with params:', params);
       
-      return getRestaurants() as unknown as RestaurantWithAvailability[];
+      return getRestaurants(params) as unknown as RestaurantWithAvailability[];
     },
     staleTime: 0, // Ensure data is always considered stale and will refetch
     refetchOnWindowFocus: false, // Prevent refetching when window regains focus
@@ -298,6 +298,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   listContainer: {
-    padding: 10,
+    padding: 4,
   },
 });

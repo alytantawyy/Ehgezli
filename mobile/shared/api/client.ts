@@ -150,9 +150,9 @@ export const getCurrentUser = async (): Promise<User | null> => {
 };
 
 // Restaurant functions
-export const getRestaurants = async (): Promise<Restaurant[]> => {
+export const getRestaurants = async (params?: Record<string, any>): Promise<Restaurant[]> => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/restaurants`);
+    const response = await axios.get(`${API_BASE_URL}/api/restaurants`, { params });
     console.log('Restaurants response:', response.data);
     return response.data;
   } catch (error) {
