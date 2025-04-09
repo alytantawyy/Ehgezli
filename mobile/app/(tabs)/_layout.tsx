@@ -20,13 +20,13 @@ export default function TabLayout() {
         tabBarStyle: {
           borderTopWidth: 1,
           borderTopColor: colorScheme === 'dark' ? '#333' : '#e0e0e0',
-          paddingBottom: 5,
-          paddingTop: 5,
           backgroundColor: colorScheme === 'dark' ? '#1c1c1c' : '#ffffff',
-          height: 60, // Explicit height
-          display: 'flex', // Ensure it's displayed
-          position: 'absolute', // Position it absolutely
-          bottom: 15, // Move it up by 15 pixels from the bottom
+          height: 80, // Increased height
+          display: 'flex',
+          paddingBottom: 25, // Increased bottom padding to account for iPhone home indicator
+          paddingTop: 10, // Increased top padding to shift icons up
+          position: 'absolute',
+          bottom: 0, // Position at the bottom of the screen
           left: 0,
           right: 0,
           shadowColor: '#000',
@@ -34,8 +34,8 @@ export default function TabLayout() {
           shadowOpacity: 0.1,
           shadowRadius: 3,
           elevation: 5,
-          borderRadius: 15, // Add rounded corners
-          marginHorizontal: 10, // Add some margin on the sides
+          borderRadius: 15,
+          //marginHorizontal: 10,
         },
         headerShown: false,
       }}

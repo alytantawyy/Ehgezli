@@ -15,15 +15,13 @@ import { router } from 'expo-router';
 
 export default function TabOneScreen() {
   console.log('[HomePage] rendering');
-  const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
   const { user } = useAuth();
   
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
-  const [cityFilter, setCityFilter] = useState('all');
-  const [cuisineFilter, setCuisineFilter] = useState('all');
-  const [priceFilter, setPriceFilter] = useState('all');
+  const [cityFilter, setCityFilter] = useState('');
+  const [cuisineFilter, setCuisineFilter] = useState('');
+  const [priceFilter, setPriceFilter] = useState('');
   const [date, setDate] = useState(new Date());
   const [time, setTime] = useState('');
   const [partySize, setPartySize] = useState(2);
@@ -70,35 +68,50 @@ export default function TabOneScreen() {
       </View>
       
       <View style={styles.searchContainer}>
-        <SearchBar onSearch={handleSearch} />
-        
-        <View style={styles.filterButtons}>
-          <EhgezliButton
-            title="Filters"
-            variant="outline"
-            size="sm"
-            onPress={() => setIsFilterDrawerVisible(true)}
-            style={styles.filterButton}
-            textStyle={styles.filterButtonText}
-          />
+        <View style={styles.searchRow}>
+          <SearchBar onSearch={handleSearch} containerStyle={styles.searchBar} />
           
           <TouchableOpacity 
-            style={[styles.savedButton, showSavedOnly && styles.savedButtonActive]} 
+            style={styles.starButton} 
             onPress={toggleSavedOnly}
           >
             <Ionicons 
               name={showSavedOnly ? 'star' : 'star-outline'} 
               size={20} 
-              color={showSavedOnly ? '#fff' : colors.text} 
+              color="#fff" 
             />
           </TouchableOpacity>
         </View>
-      </View>
-      
-      <View style={styles.dateInfo}>
-        <Text style={styles.dateText}>
-          Showing results for {format(date, 'MMM d')}, Party of {partySize}
-        </Text>
+        
+        <View style={styles.buttonsContainer}>
+          <TouchableOpacity style={styles.actionButton}>
+            <Ionicons name="calendar-outline" size={16} color="#fff" style={styles.buttonIcon} />
+            <Text style={styles.buttonText}>{format(date, 'MMM d')}</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionButton}>
+            <Ionicons name="time-outline" size={16} color="#fff" style={styles.buttonIcon} />
+            <Text style={styles.buttonText}>{time || '5:00 PM'}</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionButton}>
+            <Ionicons name="people-outline" size={16} color="#fff" style={styles.buttonIcon} />
+            <Text style={styles.buttonText}>{partySize} people</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setIsFilterDrawerVisible(true)}
+          >
+            <Ionicons 
+              name={(cityFilter || cuisineFilter || priceFilter) ? 'funnel' : 'funnel-outline'} 
+              size={16} 
+              color="#fff" 
+              style={styles.buttonIcon}
+            />
+            <Text style={styles.buttonText}>Filters</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       
       <RestaurantList
@@ -163,36 +176,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   searchContainer: {
-    marginBottom: 12,
+    marginBottom: 15,
   },
-  filterButtons: {
+  searchRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 6,
+    alignItems: 'center',
+    marginBottom: 10,
+    height: 48,
   },
-  filterButton: {
+  searchBar: {
     flex: 1,
     marginRight: 8,
   },
-  filterButtonText: {
-    fontSize: 14,
-  },
-  savedButton: {
-    width: 40,
-    height: 40,
+  starButton: {
+    backgroundColor: 'hsl(355,79%,36%)', 
     borderRadius: 8,
-    backgroundColor: '#f0f0f0',
+    width: 48,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 0,
+    overflow: 'hidden',
   },
-  savedButtonActive: {
-    backgroundColor: Colors.light.primary,
+  buttonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
   },
-  dateInfo: {
-    marginBottom: 12,
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'hsl(355,79%,36%)', 
+    borderRadius: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginRight: 5,
+    marginBottom: 5,
+    borderWidth: 1,
+    borderColor: 'hsl(355,79%,36%)', 
   },
-  dateText: {
-    fontSize: 13,
-    opacity: 0.7,
+  buttonText: {
+    fontSize: 12,
+    color: '#fff',
+  },
+  buttonIcon: {
+    marginRight: 4,
   },
 });

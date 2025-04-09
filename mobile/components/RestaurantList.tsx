@@ -268,6 +268,7 @@ export function RestaurantList({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    marginBottom: 66,
   },
   loadingContainer: {
     flex: 1,

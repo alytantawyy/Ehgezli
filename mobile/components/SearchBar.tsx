@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, TextInput, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import { useColorScheme } from 'react-native';
@@ -9,13 +9,15 @@ interface SearchBarProps {
   initialValue?: string;
   placeholder?: string;
   debounceTime?: number;
+  containerStyle?: ViewStyle;
 }
 
 export function SearchBar({
   onSearch,
   initialValue = '',
   placeholder = 'Search restaurants...',
-  debounceTime = 300
+  debounceTime = 300,
+  containerStyle
 }: SearchBarProps) {
   console.log('[SearchBar] rendering');
   const [searchQuery, setSearchQuery] = useState(initialValue);
@@ -49,7 +51,7 @@ export function SearchBar({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, borderColor: colors.border }]}>
+    <View style={[styles.container, containerStyle]}>
       <Ionicons name="search" size={20} color={colors.text} style={styles.searchIcon} />
       <TextInput
         style={[styles.input, { color: colors.text }]}
@@ -76,7 +78,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 48,
-    marginBottom: 16,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#ffffff',
   },
   searchIcon: {
     marginRight: 8,
