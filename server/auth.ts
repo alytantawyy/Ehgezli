@@ -281,11 +281,36 @@ export function setupAuth(app: Express) {
   });
 
   // Get current user data endpoint
-  app.get("/api/user", authenticateJWT, (req, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: "Not authenticated" });
+  app.get("/api/user", authenticateJWT, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
+      // Get complete user information from the database
+      if (req.user.type === 'user') {
+        const user = await storage.getUserById(req.user.id);
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        // Don't send password to the client
+        //delete user.password;
+        res.json(user);
+      } else if (req.user.type === 'restaurant') {
+        const restaurant = await storage.getRestaurant(req.user.id);
+        if (!restaurant) {
+          return res.status(404).json({ message: "Restaurant not found" });
+        }
+        // Don't send password to the client
+        //delete restaurant.password;
+        res.json(restaurant);
+      } else {
+        return res.status(400).json({ message: "Invalid user type" });
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      res.status(500).json({ message: "Server error" });
     }
-    res.json(req.user);
   });
 
   // Get current restaurant data endpoint
