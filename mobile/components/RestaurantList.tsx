@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { RestaurantCard } from './RestaurantCard';
-import { RestaurantWithAvailability, BranchWithAvailability } from '../shared/types';
-import { getRestaurants, getSavedRestaurants, SavedRestaurantItem } from '../shared/api/client';
+import { RestaurantWithAvailability, BranchWithAvailability, TimeSlot, AvailableSlot } from './RestaurantCard';
+import { getRestaurants, getSavedRestaurants, SavedRestaurantItem, getRestaurantsWithAvailability } from '../shared/api/client';
 
 interface RestaurantListProps {
   searchQuery?: string;
@@ -111,7 +111,94 @@ export function RestaurantList({
       
       console.log('[RestaurantList] Fetching with params:', params);
       
-      return getRestaurants(params) as unknown as RestaurantWithAvailability[];
+      // Use the new API endpoint that properly populates slot arrays
+      const restaurantsData = await getRestaurantsWithAvailability(params);
+      console.log('[RestaurantList] Received restaurants with availability:', 
+        restaurantsData.map(r => ({
+          id: r.id, 
+          name: r.name,
+          branchCount: r.branches?.length || 0,
+          hasBranchesWithSlots: r.branches?.some(b => b.slots && b.slots.length > 0)
+        }))
+      );
+      
+      // Ensure proper type conversion and data structure
+      return restaurantsData.map(restaurant => {
+        // Convert to expected type
+        const result = restaurant as unknown as RestaurantWithAvailability;
+        
+        // Ensure restaurant has branches array (even if empty)
+        if (!result.branches) {
+          result.branches = [];
+        }
+        
+        // Map availableSlots to slots for each branch
+        result.branches.forEach(branch => {
+          // If branch has availableSlots but no slots, copy availableSlots to slots
+          if (branch.availableSlots && branch.availableSlots.length > 0 && (!branch.slots || branch.slots.length === 0)) {
+            console.log(`Mapping availableSlots to slots for restaurant ${result.id}, branch ${branch.id}`);
+            
+            // Create time slots in the same format as the server
+            // This uses the exact same logic as in server/storage.ts getDefaultTimeSlots()
+            
+            // Add 2 hours to current time
+            const now = new Date();
+            console.log('Current time:', now.toISOString(), now.getHours() + ':' + now.getMinutes());
+            
+            // Special handling for late night hours (10 PM to 6 AM)
+            let baseTime;
+            const currentHour = now.getHours();
+            
+            if (currentHour >= 22 || currentHour < 6) {
+              // If it's late night, use noon the next day as the base time instead of now + 2 hours
+              baseTime = new Date(now);
+              baseTime.setDate(baseTime.getDate() + 1); // Next day
+              baseTime.setHours(12, 0, 0, 0); // Set to noon
+              console.log('Late night detected, using noon tomorrow:', baseTime.toISOString());
+            } else {
+              // Normal case: add 2 hours to current time
+              baseTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+            }
+            
+            console.log('After adding 2 hours or using noon:', baseTime.toISOString(), baseTime.getHours() + ':' + baseTime.getMinutes());
+            
+            // Round down to nearest 30 mins
+            const minutes = baseTime.getMinutes();
+            const roundedMinutes = Math.floor(minutes / 30) * 30;
+            baseTime.setMinutes(roundedMinutes);
+            console.log('After rounding to 30 mins:', baseTime.toISOString(), baseTime.getHours() + ':' + baseTime.getMinutes());
+            
+            // Generate slots
+            const baseSlot = new Date(baseTime);
+            const beforeSlot = new Date(baseTime.getTime() - 30 * 60 * 1000);
+            const afterSlot = new Date(baseTime.getTime() + 30 * 60 * 1000);
+            console.log('Time slots (Date objects):', 
+                        '\nBefore:', beforeSlot.toISOString(), beforeSlot.getHours() + ':' + beforeSlot.getMinutes(),
+                        '\nBase:', baseSlot.toISOString(), baseSlot.getHours() + ':' + baseSlot.getMinutes(),
+                        '\nAfter:', afterSlot.toISOString(), afterSlot.getHours() + ':' + afterSlot.getMinutes());
+
+            // Format as HH:mm
+            const formatTime = (date: Date) => {
+              return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+            };
+
+            const timeSlots = [formatTime(beforeSlot), formatTime(baseSlot), formatTime(afterSlot)];
+            console.log('Formatted time slots:', timeSlots);
+            
+            // Always use our generated time slots for consistency
+            branch.slots = timeSlots;
+            
+            console.log('Final branch slots:', branch.slots);
+          }
+          
+          // Ensure each branch has slots array (even if empty)
+          if (!branch.slots) {
+            branch.slots = [];
+          }
+        });
+        
+        return result;
+      });
     },
     staleTime: 0, // Ensure data is always considered stale and will refetch
     refetchOnWindowFocus: false, // Prevent refetching when window regains focus
@@ -207,16 +294,17 @@ export function RestaurantList({
           slots: branch.slots.map((slot: any) => {
             // Handle both string slots and object slots
             if (typeof slot === 'string') {
-              return { time: slot, availableSeats: 0 }; // Default to 0 available seats
+              return { time: slot }; // Simple time slot
             } else if (typeof slot === 'object') {
               return { 
                 time: slot.time || '', 
                 availableSeats: typeof slot.availableSeats === 'number' ? slot.availableSeats : 0 
               };
             }
-            return { time: '', availableSeats: 0 }; // Fallback
+            return { time: '' }; // Fallback
           }),
-          isSaved: branch.isSaved || false
+          isSaved: branch.isSaved || false,
+          availableSlots: branch.availableSlots || []
         };
         
         // If showSavedOnly is true, only include saved branches
@@ -252,7 +340,7 @@ export function RestaurantList({
             <RestaurantCard
               restaurant={item.restaurant}
               branchIndex={item.branchIndex}
-              date={date.toISOString()}
+              date={date instanceof Date && !isNaN(date.getTime()) ? date.toISOString() : new Date().toISOString()}
               time={time}
               partySize={partySize}
             />

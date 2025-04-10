@@ -28,6 +28,8 @@ export interface Branch {
   location: string;
   address: string;
   slots: string[];
+  city?: string;
+  availableSlots?: Array<{ time: string; seats: number }>;
 }
 
 export interface Booking {
@@ -63,7 +65,7 @@ export interface SavedRestaurantItem {
 const API_BASE_URL = 'http://localhost:4000';
 
 // Create axios instance
-const api = axios.create({
+export const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
@@ -323,6 +325,41 @@ export const toggleSavedStatus = async (restaurantId: number, branchIndex: numbe
     }
   } catch (error) {
     console.error(`Toggle saved status for restaurant ${restaurantId} error:`, error);
+    throw error;
+  }
+};
+
+
+export const fetchDefaultTimeSlots = async (): Promise<string[]> => {
+  try {
+    const response = await api.get('/api/default-time-slots');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching time slots:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetches restaurants with availability for a specific date, time, and party size
+ * This uses the server's findRestaurantsWithAvailability endpoint which properly populates slot arrays
+ */
+export const getRestaurantsWithAvailability = async (params?: {
+  date?: string;
+  time?: string;
+  partySize?: number;
+  city?: string;
+  cuisine?: string;
+  priceRange?: string;
+  search?: string;
+  showSavedOnly?: boolean;
+}): Promise<Restaurant[]> => {
+  try {
+    console.log('Fetching restaurants with availability:', params);
+    const response = await api.get('/api/restaurants/availability', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching restaurants with availability:', error);
     throw error;
   }
 };
