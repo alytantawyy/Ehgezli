@@ -490,8 +490,8 @@ export function registerRoutes(app: Express): Server {
   });
 
   /**
-   * Save Restaurant
-   * POST /api/saved-restaurants
+   * Save a Restaurant
+   * POST /api/saved-branches
    * 
    * Save a restaurant to the user's favorites
    * 
@@ -505,7 +505,7 @@ export function registerRoutes(app: Express): Server {
    * - 400: Invalid parameters
    * - 500: Server error
    */
-  app.post("/api/saved-restaurants", requireUserAuth, async (req: Request, res: Response) => {
+  app.post("/api/saved-branches", requireUserAuth, async (req: Request, res: Response) => {
     try {
       // Get user ID safely
       const userId = getUserId(req);
@@ -531,7 +531,7 @@ export function registerRoutes(app: Express): Server {
       await storage.saveRestaurant(userId, restaurantIdNum, branchIndexNum);
       
       console.log(`User ${userId} saved restaurant ${restaurantIdNum} branch ${branchIndexNum}`);
-      res.json({ success: true, message: "Restaurant saved successfully" });
+      res.status(201).json({ success: true, message: "Restaurant saved successfully" });
     } catch (error) {
       console.error("Error saving restaurant:", error);
       res.status(500).json({ message: "Failed to save restaurant" });
@@ -540,7 +540,7 @@ export function registerRoutes(app: Express): Server {
 
   /**
    * Delete Saved Restaurant
-   * DELETE /api/saved-restaurants/:restaurantId/:branchIndex
+   * DELETE /api/saved-branches/:restaurantId/:branchIndex
    * 
    * Remove a restaurant from the user's favorites
    * 
@@ -554,7 +554,7 @@ export function registerRoutes(app: Express): Server {
    * - 404: Restaurant not found in saved list
    * - 500: Server error
    */
-  app.delete("/api/saved-restaurants/:restaurantId/:branchIndex", requireUserAuth, async (req: Request, res: Response) => {
+  app.delete("/api/saved-branches/:restaurantId/:branchIndex", requireUserAuth, async (req: Request, res: Response) => {
     try {
       // Get user ID safely
       const userId = getUserId(req);
@@ -578,7 +578,7 @@ export function registerRoutes(app: Express): Server {
 
   /**
    * Get Saved Restaurants
-   * GET /api/saved-restaurants
+   * GET /api/saved-branches
    * 
    * Get all restaurants saved by the current user
    * 
@@ -587,7 +587,7 @@ export function registerRoutes(app: Express): Server {
    * - 401: Unauthorized (not logged in)
    * - 500: Server error
    */
-  app.get("/api/saved-restaurants", requireUserAuth, async (req: Request, res: Response) => {
+  app.get("/api/saved-branches", requireUserAuth, async (req: Request, res: Response) => {
     try {
       // Get user ID safely
       const userId = getUserId(req);
@@ -604,7 +604,7 @@ export function registerRoutes(app: Express): Server {
 
   /**
    * Check if Restaurant is Saved
-   * GET /api/saved-restaurants/:restaurantId/:branchIndex
+   * GET /api/saved-branches/:restaurantId/:branchIndex
    * 
    * Check if a specific restaurant is saved by the current user
    * 
@@ -617,7 +617,7 @@ export function registerRoutes(app: Express): Server {
    * - 401: Unauthorized (not logged in)
    * - 500: Server error
    */
-  app.get("/api/saved-restaurants/:restaurantId/:branchIndex", requireUserAuth, async (req: Request, res: Response) => {
+  app.get("/api/saved-branches/:restaurantId/:branchIndex", requireUserAuth, async (req: Request, res: Response) => {
     try {
       // Get user ID safely
       const userId = getUserId(req);

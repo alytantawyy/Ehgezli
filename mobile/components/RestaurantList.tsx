@@ -64,22 +64,67 @@ export function RestaurantList({
             console.log(`No profile found for restaurant ${restaurant.name}`);
           }
           
-          // Ensure restaurant has branches array (even if empty)
-          if (!restaurant.branches) {
+          // Filter to only include the specific saved branch
+          const branchIndex = item.branchIndex;
+          console.log(`Filtering to only show branch index ${branchIndex} for restaurant ${restaurant.name}`);
+          
+          if (restaurant.branches && restaurant.branches.length > 0) {
+            // If the branch index is valid, keep only that branch
+            if (branchIndex >= 0 && branchIndex < restaurant.branches.length) {
+              const savedBranch = restaurant.branches[branchIndex];
+              restaurant.branches = [savedBranch]; // Replace with array containing only the saved branch
+              console.log(`Kept only branch ${branchIndex} for restaurant ${restaurant.name}`);
+            } else {
+              console.log(`Invalid branch index ${branchIndex} for restaurant ${restaurant.name} with ${restaurant.branches.length} branches`);
+            }
+          } else {
             console.log(`No branches found for restaurant ${restaurant.name}, creating empty array`);
             restaurant.branches = [];
-          } else {
-            console.log(`Restaurant ${restaurant.name} has ${restaurant.branches.length} branches`);
           }
           
-          // Ensure each branch has slots array (even if empty)
+          // Generate time slots for each branch
           restaurant.branches.forEach((branch, index) => {
-            if (!branch.slots) {
-              console.log(`Branch ${index} of restaurant ${restaurant.name} has no slots, creating empty array`);
-              branch.slots = [];
+            // Create time slots in the same format as the server
+            // This uses the exact same logic as in server/storage.ts getDefaultTimeSlots()
+            
+            // Add 2 hours to current time
+            const now = new Date();
+            
+            // Special handling for late night hours (10 PM to 6 AM)
+            let baseTime;
+            const currentHour = now.getHours();
+            
+            if (currentHour >= 22 || currentHour < 6) {
+              // If it's late night, use noon the next day as the base time instead of now + 2 hours
+              baseTime = new Date(now);
+              baseTime.setDate(baseTime.getDate() + 1); // Next day
+              baseTime.setHours(12, 0, 0, 0); // Set to noon
             } else {
-              console.log(`Branch ${index} of restaurant ${restaurant.name} has ${branch.slots.length} slots`);
+              // Normal case: add 2 hours to current time
+              baseTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
             }
+            
+            // Round down to nearest 30 mins
+            const minutes = baseTime.getMinutes();
+            const roundedMinutes = Math.floor(minutes / 30) * 30;
+            baseTime.setMinutes(roundedMinutes);
+            
+            // Generate slots
+            const baseSlot = new Date(baseTime);
+            const beforeSlot = new Date(baseTime.getTime() - 30 * 60 * 1000);
+            const afterSlot = new Date(baseTime.getTime() + 30 * 60 * 1000);
+
+            // Format as HH:mm
+            const formatTime = (date: Date) => {
+              return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+            };
+
+            const timeSlots = [formatTime(beforeSlot), formatTime(baseSlot), formatTime(afterSlot)];
+            
+            // Always use our generated time slots for saved restaurants
+            branch.slots = timeSlots;
+            
+            console.log(`Generated time slots for saved restaurant ${restaurant.name}, branch ${index}:`, timeSlots);
           });
           
           // Mark this restaurant as saved
@@ -206,7 +251,7 @@ export function RestaurantList({
   
   // Query for saved restaurants - always fetch this for marking saved status
   const { data: savedRestaurants, isLoading: isSavedLoading } = useQuery<RestaurantWithAvailability[]>({
-    queryKey: ['saved-restaurants'],
+    queryKey: ['saved-branches'],
     queryFn: async () => {
       try {
         // Use the existing client function which handles the API call properly

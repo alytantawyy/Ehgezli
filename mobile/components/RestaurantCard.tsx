@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
 import { RelativePathString, useRouter } from 'expo-router';
-import { formatTimeWithAMPM, generateTimeSlots } from '../shared/utils/time-slots';
-import { getSavedStatus, toggleSavedStatus, Restaurant, Branch, getRestaurantsWithAvailability } from '../shared/api/client';
+import { formatTimeWithAMPM } from '../shared/utils/time-slots';
+import { isRestaurantSaved, saveRestaurant, unsaveRestaurant } from '../shared/api/client';
 import { useAuth } from '../context/auth-context';
 import Colors from '../constants/Colors';
 import { useColorScheme } from 'react-native';
@@ -131,7 +131,7 @@ export function RestaurantCard({
   useEffect(() => {
     const checkSavedStatus = async () => {
       try {
-        const saved = await getSavedStatus(restaurant.id, branchIndex);
+        const saved = await isRestaurantSaved(restaurant.id, branchIndex);
         setIsSaved(saved);
       } catch (error) {
         console.error('Error checking saved status:', error);
@@ -144,8 +144,12 @@ export function RestaurantCard({
   const handleSaveToggle = async () => {
     try {
       setIsLoading(true);
-      const saved = await toggleSavedStatus(restaurant.id, branchIndex);
-      setIsSaved(saved);
+      if (isSaved) {
+        await unsaveRestaurant(restaurant.id, branchIndex);
+      } else {
+        await saveRestaurant(restaurant.id, branchIndex);
+      }
+      setIsSaved(!isSaved);
     } catch (error: any) {
       // Handle authentication errors
       if (error.response?.status === 401) {
@@ -216,23 +220,19 @@ export function RestaurantCard({
       onPress={handlePress}
       activeOpacity={0.7}
     >
-      <View style={styles.header}>
-        <Image 
-          source={{ 
-            uri: restaurant.profile?.logo || 
-                'https://via.placeholder.com/100?text=Restaurant'
-          }} 
-          style={styles.logo} 
-        />
-        <View style={styles.headerText}>
-          <Text style={[styles.name, { color: colors.text }]}>{restaurant.name}</Text>
-          <Text style={[styles.cuisine, { color: colors.text }]}>
-            {restaurant.profile?.cuisine || 'Various Cuisine'}
-          </Text>
-          <Text style={[styles.location, { color: colors.text }]}>
-            {branch.city}{branch.location ? `, ${branch.location}` : ''}
-          </Text>
-        </View>
+      {/* Top - Restaurant Image (Full Width) */}
+      <Image 
+        source={{ 
+          uri: restaurant.profile?.logo || 
+              'https://via.placeholder.com/100?text=Restaurant'
+        }} 
+        style={styles.restaurantImage} 
+      />
+      
+      {/* Name and Save Button Row */}
+      <View style={styles.nameRow}>
+        <Text style={[styles.name, { color: colors.text }]}>{restaurant.name}</Text>
+        
         <TouchableOpacity 
           style={styles.saveButton} 
           onPress={handleSaveToggle}
@@ -245,65 +245,76 @@ export function RestaurantCard({
           />
         </TouchableOpacity>
       </View>
-
-      <View style={styles.details}>
-        <Text style={[styles.price, { color: colors.text }]}>
-          {restaurant.profile?.priceRange || '$$'}
-        </Text>
+      
+      {/* Details Row */}
+      <View style={styles.detailsRow}>
+        {/* Price and Cuisine */}
+        <View style={styles.priceAndCuisine}>
+          <Text style={[styles.price, { color: colors.text }]}>
+            {restaurant.profile?.priceRange || '$$'}
+          </Text>
+          <Text style={styles.dot}>•</Text>
+          <Text style={[styles.cuisine, { color: colors.text }]}>
+            {restaurant.profile?.cuisine || 'Various Cuisine'}
+          </Text>
+        </View>
         
+        {/* Location */}
+        <Text style={[styles.location, { color: colors.text }]}>
+          {branch.city || 'Location'}
+        </Text>
+      </View>
+      
+      {/* Time Slots Section */}
+      <View style={styles.timeSlotsSection}>
         {(branch.slots && branch.slots.length > 0) ? (
-          <View style={styles.timeSlotsContainer}>
-            <Text style={[styles.availabilityText, { color: colors.text }]}>
-              Available times:
-            </Text>
-            <View style={styles.timeSlots}>
-              {(branch.slots || []).map((slot, index) => {
-                // Skip invalid slots
-                if (!slot) {
-                  console.log('Skipping null or undefined slot');
-                  return null;
+          <View style={styles.timeSlots}>
+            {(branch.slots || []).map((slot, index) => {
+              // Skip invalid slots
+              if (!slot) {
+                console.log('Skipping null or undefined slot');
+                return null;
+              }
+              
+              // Handle different slot formats
+              let timeValue: string | undefined;
+              
+              if (typeof slot === 'string') {
+                // If slot is directly a string
+                timeValue = slot;
+              } else if (typeof slot === 'object') {
+                // Handle double-nested time objects: {time: {time: "15:25"}}
+                if (slot.time && typeof slot.time === 'object' && 'time' in slot.time && typeof slot.time.time === 'string') {
+                  timeValue = slot.time.time;
                 }
-                
-                // Handle different slot formats
-                let timeValue: string | undefined;
-                
-                if (typeof slot === 'string') {
-                  // If slot is directly a string
-                  timeValue = slot;
-                } else if (typeof slot === 'object') {
-                  // Handle double-nested time objects: {time: {time: "15:25"}}
-                  if (slot.time && typeof slot.time === 'object' && 'time' in slot.time && typeof slot.time.time === 'string') {
-                    timeValue = slot.time.time;
-                  }
-                  // Handle regular time objects: {time: "15:25"}
-                  else if (slot.time && typeof slot.time === 'string') {
-                    timeValue = slot.time;
-                  }
-                } else {
-                  // Unknown format
-                  console.log('Skipping slot with unknown format:', slot);
-                  return null;
+                // Handle regular time objects: {time: "15:25"}
+                else if (slot.time && typeof slot.time === 'string') {
+                  timeValue = slot.time;
                 }
-                
-                // Skip slots with no time value
-                if (!timeValue) {
-                  console.log('Skipping slot with no time value');
-                  return null;
-                }
-                
-                return (
-                  <TouchableOpacity 
-                    key={index}
-                    style={[styles.timeSlot, { backgroundColor: colors.primary }]}
-                    onPress={() => handleTimeSelect(slot)}
-                  >
-                    <Text style={styles.timeSlotText}>
-                      {formatTimeWithAMPM(timeValue)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+              } else {
+                // Unknown format
+                console.log('Skipping slot with unknown format:', slot);
+                return null;
+              }
+              
+              // Skip slots with no time value
+              if (!timeValue) {
+                console.log('Skipping slot with no time value');
+                return null;
+              }
+              
+              return (
+                <TouchableOpacity 
+                  key={index}
+                  style={[styles.timeSlot, { backgroundColor: colors.primary }]}
+                  onPress={() => handleTimeSelect(slot)}
+                >
+                  <Text style={styles.timeSlotText}>
+                    {formatTimeWithAMPM(timeValue)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         ) : (
           <View>
@@ -339,89 +350,101 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 10,
     borderWidth: 1,
-    marginBottom: 10,
-    padding: 12,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
+    marginBottom: 15,
+    overflow: 'hidden',
     backgroundColor: '#fff',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  header: {
+  restaurantImage: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+  },
+  nameRow: {
     flexDirection: 'row',
-    marginBottom: 8,
-  },
-  logo: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 10,
-  },
-  headerText: {
-    flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingTop: 10,
   },
   name: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 2,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingBottom: 15,
+  },
+  
+  priceAndCuisine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  price: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dot: {
+    fontSize: 14,
+    marginHorizontal: 6,
+    opacity: 0.7,
   },
   cuisine: {
-    fontSize: 13,
-    marginBottom: 2,
+    fontSize: 14,
   },
   location: {
     fontSize: 13,
     opacity: 0.7,
   },
   saveButton: {
-    justifyContent: 'center',
     padding: 8,
   },
-  details: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  timeSlotsSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
     alignItems: 'center',
-  },
-  price: {
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  timeSlotsContainer: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  availabilityText: {
-    fontSize: 13,
-    marginBottom: 2,
   },
   timeSlots: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'flex-end',
   },
   timeSlot: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 6,
-    marginBottom: 3,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginRight: 8,
+    marginBottom: 6,
+    backgroundColor: 'hsl(355,79%,36%)',
   },
   timeSlotText: {
     color: '#fff',
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: 'normal',
   },
   noAvailability: {
-    fontSize: 13,
+    fontSize: 14,
     fontStyle: 'italic',
     opacity: 0.7,
+    textAlign: 'center',
   },
   debugButton: {
+    marginTop: 8,
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#ccc',
+    backgroundColor: '#eee',
+    alignSelf: 'center',
   },
   debugButtonText: {
-    fontSize: 13,
-    color: '#333',
+    fontSize: 12,
+    color: '#666',
   },
 });

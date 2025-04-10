@@ -1,20 +1,12 @@
 import { format, parse, addMinutes } from 'date-fns';
-import { fetchDefaultTimeSlots } from '../api/client';
 
 /**
- * Fetches default time slots from the server API
- * Falls back to local generation if the API call fails
+ * Generates time slots based on the current time
+ * Uses the same algorithm as the server for consistency
  */
 export const generateTimeSlots = async (currentTime?: Date): Promise<string[]> => {
-  try {
-    // Fetch time slots from server API
-    const timeSlots = await fetchDefaultTimeSlots();
-    return timeSlots;
-  } catch (error) {
-    console.error('Error fetching time slots, using local fallback:', error);
-    // Fallback to local generation if API call fails
-    return generateLocalTimeSlots(currentTime);
-  }
+  // Always use local generation since we've standardized the algorithm
+  return generateLocalTimeSlots(currentTime);
 };
 
 /**

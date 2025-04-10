@@ -261,82 +261,65 @@ export const updateUserProfile = async (profileData: {
   }
 };
 
-// Saved restaurants functions
+// Saved restaurant branch functions
 export const getSavedRestaurants = async (): Promise<SavedRestaurantItem[]> => {
   try {
     const token = await getAuthToken();
     if (!token) throw new Error('Authentication required');
 
-    const response = await axios.get(`${API_BASE_URL}/api/saved-restaurants`, {
+    const response = await axios.get(`${API_BASE_URL}/api/saved-branches`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     
-    console.log('Saved restaurants response:', response.data);
+    console.log('Saved restaurant branches response:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Get saved restaurants error:', error);
+    console.error('Get saved restaurant branches error:', error);
     throw error;
   }
 };
 
-export const getSavedStatus = async (restaurantId: number, branchIndex: number): Promise<boolean> => {
-  try {
-    const token = await getAuthToken();
-    if (!token) return false;
-
-    const response = await axios.get(`${API_BASE_URL}/api/saved-restaurants/${restaurantId}/${branchIndex}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    console.log(`Saved status for restaurant ${restaurantId} response:`, response.data);
-    return response.data.saved;
-  } catch (error) {
-    console.error(`Get saved status for restaurant ${restaurantId} error:`, error);
-    // If we get a 404, it means the restaurant is not saved
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return false;
-    }
-    throw error;
-  }
-};
-
-export const toggleSavedStatus = async (restaurantId: number, branchIndex: number): Promise<boolean> => {
+export const saveRestaurant = async (restaurantId: number, branchIndex: number): Promise<void> => {
   try {
     const token = await getAuthToken();
     if (!token) throw new Error('Authentication required');
 
-    // Get current saved status
-    const currentStatus = await getSavedStatus(restaurantId, branchIndex);
-    
-    if (currentStatus) {
-      // If currently saved, unsave it
-      await axios.delete(`${API_BASE_URL}/api/saved-restaurants/${restaurantId}/${branchIndex}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      console.log(`Restaurant ${restaurantId} removed from saved list`);
-      return false;
-    } else {
-      // If not saved, save it
-      await axios.post(`${API_BASE_URL}/saved-restaurants`, { restaurantId }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      console.log(`Restaurant ${restaurantId} added to saved list`);
-      return true;
-    }
+    await axios.post(`${API_BASE_URL}/api/saved-branches`, 
+      { restaurantId, branchIndex },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
   } catch (error) {
-    console.error(`Toggle saved status for restaurant ${restaurantId} error:`, error);
+    console.error('Save restaurant branch error:', error);
     throw error;
   }
 };
 
-
-export const fetchDefaultTimeSlots = async (): Promise<string[]> => {
+export const unsaveRestaurant = async (restaurantId: number, branchIndex: number): Promise<void> => {
   try {
-    const response = await api.get('/api/default-time-slots');
-    return response.data;
+    const token = await getAuthToken();
+    if (!token) throw new Error('Authentication required');
+
+    await axios.delete(`${API_BASE_URL}/api/saved-branches/${restaurantId}/${branchIndex}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
   } catch (error) {
-    console.error('Error fetching time slots:', error);
+    console.error('Unsave restaurant branch error:', error);
     throw error;
+  }
+};
+
+export const isRestaurantSaved = async (restaurantId: number, branchIndex: number): Promise<boolean> => {
+  try {
+    const token = await getAuthToken();
+    if (!token) throw new Error('Authentication required');
+
+    const response = await axios.get(`${API_BASE_URL}/api/saved-branches/${restaurantId}/${branchIndex}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data.saved;
+  } catch (error) {
+    console.error('Check if restaurant branch is saved error:', error);
+    return false;
   }
 };
 
