@@ -39,7 +39,7 @@ function pickRandom<T>(arr: T[], count: number): T[] {
 }
 
 async function seed() {
-  console.log('🌱 Seeding database...');
+  console.log('Seeding database...');
 
   // Clear existing data in correct order (respecting foreign keys)
   console.log('Clearing existing data...');
@@ -51,156 +51,143 @@ async function seed() {
   await db.delete(restaurantProfiles);
   await db.delete(restaurantAuth);
   await db.delete(users);
-  // Clear sessions
-  await db.execute(sql`DELETE FROM session`);
-  console.log('✅ Cleared existing data');
-
-  // Available cuisines - matching the list from home-page.tsx
-  const cuisines = [
-    'American',
-    'Egyptian',
-    'Italian',
-    'Japanese',
-    'Chinese',
-    'Indian',
-    'Mexican',
-    'French',
-    'Thai',
-    'Mediterranean',
-    'Middle Eastern'
-  ];
-
-  // Available cities - only Cairo and Alexandria
-  const cities = ['Cairo', 'Alexandria'];
 
   // Create test users (10 users)
-  const userEntries = await Promise.all([
-    // Original users
-    db.insert(users).values({
+  const userPromises: Promise<any>[] = [];
+  const testUsers = [
+    {
       firstName: 'John',
       lastName: 'Doe',
       email: 'john@example.com',
-      password: await hashPassword('password123'),
+      password: 'password123',
       gender: 'male',
       birthday: new Date('1990-01-01'),
       city: 'Alexandria',
-      favoriteCuisines: ['Italian', 'Japanese'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning(),
-    db.insert(users).values({
+      favoriteCuisines: ['Italian', 'Japanese']
+    },
+    {
       firstName: 'Jane',
       lastName: 'Smith',
       email: 'jane@example.com',
-      password: await hashPassword('password123'),
+      password: 'password123',
       gender: 'female',
       birthday: new Date('1992-05-15'),
       city: 'Cairo',
-      favoriteCuisines: ['Mexican', 'Indian'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning(),
-    db.insert(users).values({
+      favoriteCuisines: ['Middle Eastern', 'Mediterranean']
+    },
+    {
       firstName: 'Ahmed',
       lastName: 'Hassan',
       email: 'ahmed@example.com',
-      password: await hashPassword('password123'),
+      password: 'password123',
       gender: 'male',
-      birthday: new Date('1988-03-20'),
+      birthday: new Date('1988-10-20'),
       city: 'Alexandria',
-      favoriteCuisines: ['Egyptian', 'Lebanese'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning(),
-    db.insert(users).values({
-      firstName: 'Sara',
-      lastName: 'Mohamed',
-      email: 'sara@example.com',
-      password: await hashPassword('password123'),
-      gender: 'female',
-      birthday: new Date('1995-11-10'),
-      city: 'Cairo',
-      favoriteCuisines: ['Chinese', 'Thai'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning(),
-    // Additional users
-    db.insert(users).values({
-      firstName: 'Mohamed',
-      lastName: 'Ibrahim',
-      email: 'mohamed@example.com',
-      password: await hashPassword('password123'),
-      gender: 'male',
-      birthday: new Date('1985-07-22'),
-      city: 'Cairo',
-      favoriteCuisines: ['Egyptian', 'Mediterranean', 'Greek'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning(),
-    db.insert(users).values({
+      favoriteCuisines: ['Egyptian', 'Middle Eastern', 'Mediterranean']
+    },
+    {
       firstName: 'Fatima',
       lastName: 'Ali',
       email: 'fatima@example.com',
-      password: await hashPassword('password123'),
+      password: 'password123',
       gender: 'female',
-      birthday: new Date('1993-09-05'),
-      city: 'Alexandria',
-      favoriteCuisines: ['Seafood', 'Italian', 'French'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning(),
-    db.insert(users).values({
-      firstName: 'Omar',
-      lastName: 'Mahmoud',
-      email: 'omar@example.com',
-      password: await hashPassword('password123'),
-      gender: 'male',
-      birthday: new Date('1991-12-15'),
+      birthday: new Date('1995-03-08'),
       city: 'Cairo',
-      favoriteCuisines: ['Mediterranean', 'Seafood', 'Turkish'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning(),
-    db.insert(users).values({
+      favoriteCuisines: ['Indian', 'Chinese']
+    },
+    {
+      firstName: 'Mohamed',
+      lastName: 'Ibrahim',
+      email: 'mohamed@example.com',
+      password: 'password123',
+      gender: 'male',
+      birthday: new Date('1985-12-15'),
+      city: 'Alexandria',
+      favoriteCuisines: ['French', 'Italian']
+    },
+    {
       firstName: 'Layla',
-      lastName: 'Kamal',
+      lastName: 'Mahmoud',
       email: 'layla@example.com',
-      password: await hashPassword('password123'),
+      password: 'password123',
       gender: 'female',
-      birthday: new Date('1989-04-30'),
-      city: 'Alexandria',
-      favoriteCuisines: ['Egyptian', 'Middle Eastern', 'Indian'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning(),
-    db.insert(users).values({
-      firstName: 'Khaled',
-      lastName: 'Samir',
-      email: 'khaled@example.com',
-      password: await hashPassword('password123'),
-      gender: 'male',
-      birthday: new Date('1987-08-12'),
+      birthday: new Date('1993-07-22'),
       city: 'Cairo',
-      favoriteCuisines: ['Nubian', 'Egyptian', 'African'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning(),
-    db.insert(users).values({
-      firstName: 'Nour',
-      lastName: 'Hamed',
-      email: 'nour@example.com',
-      password: await hashPassword('password123'),
-      gender: 'female',
-      birthday: new Date('1994-02-28'),
+      favoriteCuisines: ['Japanese', 'Thai']
+    },
+    {
+      firstName: 'Omar',
+      lastName: 'Farouk',
+      email: 'omar@example.com',
+      password: 'password123',
+      gender: 'male',
+      birthday: new Date('1991-09-05'),
       city: 'Alexandria',
-      favoriteCuisines: ['Lebanese', 'Syrian', 'Turkish'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning()
-  ]);
+      favoriteCuisines: ['Mexican', 'American']
+    },
+    {
+      firstName: 'Nour',
+      lastName: 'Ahmed',
+      email: 'nour@example.com',
+      password: 'password123',
+      gender: 'female',
+      birthday: new Date('1994-02-18'),
+      city: 'Cairo',
+      favoriteCuisines: ['Lebanese', 'Greek']
+    },
+    {
+      firstName: 'Youssef',
+      lastName: 'Samir',
+      email: 'youssef@example.com',
+      password: 'password123',
+      gender: 'male',
+      birthday: new Date('1989-11-30'),
+      city: 'Alexandria',
+      favoriteCuisines: ['Chinese', 'Indian']
+    },
+    {
+      firstName: 'Amira',
+      lastName: 'Khalil',
+      email: 'amira@example.com',
+      password: 'password123',
+      gender: 'female',
+      birthday: new Date('1996-04-12'),
+      city: 'Cairo',
+      favoriteCuisines: ['Italian', 'French']
+    }
+  ];
 
-  const users_data = userEntries.map(entry => entry[0]);
-  console.log(`✅ Created ${users_data.length} test users`);
+  for (const user of testUsers) {
+    userPromises.push(
+      db.insert(users).values({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        password: await hashPassword(user.password),
+        gender: user.gender,
+        birthday: user.birthday,
+        city: user.city,
+        favoriteCuisines: user.favoriteCuisines,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+    );
+  }
+
+  await Promise.all(userPromises);
+
+  // Fetch all users from the database after insertion
+  let users_data: any[] = [];
+  try {
+    const fetchedUsers = await db.select().from(users);
+    users_data = fetchedUsers;
+    console.log(`Retrieved ${users_data.length} users from database`);
+    if (users_data.length > 0) {
+      console.log('First user structure:', JSON.stringify(users_data[0], null, 2));
+    }
+  } catch (error) {
+    console.error('Error fetching users:', error);
+  }
 
   // Create test restaurants with auth and profiles (8 restaurants)
   const restaurantData = [
@@ -300,7 +287,7 @@ async function seed() {
           city: 'Alexandria',
           tablesCount: 18,
           seatsCount: 72,
-          openingTime: '11:00',
+          openingTime: '12:00',
           closingTime: '00:00'
         }
       ]
@@ -514,7 +501,13 @@ async function seed() {
     })
   );
 
-  console.log(`✅ Created ${restaurants.length} test restaurants with ${restaurants.reduce((acc, r) => acc + r.branches.length, 0)} branches`);
+  console.log(`Created ${restaurants.length} test restaurants with ${restaurants.reduce((acc, r) => acc + r.branches.length, 0)} branches`);
+  
+  // Debug restaurant and branch structure
+  console.log('First restaurant structure:', JSON.stringify(restaurants[0], null, 2));
+  if (restaurants[0] && restaurants[0].branches && restaurants[0].branches.length > 0) {
+    console.log('First branch structure:', JSON.stringify(restaurants[0].branches[0], null, 2));
+  }
 
   // Create test bookings
   const now = new Date();
@@ -522,8 +515,12 @@ async function seed() {
   tomorrow.setDate(now.getDate() + 1);
   const nextWeek = new Date(now);
   nextWeek.setDate(now.getDate() + 7);
+  const nextMonth = new Date(now);
+  nextMonth.setMonth(now.getMonth() + 1);
   const lastWeek = new Date(now);
   lastWeek.setDate(now.getDate() - 7);
+  const lastMonth = new Date(now);
+  lastMonth.setMonth(now.getMonth() - 1);
 
   // Helper to create a booking time
   const createBookingTime = (baseDate: Date, hours: number, minutes = 0) => {
@@ -535,119 +532,249 @@ async function seed() {
   // Create a variety of bookings
   const bookingPromises: Promise<any>[] = [];
 
-  // Past completed bookings (15)
-  for (let i = 0; i < 15; i++) {
-    const randomUser = users_data[Math.floor(Math.random() * users_data.length)];
-    const randomRestaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
-    const randomBranch = randomRestaurant.branches[Math.floor(Math.random() * randomRestaurant.branches.length)];
-    const bookingDate = randomDate(lastWeek, now);
-    const arrivedDate = new Date(bookingDate);
-    arrivedDate.setMinutes(arrivedDate.getMinutes() + 10);
+  // Create a flat array of all branches for easier random selection
+  const allBranches: Array<{id: number, restaurantId: number, restaurantName: string}> = [];
+  
+  // Safely extract branch data
+  for (let i = 0; i < restaurants.length; i++) {
+    const restaurant = restaurants[i];
+    if (!restaurant || !restaurant.id || !restaurant.branches) continue;
     
-    bookingPromises.push(
-      db.insert(bookings).values({
-        date: bookingDate,
-        userId: randomUser.id,
-        branchId: randomBranch.id,
-        partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-        confirmed: true,
-        arrived: true,
-        completed: true,
-        arrivedAt: arrivedDate
-      })
-    );
+    console.log(`Processing restaurant ${i} with id ${restaurant.id} and ${restaurant.branches.length} branches`);
+    
+    for (let j = 0; j < restaurant.branches.length; j++) {
+      const branch = restaurant.branches[j];
+      if (!branch || !branch.id) continue;
+      
+      allBranches.push({
+        id: branch.id,
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.auth.name || 'Unknown Restaurant'
+      });
+    }
   }
 
-  // Currently seated bookings (5)
-  for (let i = 0; i < 5; i++) {
-    const randomUser = users_data[Math.floor(Math.random() * users_data.length)];
-    const randomRestaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
-    const randomBranch = randomRestaurant.branches[Math.floor(Math.random() * randomRestaurant.branches.length)];
-    const bookingDate = createBookingTime(now, now.getHours() - 1);
-    
-    bookingPromises.push(
-      db.insert(bookings).values({
-        date: bookingDate,
-        userId: randomUser.id,
-        branchId: randomBranch.id,
-        partySize: Math.floor(Math.random() * 4) + 2, // 2-6 people
-        confirmed: true,
-        arrived: true,
-        completed: false,
-        arrivedAt: now
-      })
-    );
-  }
+  console.log(`Found ${allBranches.length} valid branches for bookings`);
+  
+  if (allBranches.length > 0) {
+    // For each user, create different types of bookings
+    for (const user of users_data) {
+      try {
+        // 1. Past completed bookings (1-2 per user)
+        const completedCount = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < completedCount; i++) {
+          const branchIndex = Math.floor(Math.random() * allBranches.length);
+          const randomBranch = allBranches[branchIndex];
+          
+          const bookingDate = randomDate(lastMonth, lastWeek);
+          const arrivedDate = new Date(bookingDate);
+          arrivedDate.setMinutes(arrivedDate.getMinutes() + 10);
+          
+          bookingPromises.push(
+            db.insert(bookings).values({
+              date: bookingDate,
+              userId: user.id,
+              branchId: randomBranch.id,
+              partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+              confirmed: true,
+              arrived: true,
+              completed: true,
+              arrivedAt: arrivedDate
+            })
+          );
+        }
 
-  // Upcoming bookings for today (10)
-  for (let i = 0; i < 10; i++) {
-    const randomUser = users_data[Math.floor(Math.random() * users_data.length)];
-    const randomRestaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
-    const randomBranch = randomRestaurant.branches[Math.floor(Math.random() * randomRestaurant.branches.length)];
-    const hours = now.getHours() + Math.floor(Math.random() * 5) + 1; // 1-6 hours from now
-    
-    bookingPromises.push(
-      db.insert(bookings).values({
-        date: createBookingTime(now, hours),
-        userId: randomUser.id,
-        branchId: randomBranch.id,
-        partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-        confirmed: true,
-        arrived: false,
-        completed: false
-      })
-    );
-  }
+        // 2. Currently seated bookings (0-1 per user)
+        if (Math.random() > 0.7) { // 30% chance
+          const branchIndex = Math.floor(Math.random() * allBranches.length);
+          const randomBranch = allBranches[branchIndex];
+          
+          const bookingDate = createBookingTime(now, now.getHours() - 1);
+          
+          bookingPromises.push(
+            db.insert(bookings).values({
+              date: bookingDate,
+              userId: user.id,
+              branchId: randomBranch.id,
+              partySize: Math.floor(Math.random() * 4) + 2, // 2-6 people
+              confirmed: true,
+              arrived: true,
+              completed: false,
+              arrivedAt: now
+            })
+          );
+        }
 
-  // Future bookings (20)
-  for (let i = 0; i < 20; i++) {
-    const randomUser = users_data[Math.floor(Math.random() * users_data.length)];
-    const randomRestaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
-    const randomBranch = randomRestaurant.branches[Math.floor(Math.random() * randomRestaurant.branches.length)];
-    const futureDate = new Date(tomorrow.getTime() + Math.random() * (nextWeek.getTime() - tomorrow.getTime()));
-    const hours = 12 + Math.floor(Math.random() * 10); // Between 12 PM and 10 PM
-    
-    bookingPromises.push(
-      db.insert(bookings).values({
-        date: createBookingTime(futureDate, hours),
-        userId: randomUser.id,
-        branchId: randomBranch.id,
-        partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-        confirmed: true,
-        arrived: false,
-        completed: false
-      })
-    );
+        // 3. Upcoming confirmed bookings (1-2 per user)
+        const upcomingCount = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < upcomingCount; i++) {
+          const branchIndex = Math.floor(Math.random() * allBranches.length);
+          const randomBranch = allBranches[branchIndex];
+          
+          const hours = now.getHours() + Math.floor(Math.random() * 5) + 1; // 1-6 hours from now
+          const bookingDate = i === 0 ? 
+            createBookingTime(now, hours) : 
+            createBookingTime(tomorrow, 12 + Math.floor(Math.random() * 8));
+          
+          bookingPromises.push(
+            db.insert(bookings).values({
+              date: bookingDate,
+              userId: user.id,
+              branchId: randomBranch.id,
+              partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+              confirmed: true,
+              arrived: false,
+              completed: false
+            })
+          );
+        }
+
+        // 4. Future confirmed bookings (1-2 per user)
+        const futureCount = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < futureCount; i++) {
+          const branchIndex = Math.floor(Math.random() * allBranches.length);
+          const randomBranch = allBranches[branchIndex];
+          
+          const futureDate = randomDate(tomorrow, nextMonth);
+          const hour = 12 + Math.floor(Math.random() * 10); // Between 12 PM and 10 PM
+          
+          bookingPromises.push(
+            db.insert(bookings).values({
+              date: createBookingTime(futureDate, hour),
+              userId: user.id,
+              branchId: randomBranch.id,
+              partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+              confirmed: true,
+              arrived: false,
+              completed: false
+            })
+          );
+        }
+
+        // 5. Cancelled bookings (0-2 per user)
+        const cancelledCount = Math.floor(Math.random() * 3);
+        for (let i = 0; i < cancelledCount; i++) {
+          const branchIndex = Math.floor(Math.random() * allBranches.length);
+          const randomBranch = allBranches[branchIndex];
+          
+          const isFuture = Math.random() > 0.5;
+          const bookingDate = isFuture ? 
+            randomDate(tomorrow, nextWeek) : 
+            randomDate(lastWeek, now);
+          const hour = 12 + Math.floor(Math.random() * 10); // Between 12 PM and 10 PM
+          
+          bookingPromises.push(
+            db.insert(bookings).values({
+              date: createBookingTime(bookingDate, hour),
+              userId: user.id,
+              branchId: randomBranch.id,
+              partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+              confirmed: false, // Unconfirmed = cancelled
+              arrived: false,
+              completed: false
+            })
+          );
+        }
+      } catch (error) {
+        console.error(`Error creating bookings for user ${user.id}:`, error);
+      }
+    }
+  } else {
+    console.log('No valid branches found, skipping booking creation');
   }
 
   await Promise.all(bookingPromises);
-  console.log(`✅ Created ${bookingPromises.length} test bookings`);
+  console.log(`Created ${bookingPromises.length} test bookings`);
 
   // Create saved restaurants for users
   const savedRestaurantPromises: Promise<any>[] = [];
 
-  // Each user saves 2-5 random restaurants
-  for (const user of users_data) {
-    const numToSave = Math.floor(Math.random() * 4) + 2; // 2-5 restaurants
-    const restaurantsToSave = pickRandom(restaurants, numToSave);
+  // Create a flat array of valid restaurants with their branches
+  const validRestaurants: Array<{id: number, branches: Array<{id: number, index: number}>}> = [];
+  
+  for (let i = 0; i < restaurants.length; i++) {
+    const restaurant = restaurants[i];
+    if (!restaurant || !restaurant.id || !restaurant.branches) continue;
     
-    for (const restaurant of restaurantsToSave) {
-      const randomBranchIndex = Math.floor(Math.random() * restaurant.branches.length);
-      
-      savedRestaurantPromises.push(
-        db.insert(savedRestaurants).values({
-          userId: user.id,
-          restaurantId: restaurant.id,
-          branchIndex: randomBranchIndex
-        })
-      );
+    const validBranches: Array<{id: number, index: number}> = [];
+    for (let j = 0; j < restaurant.branches.length; j++) {
+      const branch = restaurant.branches[j];
+      if (branch && branch.id) {
+        validBranches.push({ id: branch.id, index: j });
+      }
     }
+    
+    if (validBranches.length > 0) {
+      validRestaurants.push({
+        id: restaurant.id,
+        branches: validBranches
+      });
+    }
+  }
+  
+  console.log(`Found ${validRestaurants.length} valid restaurants for saving`);
+  
+  if (validRestaurants.length > 0 && users_data && users_data.length > 0) {
+    console.log('First user id:', users_data[0]?.id);
+    
+    // Each user saves 1-3 random restaurants
+    for (const user of users_data) {
+      if (!user || !user.id) {
+        console.log('Skipping invalid user:', user);
+        continue;
+      }
+      
+      try {
+        const numToSave = Math.floor(Math.random() * 3) + 1; // 1-3 restaurants
+        const maxToSave = Math.min(numToSave, validRestaurants.length);
+        console.log(`User ${user.id} will save ${maxToSave} restaurants`);
+        
+        // Get random indices for restaurants to save
+        const restaurantIndices: number[] = [];
+        for (let i = 0; i < maxToSave; i++) {
+          let randomIndex;
+          do {
+            randomIndex = Math.floor(Math.random() * validRestaurants.length);
+          } while (restaurantIndices.includes(randomIndex));
+          restaurantIndices.push(randomIndex);
+        }
+        
+        // Create saved restaurants
+        for (const index of restaurantIndices) {
+          const restaurant = validRestaurants[index];
+          if (!restaurant || !restaurant.branches || restaurant.branches.length === 0) {
+            console.log('Skipping invalid restaurant at index:', index);
+            continue;
+          }
+          
+          const randomBranchIndex = Math.floor(Math.random() * restaurant.branches.length);
+          const branchInfo = restaurant.branches[randomBranchIndex];
+          
+          if (!branchInfo) {
+            console.log('Skipping invalid branch at index:', randomBranchIndex);
+            continue;
+          }
+          
+          savedRestaurantPromises.push(
+            db.insert(savedRestaurants).values({
+              userId: user.id,
+              restaurantId: restaurant.id,
+              branchIndex: branchInfo.index
+            })
+          );
+        }
+      } catch (error) {
+        console.error(`Error creating saved restaurants for user ${user?.id}:`, error);
+      }
+    }
+  } else {
+    console.log('No valid restaurants or users found, skipping saved restaurants creation');
   }
 
   await Promise.all(savedRestaurantPromises);
-  console.log(`✅ Created ${savedRestaurantPromises.length} saved restaurant entries`);
+  console.log(`Created ${savedRestaurantPromises.length} saved restaurant entries`);
 
-  console.log('✅ Database seeded successfully!');
+  console.log('Database seeded successfully!');
 }
 
 seed().catch((error) => {

@@ -924,6 +924,106 @@ export function registerRoutes(app: Express): Server {
   });
 
   /**
+   * Update a booking
+   * PUT /api/bookings/:bookingId
+   * 
+   * Updates an existing booking for the authenticated user
+   * 
+   * Request body:
+   * - date: ISO string of the new booking date and time (optional)
+   * - partySize: Number of people for the booking (optional)
+   * 
+   * Responses:
+   * - 200: Booking updated successfully (includes updated booking details)
+   * - 400: Invalid request parameters
+   * - 403: Not authorized to update this booking
+   * - 404: Booking not found
+   * - 500: Server error
+   */
+  app.put("/api/bookings/:bookingId", requireUserAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { bookingId } = req.params;
+      const { date, partySize } = req.body;
+      
+      // Get user ID safely
+      const userId = getUserId(req);
+
+      // Parse and validate bookingId
+      const bookingIdNum = parseInt(bookingId, 10);
+      if (isNaN(bookingIdNum)) {
+        return res.status(400).json({ message: "Invalid booking ID" });
+      }
+
+      // Get the booking to verify ownership
+      const booking = await storage.getBookingById(bookingIdNum);
+      
+      // Check if booking exists
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      
+      // Verify that the booking belongs to the authenticated user
+      if (booking.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to update this booking" });
+      }
+
+      // Validate date if provided
+      let bookingDate: Date | undefined;
+      if (date) {
+        bookingDate = new Date(date);
+        if (isNaN(bookingDate.getTime())) {
+          return res.status(400).json({ message: "Invalid booking date" });
+        }
+      }
+
+      // Validate party size if provided
+      let partySizeNum: number | undefined;
+      if (partySize !== undefined) {
+        partySizeNum = parseInt(partySize, 10);
+        if (isNaN(partySizeNum) || partySizeNum < 1) {
+          return res.status(400).json({ message: "Invalid party size" });
+        }
+      }
+
+      // Update the booking
+      const updatedBooking = await storage.updateBooking(bookingIdNum, {
+        date: bookingDate,
+        partySize: partySizeNum
+      });
+      
+      if (!updatedBooking) {
+        return res.status(500).json({ message: "Failed to update booking" });
+      }
+
+      // Notify clients about the update via WebSocket
+      const message = {
+        type: 'booking_updated',
+        data: {
+          bookingId: bookingIdNum,
+          userId: booking.userId,
+          restaurantId: booking.restaurantId,
+          updatedFields: {
+            date: bookingDate ? bookingDate.toISOString() : undefined,
+            partySize: partySizeNum
+          }
+        }
+      };
+
+      // Send notification to restaurant
+      clients.forEach((client, ws) => {
+        if (client.userType === 'restaurant' && client.userId === booking.restaurantId) {
+          ws.send(JSON.stringify(message));
+        }
+      });
+
+      res.json(updatedBooking);
+    } catch (error) {
+      console.error("Error updating booking:", error);
+      res.status(500).json({ message: "Failed to update booking" });
+    }
+  });
+
+  /**
    * Get Restaurant Bookings
    * GET /api/restaurant/bookings/:restaurantId
    * 

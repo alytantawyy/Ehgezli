@@ -39,9 +39,14 @@ export interface Booking {
   date: string; // ISO string
   time: string; // Format: "HH:MM"
   partySize: number;
-  status: "pending" | "confirmed" | "cancelled" | "completed";
+  confirmed: boolean;
+  arrived: boolean;
+  arrived_at?: string; // ISO string
+  completed: boolean;
+  cancelled?: boolean;
   createdAt: string; // ISO string
   branchCity?: string;
+  branchAddress?: string;
 }
 
 // Define type for saved restaurant item
@@ -175,17 +180,34 @@ export const getRestaurantById = async (id: number): Promise<Restaurant | null> 
 // Bookings functions
 export const getUserBookings = async (): Promise<Booking[]> => {
   try {
-    const token = await getAuthToken();
-    if (!token) throw new Error('Authentication required');
-
-    const response = await axios.get(`${API_BASE_URL}/api/bookings`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    console.log('User bookings response:', response.data);
+    const response = await api.get('/api/bookings');
     return response.data;
   } catch (error) {
-    console.error('Get user bookings error:', error);
+    console.error('Error fetching user bookings:', error);
+    throw error;
+  }
+};
+
+export const cancelBooking = async (bookingId: number): Promise<Booking> => {
+  try {
+    const response = await api.put(`/api/bookings/${bookingId}/cancel`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error cancelling booking ${bookingId}:`, error);
+    throw error;
+  }
+};
+
+export const updateBooking = async (bookingId: number, bookingData: {
+  date?: string;
+  time?: string;
+  partySize?: number;
+}): Promise<Booking> => {
+  try {
+    const response = await api.put(`/api/bookings/${bookingId}`, bookingData);
+    return response.data;
+  } catch (error) {
+    console.error(`Error updating booking ${bookingId}:`, error);
     throw error;
   }
 };

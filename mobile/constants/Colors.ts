@@ -13,6 +13,7 @@ export default {
     primaryHover: tintColorHover,
     secondary: '#f5f5f5',
     border: '#e5e5e5',
+    error: '#F44336',
   },
   dark: {
     text: '#fff',
@@ -24,5 +25,6 @@ export default {
     primaryHover: tintColorHover,
     secondary: '#272727',
     border: '#333333',
+    error: '#F44336',
   },
 };

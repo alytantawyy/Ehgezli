@@ -58,6 +58,7 @@ export interface RestaurantWithAvailability {
 }
 
 export interface Booking {
+  branchAddress?: any;
   id: number;
   userId: number;
   restaurantId: number;
@@ -65,7 +66,11 @@ export interface Booking {
   date: string; // ISO string
   time: string; // Format: "HH:MM"
   partySize: number;
-  status: "pending" | "confirmed" | "cancelled" | "completed";
+  confirmed: boolean;
+  arrived: boolean;
+  arrived_at?: string; // ISO string
+  completed: boolean;
+  cancelled?: boolean;
   createdAt: string; // ISO string
   restaurantName?: string;
   branchCity?: string;

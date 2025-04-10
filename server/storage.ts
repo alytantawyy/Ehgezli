@@ -59,6 +59,10 @@ export interface IStorage {
   markBookingArrived(bookingId: number, arrivedAt: Date): Promise<ExtendedBooking | undefined>;  // Mark booking as arrived
   markBookingComplete(bookingId: number): Promise<ExtendedBooking | undefined>;  // Mark booking as complete
   cancelBooking(bookingId: number): Promise<ExtendedBooking | undefined>;  // Cancel booking
+  updateBooking(bookingId: number, data: {
+    date?: Date;
+    partySize?: number;
+  }): Promise<ExtendedBooking | undefined>;
 
   // Restaurant authentication operations
   getRestaurantAuth(id: number): Promise<RestaurantAuth | undefined>;  // Get restaurant login info by ID
@@ -504,7 +508,9 @@ export class DatabaseStorage implements IStorage {
           completed: bookings.completed,
           restaurantName: restaurantAuth.name,
           restaurantId: restaurantAuth.id,
-          branchRestaurantId: restaurantBranches.restaurantId
+          branchRestaurantId: restaurantBranches.restaurantId,
+          branchCity: restaurantBranches.city,
+          branchAddress: restaurantBranches.address
         })
         .from(bookings)
         .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
@@ -873,6 +879,43 @@ export class DatabaseStorage implements IStorage {
       .where(eq(bookings.id, bookingId))
       .returning();
     return booking;
+  }
+
+  // Update booking details
+  async updateBooking(bookingId: number, data: {
+    date?: Date;
+    partySize?: number;
+  }): Promise<ExtendedBooking | undefined> {
+    try {
+      // Prepare update data
+      const updateData: any = {};
+      
+      if (data.date) {
+        updateData.date = data.date;
+      }
+      
+      if (data.partySize) {
+        updateData.partySize = data.partySize;
+      }
+      
+      // Only proceed if there's data to update
+      if (Object.keys(updateData).length === 0) {
+        const booking = await this.getBookingById(bookingId);
+        return booking;
+      }
+      
+      // Update the booking
+      const [updatedBooking] = await db
+        .update(bookings)
+        .set(updateData)
+        .where(eq(bookings.id, bookingId))
+        .returning();
+      
+      return updatedBooking;
+    } catch (error) {
+      console.error(`Error updating booking ${bookingId}:`, error);
+      return undefined;
+    }
   }
 
   /**
