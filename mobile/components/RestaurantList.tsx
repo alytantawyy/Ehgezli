@@ -142,11 +142,29 @@ export function RestaurantList({
         return transformedData;
       }
       
+      const convertTimeFormat = (timeStr: string | undefined): string | undefined => {
+        if (!timeStr) return undefined;
+        
+        try {
+          const [timePart, period] = timeStr.split(' ');
+          const [hours, minutes] = timePart.split(':').map(Number);
+          
+          let hour24 = hours;
+          if (period === 'PM' && hours < 12) hour24 += 12;
+          if (period === 'AM' && hours === 12) hour24 = 0;
+          
+          return `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        } catch (error) {
+          console.error('Error converting time format:', error);
+          return undefined;
+        }
+      };
+      
       const params: Record<string, any> = {
         date: date.toISOString(),
         partySize,
         showSavedOnly,
-        time: time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        time: convertTimeFormat(time),
       };
       
       if (searchQuery) params['search'] = searchQuery;
