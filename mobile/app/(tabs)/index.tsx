@@ -18,9 +18,9 @@ export default function TabOneScreen() {
   
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
-  const [cityFilter, setCityFilter] = useState('');
-  const [cuisineFilter, setCuisineFilter] = useState('');
-  const [priceFilter, setPriceFilter] = useState('');
+  const [cityFilter, setCityFilter] = useState('all');
+  const [cuisineFilter, setCuisineFilter] = useState('all');
+  const [priceFilter, setPriceFilter] = useState('all');
   
   // Get the default date (today or tomorrow for late night hours)
   const getDefaultDate = () => {
@@ -199,6 +199,12 @@ export default function TabOneScreen() {
            date.getFullYear() === today.getFullYear();
   };
 
+  const applyFilters = () => {
+    // This would typically trigger a new search with the current filters
+    // For now, just close the filter drawer
+    setIsFilterDrawerVisible(false);
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -310,7 +316,7 @@ export default function TabOneScreen() {
           setCuisineFilter={setCuisineFilter}
           priceFilter={priceFilter}
           setPriceFilter={setPriceFilter}
-          onApplyFilters={() => {}}
+          onApplyFilters={applyFilters}
         />
       </Modal>
       
