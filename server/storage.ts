@@ -61,6 +61,7 @@ export interface IStorage {
   cancelBooking(bookingId: number): Promise<ExtendedBooking | undefined>;  // Cancel booking
   updateBooking(bookingId: number, data: {
     date?: Date;
+    time?: string;
     partySize?: number;
   }): Promise<ExtendedBooking | undefined>;
 
@@ -884,6 +885,7 @@ export class DatabaseStorage implements IStorage {
   // Update booking details
   async updateBooking(bookingId: number, data: {
     date?: Date;
+    time?: string;
     partySize?: number;
   }): Promise<ExtendedBooking | undefined> {
     try {
@@ -892,6 +894,10 @@ export class DatabaseStorage implements IStorage {
       
       if (data.date) {
         updateData.date = data.date;
+      }
+      
+      if (data.time) {
+        updateData.time = data.time;
       }
       
       if (data.partySize) {

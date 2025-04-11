@@ -47,8 +47,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Set the user state with the fetched data
       setUser(userData);
-    } catch (err) {
-      setError('Invalid email or password');
+    } catch (err: any) {
+      // Handle the structured error from loginUser
+      if (err.type && err.message) {
+        setError(err.message);
+        
+        // We can add specific handling for different error types if needed
+        switch (err.type) {
+          case 'auth_error':
+            // This is already handled with the default message
+            break;
+          case 'rate_limit':
+            // Could trigger a countdown timer or other UI feedback
+            break;
+          case 'network_error':
+            // Could trigger network status check
+            break;
+          default:
+            // Default handling for other error types
+            break;
+        }
+      } else {
+        // Fallback for unexpected error format
+        setError('An unexpected error occurred. Please try again.');
+      }
       throw err;
     } finally {
       setIsLoading(false);

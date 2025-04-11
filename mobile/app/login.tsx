@@ -83,8 +83,15 @@ export default function LoginScreen() {
         }
         await register({ firstName, lastName, email, password });
       }
-    } catch (err) {
-      console.error('Authentication error:', err);
+    } catch (err: any) {
+      // Error is already set in the auth context
+      // We don't need to log the error here since it's already logged in the API client
+      // Just handle any additional UI feedback if needed
+      
+      // Optional: Add specific UI feedback based on error type
+      if (err.type === 'network_error') {
+        // Could show a network status indicator
+      }
     }
   };
 

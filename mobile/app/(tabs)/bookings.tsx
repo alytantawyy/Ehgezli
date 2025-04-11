@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, FlatList, ActivityIndicator, Text, SectionList, ScrollView, Alert, TouchableOpacity, Modal, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, FlatList, ActivityIndicator, Text, SectionList, ScrollView, Alert, TouchableOpacity, Modal, TextInput, Platform } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUserBookings, cancelBooking, updateBooking } from '@/shared/api/client';
 import { useAuth } from '@/context/auth-context';
 import { Booking } from '@/shared/types';
-import { format, parseISO, isBefore } from 'date-fns';
+import { format, parseISO, isBefore, addDays, addMonths } from 'date-fns';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { EhgezliButton } from '@/components/EhgezliButton';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function BookingsScreen() {
   const { user } = useAuth();
@@ -19,10 +20,20 @@ export default function BookingsScreen() {
   // State for edit booking modal
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
-  const [editDate, setEditDate] = useState('');
+  const [editDate, setEditDate] = useState(new Date());
   const [editTime, setEditTime] = useState('');
-  const [editPartySize, setEditPartySize] = useState('');
+  const [editPartySize, setEditPartySize] = useState(2);
   const [editError, setEditError] = useState('');
+  
+  // State for pickers
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showPartySizePicker, setShowPartySizePicker] = useState(false);
+
+  // State for dropdowns
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
+  const [isPartySizePickerVisible, setIsPartySizePickerVisible] = useState(false);
 
   const { data: bookings, isLoading, error, refetch } = useQuery({
     queryKey: ['bookings'],
@@ -87,41 +98,100 @@ export default function BookingsScreen() {
     if (booking.date) {
       try {
         const bookingDate = parseISO(booking.date);
-        setEditDate(format(bookingDate, 'yyyy-MM-dd'));
-        setEditTime(format(bookingDate, 'HH:mm'));
+        setEditDate(bookingDate);
+        setEditTime(format(bookingDate, 'h:mm a'));
       } catch (error) {
         console.error('Error parsing date for edit:', error);
+        setEditDate(new Date());
+        setEditTime('12:00 PM');
       }
+    } else {
+      setEditDate(new Date());
+      setEditTime('12:00 PM');
     }
-    setEditPartySize(booking.partySize.toString());
+    setEditPartySize(booking.partySize);
     setEditModalVisible(true);
+  };
+
+  // Handle date picker change
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setIsDatePickerVisible(false);
+    if (selectedDate) {
+      setEditDate(selectedDate);
+    }
+  };
+
+  // Handle time picker change
+  const handleTimeChange = (event: any, selectedDate?: Date) => {
+    setIsTimePickerVisible(false);
+    if (selectedDate) {
+      const hours = selectedDate.getHours();
+      const minutes = selectedDate.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      const displayTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+      setEditTime(displayTime);
+    }
+  };
+
+  // Generate party size options
+  const partySizeOptions = Array.from({ length: 20 }, (_, i) => i + 1);
+
+  // Handle party size selection
+  const handlePartySizeSelect = (size: number) => {
+    setEditPartySize(size);
+    setIsPartySizePickerVisible(false);
   };
 
   // Handle saving edited booking
   const handleSaveEditedBooking = () => {
     if (!editingBooking) return;
     
-    // Validate inputs
-    const partySize = parseInt(editPartySize, 10);
-    if (isNaN(partySize) || partySize < 1) {
-      Alert.alert('Error', 'Please enter a valid party size');
-      return;
-    }
-    
     try {
-      // Combine date and time into ISO string
-      const dateTime = new Date(`${editDate}T${editTime}:00`);
-      if (isNaN(dateTime.getTime())) {
-        Alert.alert('Error', 'Please enter a valid date and time');
+      // Parse the time string
+      const [timePart, ampm] = editTime.split(' ');
+      const [hours, minutes] = timePart.split(':').map(Number);
+      
+      let hour24 = hours;
+      if (ampm === 'PM' && hours < 12) hour24 += 12;
+      if (ampm === 'AM' && hours === 12) hour24 = 0;
+      
+      // Get the date parts from the local date, not UTC
+      // This ensures we use exactly what the user selected
+      const year = editDate.getFullYear();
+      const month = editDate.getMonth() + 1; // getMonth() is 0-indexed
+      const day = editDate.getDate();
+      
+      // Create a date object with the selected date and time
+      const dateTime = new Date(year, month - 1, day, hour24, minutes, 0, 0);
+      
+      // Ensure the date-time is not in the past
+      const now = new Date();
+      if (dateTime.getTime() < now.getTime()) {
+        Alert.alert('Error', 'Please select a future date and time');
         return;
       }
+      
+      // Format the date and time for the API
+      const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`; // YYYY-MM-DD
+      const formattedTime = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`; // HH:MM
+      
+      console.log('Updating booking with:', {
+        bookingId: editingBooking.id,
+        data: {
+          date: formattedDate,
+          time: formattedTime,
+          partySize: editPartySize
+        }
+      });
       
       // Update booking
       updateBookingMutation.mutate({
         bookingId: editingBooking.id,
         data: {
-          date: dateTime.toISOString(),
-          partySize
+          date: formattedDate,
+          time: formattedTime,
+          partySize: editPartySize
         }
       });
     } catch (error) {
@@ -349,33 +419,186 @@ export default function BookingsScreen() {
           <View style={styles.modalView}>
             <Text style={styles.modalTitle}>Edit Booking</Text>
             
+            {/* Date Selector */}
             <Text style={styles.inputLabel}>Date</Text>
-            <TextInput
-              style={styles.input}
-              value={editDate}
-              onChangeText={setEditDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#ccc"
-            />
+            <TouchableOpacity 
+              style={styles.dropdownButton}
+              onPress={() => setShowDatePicker(!showDatePicker)}
+            >
+              <Text style={styles.dropdownButtonText}>
+                {format(editDate, 'MMM d, yyyy')}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+            </TouchableOpacity>
             
+            {showDatePicker && (
+              <View style={styles.inlinePickerContainer}>
+                {Platform.OS === 'ios' ? (
+                  <View style={styles.calendarContainer}>
+                    <View style={styles.calendarHeader}>
+                      <Text style={styles.calendarTitle}>{format(editDate, 'MMMM yyyy')}</Text>
+                    </View>
+                    <DateTimePicker
+                      testID="dateTimePicker"
+                      value={editDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={(event, selectedDate) => {
+                        if (selectedDate) {
+                          setEditDate(selectedDate);
+                        }
+                        setShowDatePicker(false);
+                      }}
+                      minimumDate={new Date()}
+                      style={{ width: '100%' }}
+                    />
+                  </View>
+                ) : (
+                  <DateTimePicker
+                    testID="dateTimePicker"
+                    value={editDate}
+                    mode="date"
+                    display="calendar"
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (selectedDate) {
+                        setEditDate(selectedDate);
+                      }
+                    }}
+                    minimumDate={new Date()}
+                  />
+                )}
+              </View>
+            )}
+            
+            {/* Time Selector */}
             <Text style={styles.inputLabel}>Time</Text>
-            <TextInput
-              style={styles.input}
-              value={editTime}
-              onChangeText={setEditTime}
-              placeholder="HH:MM"
-              placeholderTextColor="#ccc"
-            />
+            <TouchableOpacity 
+              style={styles.dropdownButton}
+              onPress={() => setShowTimePicker(!showTimePicker)}
+            >
+              <Text style={styles.dropdownButtonText}>{editTime}</Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+            </TouchableOpacity>
             
+            {showTimePicker && (
+              <View style={styles.inlinePickerContainer}>
+                {Platform.OS === 'ios' ? (
+                  <View style={styles.calendarContainer}>
+                    <View style={styles.calendarHeader}>
+                      <Text style={styles.calendarTitle}>Select Time</Text>
+                    </View>
+                    <DateTimePicker
+                      testID="timeTimePicker"
+                      value={(() => {
+                        try {
+                          const [timePart, ampm] = editTime.split(' ');
+                          const [hours, minutes] = timePart.split(':').map(Number);
+                          
+                          let hour24 = hours;
+                          if (ampm === 'PM' && hours < 12) hour24 += 12;
+                          if (ampm === 'AM' && hours === 12) hour24 = 0;
+                          
+                          const date = new Date();
+                          date.setHours(hour24, minutes, 0, 0);
+                          return date;
+                        } catch (error) {
+                          console.error('Error parsing time for picker:', error);
+                          return new Date();
+                        }
+                      })()}
+                      mode="time"
+                      display="spinner"
+                      onChange={(event, selectedDate) => {
+                        if (selectedDate) {
+                          const hours = selectedDate.getHours();
+                          const minutes = selectedDate.getMinutes();
+                          const ampm = hours >= 12 ? 'PM' : 'AM';
+                          const displayHours = hours % 12 || 12;
+                          const displayTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                          setEditTime(displayTime);
+                        }
+                        setShowTimePicker(false);
+                      }}
+                      style={{ width: '100%' }}
+                    />
+                  </View>
+                ) : (
+                  <DateTimePicker
+                    testID="timeTimePicker"
+                    value={(() => {
+                      try {
+                        const [timePart, ampm] = editTime.split(' ');
+                        const [hours, minutes] = timePart.split(':').map(Number);
+                        
+                        let hour24 = hours;
+                        if (ampm === 'PM' && hours < 12) hour24 += 12;
+                        if (ampm === 'AM' && hours === 12) hour24 = 0;
+                        
+                        const date = new Date();
+                        date.setHours(hour24, minutes, 0, 0);
+                        return date;
+                      } catch (error) {
+                        console.error('Error parsing time for picker:', error);
+                        return new Date();
+                      }
+                    })()}
+                    mode="time"
+                    display="clock"
+                    onChange={(event, selectedDate) => {
+                      setShowTimePicker(false);
+                      if (selectedDate) {
+                        const hours = selectedDate.getHours();
+                        const minutes = selectedDate.getMinutes();
+                        const ampm = hours >= 12 ? 'PM' : 'AM';
+                        const displayHours = hours % 12 || 12;
+                        const displayTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                        setEditTime(displayTime);
+                      }
+                    }}
+                  />
+                )}
+              </View>
+            )}
+            
+            {/* Party Size Selector */}
             <Text style={styles.inputLabel}>Party Size</Text>
-            <TextInput
-              style={styles.input}
-              value={editPartySize}
-              onChangeText={setEditPartySize}
-              keyboardType="number-pad"
-              placeholder="Number of people"
-              placeholderTextColor="#ccc"
-            />
+            <TouchableOpacity 
+              style={styles.dropdownButton}
+              onPress={() => setShowPartySizePicker(!showPartySizePicker)}
+            >
+              <Text style={styles.dropdownButtonText}>
+                {editPartySize} {editPartySize === 1 ? 'person' : 'people'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+            </TouchableOpacity>
+            
+            {showPartySizePicker && (
+              <View style={[styles.inlinePickerContainer, { padding: 0 }]}>
+                <View style={styles.partySizeHeader}>
+                  <Text style={styles.partySizeHeaderText}>Select Party Size</Text>
+                </View>
+                <ScrollView style={styles.partySizeList} contentContainerStyle={{ paddingVertical: 8 }}>
+                  {partySizeOptions.map((size) => (
+                    <TouchableOpacity
+                      key={size}
+                      style={[styles.partySizeItem, editPartySize === size && styles.selectedPartySizeItem]}
+                      onPress={() => {
+                        setEditPartySize(size);
+                        setShowPartySizePicker(false);
+                      }}
+                    >
+                      <Text style={[styles.partySizeText, editPartySize === size && styles.selectedPartySizeText]}>
+                        {size} {size === 1 ? 'person' : 'people'}
+                      </Text>
+                      {editPartySize === size && (
+                        <Ionicons name="checkmark" size={20} color="#fff" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
             
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -399,21 +622,20 @@ export default function BookingsScreen() {
   );
 }
 
-// Helper functions
 function getStatusColor(status: string): string {
   switch (status.toLowerCase()) {
     case 'confirmed':
-      return '#4CAF50'; // Green
+      return '#81C784'; // Lighter green
     case 'pending':
-      return '#FFC107'; // Yellow
+      return '#FFD54F'; // Lighter amber/yellow
     case 'cancelled':
-      return '#F44336'; // Red
+      return '#E57373'; // Lighter red
     case 'completed':
-      return '#2196F3'; // Blue
+      return '#64B5F6'; // Lighter blue
     case 'arrived':
-      return '#9C27B0'; // Purple
+      return '#BA68C8'; // Lighter purple
     default:
-      return '#9E9E9E'; // Grey
+      return '#BDBDBD'; // Lighter grey
   }
 }
 
@@ -434,6 +656,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     backgroundColor: '#f5f5f5',
+    marginBottom: 60,
   },
   headerContainer: {
     marginBottom: 16,
@@ -522,6 +745,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 12,
+
   },
   statusText: {
     color: 'white',
@@ -614,29 +838,82 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333',
   },
-  input: {
-    height: 50,
+  dropdownButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
     borderWidth: 1,
-    borderRadius: 10,
-    marginBottom: 20,
-    paddingHorizontal: 16,
-    fontSize: 16,
     borderColor: '#e0e0e0',
-    backgroundColor: '#fff',
+  },
+  dropdownButtonText: {
+    fontSize: 16,
     color: '#333',
+  },
+  inlinePickerContainer: {
+    padding: 8,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 16,
+  },
+  calendarContainer: {
+    width: '100%',
+  },
+  calendarHeader: {
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    marginBottom: 8,
+  },
+  calendarTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: '#333',
+  },
+  partySizeHeader: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#f0f0f0',
+  },
+  partySizeHeaderText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: '#333',
+  },
+  partySizeList: {
+    maxHeight: 300,
+  },
+  partySizeItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  selectedPartySizeItem: {
+    backgroundColor: 'hsl(355,79%,36%)',
+  },
+  partySizeText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  selectedPartySizeText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 24,
-  },
-  modalButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
   },
   cancelModalButton: {
     backgroundColor: '#f5f5f5',

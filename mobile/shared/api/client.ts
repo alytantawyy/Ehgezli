@@ -91,8 +91,62 @@ export const loginUser = async (email: string, password: string) => {
     
     return response.data;
   } catch (error) {
-    console.error('Login error:', error);
-    throw error;
+    // Handle different types of errors
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        if (error.response.status === 401) {
+          // Authentication error - expected during login failures
+          console.log('Login failed: Invalid credentials');
+          throw {
+            type: 'auth_error',
+            message: 'Invalid email or password',
+            originalError: error
+          };
+        } else if (error.response.status === 429) {
+          // Rate limiting
+          console.log('Login failed: Too many attempts');
+          throw {
+            type: 'rate_limit',
+            message: 'Too many login attempts. Please try again later.',
+            originalError: error
+          };
+        } else {
+          // Other server errors
+          console.error('Server error during login:', error.response.status, error.response.data);
+          throw {
+            type: 'server_error',
+            message: 'Server error. Please try again later.',
+            originalError: error
+          };
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        console.error('Network error during login:', error.message);
+        throw {
+            type: 'network_error',
+            message: 'Network error. Please check your internet connection.',
+            originalError: error
+        };
+      } else {
+        // Something happened in setting up the request
+        console.error('Error setting up login request:', error.message);
+        throw {
+            type: 'request_setup_error',
+            message: 'Application error. Please try again.',
+            originalError: error
+        };
+      }
+    } else {
+      // Not an Axios error
+      console.error('Unexpected login error:', error);
+      throw {
+        type: 'unknown_error',
+        message: 'An unexpected error occurred. Please try again.',
+        originalError: error
+      };
+    }
   }
 };
 

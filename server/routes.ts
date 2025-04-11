@@ -931,6 +931,7 @@ export function registerRoutes(app: Express): Server {
    * 
    * Request body:
    * - date: ISO string of the new booking date and time (optional)
+   * - time: Time of the booking in HH:MM format (optional)
    * - partySize: Number of people for the booking (optional)
    * 
    * Responses:
@@ -943,7 +944,7 @@ export function registerRoutes(app: Express): Server {
   app.put("/api/bookings/:bookingId", requireUserAuth, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { bookingId } = req.params;
-      const { date, partySize } = req.body;
+      const { date, time, partySize } = req.body;
       
       // Get user ID safely
       const userId = getUserId(req);
@@ -967,9 +968,41 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to update this booking" });
       }
 
-      // Validate date if provided
+      // Prepare the date and time values
       let bookingDate: Date | undefined;
-      if (date) {
+      
+      // If both date and time are provided, combine them
+      if (date && time) {
+        // Validate time format (HH:MM)
+        const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+        if (!timeRegex.test(time)) {
+          return res.status(400).json({ message: "Invalid time format. Use HH:MM" });
+        }
+        
+        // Parse the date string
+        const dateParts = date.split('-').map(Number);
+        if (dateParts.length !== 3) {
+          return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD" });
+        }
+        
+        // Parse the time string
+        const timeParts = time.split(':').map(Number);
+        
+        // Create a new Date object with the combined date and time
+        bookingDate = new Date(
+          dateParts[0],         // year
+          dateParts[1] - 1,     // month (0-indexed)
+          dateParts[2],         // day
+          timeParts[0],         // hours
+          timeParts[1]          // minutes
+        );
+        
+        if (isNaN(bookingDate.getTime())) {
+          return res.status(400).json({ message: "Invalid date or time" });
+        }
+      }
+      // If only date is provided
+      else if (date) {
         bookingDate = new Date(date);
         if (isNaN(bookingDate.getTime())) {
           return res.status(400).json({ message: "Invalid booking date" });
@@ -1019,7 +1052,7 @@ export function registerRoutes(app: Express): Server {
       res.json(updatedBooking);
     } catch (error) {
       console.error("Error updating booking:", error);
-      res.status(500).json({ message: "Failed to update booking" });
+      next(error);
     }
   });
 
