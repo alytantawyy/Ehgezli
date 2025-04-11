@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Modal, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { Text } from '@/components/Themed';
 import { SearchBar } from '@/components/SearchBar';
@@ -10,6 +10,7 @@ import { format, parseISO } from 'date-fns';
 import { useAuth } from '@/context/auth-context';
 import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { getDefaultTimeForDisplay, getBaseTime, generateTimeSlotsFromTime } from '@/shared/utils/time-slots';
 
 export default function TabOneScreen() {
   console.log('[HomePage] rendering');
@@ -20,40 +21,26 @@ export default function TabOneScreen() {
   const [cityFilter, setCityFilter] = useState('');
   const [cuisineFilter, setCuisineFilter] = useState('');
   const [priceFilter, setPriceFilter] = useState('');
-  const [date, setDate] = useState(new Date());
   
-  // Calculate default time (2 hours from now, rounded to nearest 30 min)
-  const getDefaultTime = () => {
-    // Add 2 hours to current time
+  // Get the default date (today or tomorrow for late night hours)
+  const getDefaultDate = () => {
     const now = new Date();
-    
-    // Special handling for late night hours (10 PM to 6 AM)
-    let baseTime;
     const currentHour = now.getHours();
     
+    // If it's late night (10 PM to 6 AM), use tomorrow's date
     if (currentHour >= 22 || currentHour < 6) {
-      // If it's late night, use noon the next day as the base time instead of now + 2 hours
-      baseTime = new Date(now);
-      baseTime.setDate(baseTime.getDate() + 1); // Next day
-      baseTime.setHours(12, 0, 0, 0); // Set to noon
-    } else {
-      // Normal case: add 2 hours to current time
-      baseTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      console.log('Using tomorrow for default date:', tomorrow.toDateString());
+      return tomorrow;
     }
     
-    // Round down to nearest 30 mins
-    const minutes = baseTime.getMinutes();
-    const roundedMinutes = Math.floor(minutes / 30) * 30;
-    baseTime.setMinutes(roundedMinutes);
-    
-    // Format for display (12-hour with AM/PM)
-    const hours = baseTime.getHours();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    return `${displayHours}:${roundedMinutes.toString().padStart(2, '0')} ${ampm}`;
+    console.log('Using today for default date:', now.toDateString());
+    return now;
   };
   
-  const [time, setTime] = useState(getDefaultTime());
+  const [date, setDate] = useState(getDefaultDate());
+  const [time, setTime] = useState(getDefaultTimeForDisplay());
   const [partySize, setPartySize] = useState(2);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   
@@ -71,18 +58,67 @@ export default function TabOneScreen() {
     setShowSavedOnly(!showSavedOnly);
   };
 
+  // Validate time whenever date changes
+  useEffect(() => {
+    // If we have a time selected, validate it for the current date
+    if (time) {
+      const isValid = validateTimeForDate(date, time);
+      if (!isValid) {
+        console.log('Time is invalid for the current date, resetting to default');
+        setTime(getDefaultTimeForDisplay());
+      }
+    }
+  }, [date]); // This effect runs whenever date changes
+
+  // Validate if a time is valid for a given date
+  const validateTimeForDate = (dateToCheck: Date, timeString: string): boolean => {
+    try {
+      // Parse the time string
+      const [timePart, ampm] = timeString.split(' ');
+      const [hours, minutes] = timePart.split(':').map(Number);
+      
+      let hour24 = hours;
+      if (ampm === 'PM' && hours < 12) hour24 += 12;
+      if (ampm === 'AM' && hours === 12) hour24 = 0;
+      
+      // Create a date-time with the given date and time
+      const dateTime = new Date(dateToCheck);
+      dateTime.setHours(hour24, minutes, 0, 0);
+      
+      // Check if this date-time is in the past
+      const now = new Date();
+      return dateTime.getTime() >= now.getTime();
+    } catch (error) {
+      console.error('Error validating time:', error);
+      return false;
+    }
+  };
+
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setIsDatePickerVisible(false);
     
     if (selectedDate) {
-      setDate(selectedDate);
+      // Ensure we don't allow past dates
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to beginning of today
+      
+      if (selectedDate.getTime() >= today.getTime()) {
+        setDate(selectedDate);
+        // Time validation will happen in the useEffect
+      } else {
+        // If past date was selected, default to today
+        console.log('Past date selected, defaulting to today');
+        setDate(today);
+        // Time validation will happen in the useEffect
+      }
     }
   };
-
+  
   const handleTimeChange = (event: any, selectedTime?: Date) => {
     setIsTimePickerVisible(false);
     
     if (selectedTime) {
+      // Format the selected time for display
       const hours = selectedTime.getHours();
       const minutes = selectedTime.getMinutes();
       
@@ -90,7 +126,14 @@ export default function TabOneScreen() {
       const displayHours = hours % 12 || 12;
       const displayTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
       
-      setTime(displayTime);
+      // Validate the time for the current date before setting it
+      if (validateTimeForDate(date, displayTime)) {
+        console.log('User selected valid time:', displayTime);
+        setTime(displayTime);
+      } else {
+        console.log('Selected time is in the past, using default time instead');
+        setTime(getDefaultTimeForDisplay());
+      }
     }
   };
 
@@ -101,19 +144,59 @@ export default function TabOneScreen() {
 
   const getTimePickerValue = () => {
     try {
-      const [timePart, ampm] = time.split(' ');
-      const [hours, minutes] = timePart.split(':').map(Number);
+      // If there's a selected time, use it
+      if (time) {
+        const [timePart, ampm] = time.split(' ');
+        const [hours, minutes] = timePart.split(':').map(Number);
+        
+        let hour24 = hours;
+        if (ampm === 'PM' && hours < 12) hour24 += 12;
+        if (ampm === 'AM' && hours === 12) hour24 = 0;
+        
+        const date = new Date();
+        date.setHours(hour24, minutes, 0, 0);
+        return date;
+      }
       
-      let hour24 = hours;
-      if (ampm === 'PM' && hours < 12) hour24 += 12;
-      if (ampm === 'AM' && hours === 12) hour24 = 0;
+      // Otherwise, use the current time or default time
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
       
-      const date = new Date();
-      date.setHours(hour24, minutes, 0, 0);
-      return date;
+      // If it's late night, use noon as default
+      if (currentHour >= 22 || currentHour < 6) {
+        now.setHours(12, 0, 0, 0);
+      } else {
+        // Add 2 hours to current time as default
+        now.setHours(currentHour + 2, currentMinute, 0, 0);
+      }
+      
+      return now;
     } catch (error) {
+      console.error('Error getting time picker value:', error);
       return new Date();
     }
+  };
+  
+  // Get the minimum allowed time based on the selected date
+  const getMinimumTime = () => {
+    const now = new Date();
+    const selectedDate = new Date(date);
+    
+    // If selected date is today, minimum time is current time
+    if (selectedDate.toDateString() === now.toDateString()) {
+      return now;
+    }
+    
+    // If selected date is in the future, no minimum time
+    return undefined;
+  };
+
+  const isDateToday = () => {
+    const today = new Date();
+    return date.getDate() === today.getDate() && 
+           date.getMonth() === today.getMonth() && 
+           date.getFullYear() === today.getFullYear();
   };
 
   return (
@@ -257,6 +340,7 @@ export default function TabOneScreen() {
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={handleDateChange}
                 style={{ width: '100%' }}
+                minimumDate={new Date()}
               />
             </View>
           </TouchableOpacity>
@@ -289,6 +373,7 @@ export default function TabOneScreen() {
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={handleTimeChange}
                 style={{ width: '100%' }}
+                minimumDate={getMinimumTime()}
               />
             </View>
           </TouchableOpacity>

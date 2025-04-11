@@ -310,7 +310,7 @@ export function RestaurantCard({
                   onPress={() => handleTimeSelect(slot)}
                 >
                   <Text style={styles.timeSlotText}>
-                    {formatTimeWithAMPM(timeValue)}
+                    {formatTimeWithAMPM(timeValue, true)}
                   </Text>
                 </TouchableOpacity>
               );
