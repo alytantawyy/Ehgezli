@@ -280,9 +280,9 @@ export default function TabOneScreen() {
             onPress={() => setIsFilterDrawerVisible(true)}
           >
             <Ionicons 
-              name={(cityFilter || cuisineFilter || priceFilter) ? 'funnel' : 'funnel-outline'} 
+              name={(cityFilter == 'all' && cuisineFilter == 'all' && priceFilter == 'all') ? 'funnel-outline' : 'funnel'} 
               size={16} 
-              color="#fff" 
+              color="#fff"    
               style={styles.buttonIcon}
             />
             <Text style={styles.buttonText}>Filters</Text>
