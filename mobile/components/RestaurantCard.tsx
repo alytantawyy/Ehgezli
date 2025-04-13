@@ -4,6 +4,7 @@ import { RelativePathString, useRouter } from 'expo-router';
 import { formatTimeWithAMPM } from '../shared/utils/time-slots';
 import { isRestaurantSaved, saveRestaurant, unsaveRestaurant } from '../shared/api/client';
 import { useAuth } from '../context/auth-context';
+import { useLocation } from '../context/location-context';
 import Colors from '../constants/Colors';
 import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -49,6 +50,7 @@ export interface BranchWithAvailability {
   slots: TimeSlot[];
   availableSlots?: AvailableSlot[];
   isSaved?: boolean;
+  distance?: number;
 }
 
 export interface RestaurantCardProps {
@@ -57,6 +59,25 @@ export interface RestaurantCardProps {
   date: string;
   time?: string;
   partySize: number;
+  isNearby?: boolean;
+}
+
+// Function to calculate distance between two coordinates using Haversine formula
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c; // Distance in km
+  return parseFloat(distance.toFixed(2));
+}
+
+// Helper function to convert degrees to radians
+function deg2rad(deg: number): number {
+  return deg * (Math.PI / 180);
 }
 
 export function RestaurantCard({ 
@@ -64,12 +85,16 @@ export function RestaurantCard({
   branchIndex, 
   date, 
   time, 
-  partySize 
+  partySize,
+  isNearby = false
 }: RestaurantCardProps) {
   console.log(`[RestaurantCard] rendering ${restaurant.id}, branch ${branchIndex}`);
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const router = useRouter();
+  const { user } = useAuth();
+  const { location } = useLocation();
+  
   const [isSaved, setIsSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [debugInfo, setDebugInfo] = useState({
@@ -82,11 +107,19 @@ export function RestaurantCard({
   });
 
   // Transform the branch data to include the expected fields
-  const originalBranch = restaurant.branches[branchIndex];
+  const originalBranch = restaurant.branches && restaurant.branches.length > branchIndex 
+    ? restaurant.branches[branchIndex] 
+    : null;
   
   // Debug branch data
   useEffect(() => {
-    console.log(`[RestaurantCard Debug] Restaurant ${restaurant.id}, Branch data:`, originalBranch);
+    console.log(`[RestaurantCard Debug] Restaurant ${restaurant.id}, Branch data:`, {
+      branch: originalBranch,
+      hasDistance: originalBranch?.distance !== undefined,
+      distanceValue: originalBranch?.distance,
+      distanceType: originalBranch?.distance !== undefined ? typeof originalBranch.distance : 'undefined',
+      isNearby
+    });
     
     // Check if branch exists
     const hasBranch = !!originalBranch;
@@ -105,7 +138,7 @@ export function RestaurantCard({
       hasSlots,
       slotsLength
     }));
-  }, [restaurant.id, branchIndex, originalBranch]);
+  }, [restaurant.id, branchIndex, originalBranch, isNearby]);
 
   const branch: BranchWithAvailability = originalBranch ? {
     id: originalBranch.id,
@@ -117,16 +150,59 @@ export function RestaurantCard({
       : [],
     availableSlots: originalBranch.availableSlots && Array.isArray(originalBranch.availableSlots) 
       ? originalBranch.availableSlots.map((slot: any) => ({ time: slot.time, seats: slot.seats }))
-      : []
+      : [],
+    distance: originalBranch.distance
   } : {
     id: 0,
     location: '',
     address: '',
     city: '',
     slots: [],
-    availableSlots: []
+    availableSlots: [],
+    distance: undefined
   };
-  
+
+  // Calculate distance using Haversine formula
+  const calculateBranchDistance = () => {
+    if (location?.coords && originalBranch?.latitude && originalBranch?.longitude) {
+      try {
+        const distance = calculateDistance(
+          location.coords.latitude,
+          location.coords.longitude,
+          parseFloat(originalBranch.latitude),
+          parseFloat(originalBranch.longitude)
+        );
+        return distance;
+      } catch (error) {
+        console.error('Error calculating distance:', error);
+      }
+    }
+    return undefined;
+  };
+
+  // Calculate the distance once
+  const distance = calculateBranchDistance();
+
+  // Add a useEffect to log when the component renders with the processed branch data
+  useEffect(() => {
+    // Debug the branch data to see if distance is available
+    console.log(`[RestaurantCard] Distance debug for ${restaurant.name}:`, {
+      hasOriginalBranch: !!originalBranch,
+      originalDistance: originalBranch?.distance,
+      processedDistance: branch.distance,
+      hasProcessedDistance: branch.distance !== undefined,
+      showingDistance: branch.distance !== undefined,
+      isNearby,
+      restaurantId: restaurant.id,
+      branchId: originalBranch?.id
+    });
+    
+    // Check if we have a branch but no distance
+    if (originalBranch && originalBranch.distance === undefined && isNearby) {
+      console.warn(`Missing distance data for nearby restaurant ${restaurant.name}`);
+    }
+  }, [restaurant.name, originalBranch, branch.distance, isNearby, restaurant.id]);
+
   // Check if restaurant is saved when component mounts
   useEffect(() => {
     const checkSavedStatus = async () => {
@@ -218,129 +294,145 @@ export function RestaurantCard({
     <TouchableOpacity 
       style={[styles.card, { borderColor: colors.border }]} 
       onPress={handlePress}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
-      {/* Top - Restaurant Image (Full Width) */}
-      <Image 
-        source={{ 
-          uri: restaurant.profile?.logo || 
-              'https://via.placeholder.com/100?text=Restaurant'
-        }} 
-        style={styles.restaurantImage} 
-      />
-      
-      {/* Name and Save Button Row */}
-      <View style={styles.nameRow}>
-        <Text style={[styles.name, { color: colors.text }]}>{restaurant.name}</Text>
-        
-        <TouchableOpacity 
-          style={styles.saveButton} 
-          onPress={handleSaveToggle}
-          disabled={isLoading}
-        >
-          <Ionicons 
-            name={isSaved ? 'star' : 'star-outline'} 
-            size={24} 
-            color={isSaved ? colors.primary : colors.text} 
+      <View style={styles.cardContent}>
+        <View style={styles.imageContainer}>
+          <Image 
+            source={{ 
+              uri: restaurant.profile?.logo || 
+                  'https://via.placeholder.com/100?text=Restaurant'
+            }} 
+            style={styles.image} 
+            resizeMode="cover"
           />
-        </TouchableOpacity>
-      </View>
-      
-      {/* Details Row */}
-      <View style={styles.detailsRow}>
-        {/* Price and Cuisine */}
-        <View style={styles.priceAndCuisine}>
-          <Text style={[styles.price, { color: colors.text }]}>
-            {restaurant.profile?.priceRange || '$$'}
-          </Text>
-          <Text style={styles.dot}>•</Text>
-          <Text style={[styles.cuisine, { color: colors.text }]}>
-            {restaurant.profile?.cuisine || 'Various Cuisine'}
-          </Text>
         </View>
         
-        {/* Location */}
-        <Text style={[styles.location, { color: colors.text }]}>
-          {branch.city || 'Location'}
-        </Text>
-      </View>
-      
-      {/* Time Slots Section */}
-      <View style={styles.timeSlotsSection}>
-        {(branch.slots && branch.slots.length > 0) ? (
-          <View style={styles.timeSlots}>
-            {(branch.slots || []).map((slot, index) => {
-              // Skip invalid slots
-              if (!slot) {
-                console.log('Skipping null or undefined slot');
-                return null;
-              }
-              
-              // Handle different slot formats
-              let timeValue: string | undefined;
-              
-              if (typeof slot === 'string') {
-                // If slot is directly a string
-                timeValue = slot;
-              } else if (typeof slot === 'object') {
-                // Handle double-nested time objects: {time: {time: "15:25"}}
-                if (slot.time && typeof slot.time === 'object' && 'time' in slot.time && typeof slot.time.time === 'string') {
-                  timeValue = slot.time.time;
-                }
-                // Handle regular time objects: {time: "15:25"}
-                else if (slot.time && typeof slot.time === 'string') {
-                  timeValue = slot.time;
-                }
-              } else {
-                // Unknown format
-                console.log('Skipping slot with unknown format:', slot);
-                return null;
-              }
-              
-              // Skip slots with no time value
-              if (!timeValue) {
-                console.log('Skipping slot with no time value');
-                return null;
-              }
-              
-              return (
-                <TouchableOpacity 
-                  key={index}
-                  style={[styles.timeSlot, { backgroundColor: colors.primary }]}
-                  onPress={() => handleTimeSelect(slot)}
-                >
-                  <Text style={styles.timeSlotText}>
-                    {formatTimeWithAMPM(timeValue, true)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <View>
-            <Text style={[styles.noAvailability, { color: colors.text }]}>
-              No availability for selected time
+        <View style={styles.detailsContainer}>
+          <View style={styles.nameRow}>
+            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+              {restaurant.name}
             </Text>
             <TouchableOpacity 
-              onPress={() => Alert.alert(
-                'Debug Info',
-                `Restaurant ID: ${restaurant.id}\n` +
-                `Branch Index: ${branchIndex}\n` +
-                `Has Branch: ${debugInfo.hasBranch ? 'Yes' : 'No'}\n` +
-                `Has Slots Array: ${debugInfo.hasSlots ? 'Yes' : 'No'}\n` +
-                `Slots Length: ${debugInfo.slotsLength}\n` +
-                `Fallback Attempted: ${debugInfo.fallbackAttempted ? 'Yes' : 'No'}\n` +
-                `Fallback Success: ${debugInfo.fallbackSuccess ? 'Yes' : 'No'}\n` +
-                `Fallback Error: ${debugInfo.fallbackError || 'None'}\n` +
-                `Date: ${date}\n` +
-                `Time: ${time || 'Not specified'}`
-              )}
-              style={styles.debugButton}
+              style={styles.saveButtonInline} 
+              onPress={handleSaveToggle}
+              disabled={isLoading}
             >
-              <Text style={styles.debugButtonText}>Debug Info</Text>
+              <Ionicons 
+                name={isSaved ? 'star' : 'star-outline'} 
+                size={24} 
+                color={isSaved ? colors.primary : colors.text} 
+              />
             </TouchableOpacity>
           </View>
-        )}
+          
+
+          
+          <View style={styles.infoRow}>
+            <View style={styles.priceAndCuisine}>
+              <Text style={[styles.price, { color: colors.text }]}>
+                {restaurant.profile?.priceRange || '$$'}
+              </Text>
+              <Text style={styles.dot}>•</Text>
+              <Text style={[styles.cuisine, { color: colors.text }]}>
+                {restaurant.profile?.cuisine || 'Various Cuisine'}
+              </Text>
+              
+              {(distance !== undefined) && (
+                <>
+                  <Text style={styles.dot}>•</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="location-outline" size={12} style={{ marginRight: 2 }} />
+                    <Text style={[styles.cuisine, { color: colors.text }]}>
+                      {distance.toFixed(1)} km
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+            
+            <Text style={[styles.location, { color: colors.text }]}>
+              {branch.city || 'Location'}
+            </Text>
+          </View>
+          
+          <View style={styles.timeSlotsSection}>
+            {(branch.slots && branch.slots.length > 0) ? (
+              <View style={styles.timeSlots}>
+                {(branch.slots || []).map((slot: any, index: number) => {
+                  // Skip invalid slots
+                  if (!slot) {
+                    console.log('Skipping null or undefined slot');
+                    return null;
+                  }
+                  
+                  // Handle different slot formats
+                  let timeValue: string | undefined;
+                  
+                  if (typeof slot === 'string') {
+                    // If slot is directly a string
+                    timeValue = slot;
+                  } else if (typeof slot === 'object') {
+                    // Handle double-nested time objects: {time: {time: "15:25"}}
+                    if (slot.time && typeof slot.time === 'object' && 'time' in slot.time && typeof slot.time.time === 'string') {
+                      timeValue = slot.time.time;
+                    }
+                    // Handle regular time objects: {time: "15:25"}
+                    else if (slot.time && typeof slot.time === 'string') {
+                      timeValue = slot.time;
+                    }
+                  } else {
+                    // Unknown format
+                    console.log('Skipping slot with unknown format:', slot);
+                    return null;
+                  }
+                  
+                  // Skip slots with no time value
+                  if (!timeValue) {
+                    console.log('Skipping slot with no time value');
+                    return null;
+                  }
+                  
+                  return (
+                    <TouchableOpacity 
+                      key={index}
+                      style={[styles.timeSlot, { backgroundColor: colors.primary }]}
+                      onPress={() => handleTimeSelect(slot)}
+                    >
+                      <Text style={styles.timeSlotText}>
+                        {formatTimeWithAMPM(timeValue, true)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <View>
+                <Text style={[styles.noAvailability, { color: colors.text }]}>
+                  No availability for selected time
+                </Text>
+                <TouchableOpacity 
+                  onPress={() => Alert.alert(
+                    'Debug Info',
+                    `Restaurant ID: ${restaurant.id}\n` +
+                    `Branch Index: ${branchIndex}\n` +
+                    `Has Branch: ${debugInfo.hasBranch ? 'Yes' : 'No'}\n` +
+                    `Has Slots Array: ${debugInfo.hasSlots ? 'Yes' : 'No'}\n` +
+                    `Slots Length: ${debugInfo.slotsLength}\n` +
+                    `Fallback Attempted: ${debugInfo.fallbackAttempted ? 'Yes' : 'No'}\n` +
+                    `Fallback Success: ${debugInfo.fallbackSuccess ? 'Yes' : 'No'}\n` +
+                    `Fallback Error: ${debugInfo.fallbackError || 'None'}\n` +
+                    `Date: ${date}\n` +
+                    `Time: ${time || 'Not specified'}`
+                  )}
+                  style={styles.debugButton}
+                >
+                  <Text style={styles.debugButtonText}>Debug Info</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -359,30 +451,44 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  restaurantImage: {
+  cardContent: {
+    padding: 15,
+  },
+  imageContainer: {
+    position: 'relative',
+  },
+  image: {
     width: '100%',
     height: 120,
     borderRadius: 8,
+  },
+  saveButtonInline: {
+    position: 'absolute',
+    right: 0,
+    padding: 0,
+  },
+  detailsContainer: {
+    marginTop: 10,
   },
   nameRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingTop: 10,
+    position: 'relative',
   },
   name: {
     fontSize: 18,
     fontWeight: 'bold',
+    flex: 1,
+    paddingRight: 30, 
   },
-  detailsRow: {
+  infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingBottom: 15,
+    marginTop: 8,
+    marginBottom: 15, // Changed from paddingBottom to marginBottom for consistency
   },
-  
   priceAndCuisine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -398,19 +504,28 @@ const styles = StyleSheet.create({
   },
   cuisine: {
     fontSize: 14,
+    opacity: 0.7,
   },
   location: {
     fontSize: 13,
     opacity: 0.7,
   },
-  saveButton: {
-    padding: 8,
+  distanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  distanceText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
   },
   timeSlotsSection: {
     borderTopWidth: 1,
     borderTopColor: '#eee',
-    paddingVertical: 12,
-    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 15,
+    paddingHorizontal: 0,
     alignItems: 'center',
   },
   timeSlots: {

@@ -1,20 +1,42 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { RestaurantCard } from './RestaurantCard';
 import { RestaurantWithAvailability, BranchWithAvailability, TimeSlot, AvailableSlot } from './RestaurantCard';
-import { getRestaurants, getSavedRestaurants, SavedRestaurantItem, getRestaurantsWithAvailability } from '../shared/api/client';
+import { getRestaurants, getSavedRestaurants, SavedRestaurantItem, getRestaurantsWithAvailability, Restaurant } from '../shared/api/client';
 import { generateLocalTimeSlots, formatTimeWithAMPM, getBaseTime, generateTimeSlotsFromTime } from '../shared/utils/time-slots';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocation } from '../context/location-context';
+
+// Function to calculate distance between two coordinates using Haversine formula
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c; // Distance in km
+  return parseFloat(distance.toFixed(2));
+}
+
+// Helper function to convert degrees to radians
+function deg2rad(deg: number): number {
+  return deg * (Math.PI / 180);
+}
 
 interface RestaurantListProps {
   searchQuery?: string;
   cityFilter?: string;
   cuisineFilter?: string;
   priceFilter?: string;
+  distanceFilter?: string;
   date: Date;
   time?: string;
   partySize: number;
   showSavedOnly?: boolean;
+  nearbyRestaurants?: Restaurant[];
 }
 
 export function RestaurantList({
@@ -22,12 +44,17 @@ export function RestaurantList({
   cityFilter,
   cuisineFilter,
   priceFilter,
+  distanceFilter = 'all',
   date,
   time,
   partySize,
   showSavedOnly = false,
+  nearbyRestaurants = [],
 }: RestaurantListProps) {
-  console.log('[RestaurantList] rendering with filters:', { searchQuery, cityFilter, cuisineFilter, priceFilter, date, time, partySize, showSavedOnly });
+  console.log('[RestaurantList] rendering with filters:', { searchQuery, cityFilter, cuisineFilter, priceFilter, date, partySize, time, showSavedOnly });
+
+  // Get location from context
+  const { location } = useLocation();
 
   // Generate time slots based on the selected time or default time
   const generateTimeSlots = () => {
@@ -273,7 +300,7 @@ export function RestaurantList({
   }
 
   // Create a flat list of all restaurant branches with their associated restaurant
-  const allBranches: { restaurant: RestaurantWithAvailability; branch: BranchWithAvailability; branchIndex: number }[] = [];
+  const allBranches: { restaurant: RestaurantWithAvailability; branch: BranchWithAvailability; branchIndex: number; isNearby?: boolean }[] = [];
 
   // Create a map of saved restaurant IDs and branch indexes for quick lookup
   const savedMap = new Map<string, boolean>();
@@ -330,6 +357,35 @@ export function RestaurantList({
           availableSlots: branch.availableSlots || []
         };
 
+        // If distance filter is applied, filter by distance
+        if (distanceFilter !== 'all' && location?.coords) {
+          const maxDistance = parseInt(distanceFilter.split(' ')[0]); // Extract number from "X km"
+          
+          // Only include branches within the specified distance
+          if (branch.distance !== undefined && branch.distance > maxDistance) {
+            return; // Skip this branch if it's too far away
+          }
+          
+          // If no distance data but we have coordinates, calculate it
+          if (branch.distance === undefined && branch.latitude && branch.longitude) {
+            const distance = calculateDistance(
+              location.coords.latitude,
+              location.coords.longitude,
+              parseFloat(branch.latitude),
+              parseFloat(branch.longitude)
+            );
+            
+            // Skip if beyond the filter distance
+            if (distance > maxDistance) {
+              return;
+            }
+            
+            // Store the calculated distance
+            branch.distance = distance;
+            branchWithAvailability.distance = distance;
+          }
+        }
+
         // If showSavedOnly is true, only include saved branches
         if (showSavedOnly && !branch.isSaved && !restaurant.isSaved) {
           return;
@@ -350,6 +406,87 @@ export function RestaurantList({
     });
   }
 
+  // Add nearby restaurants
+  if (nearbyRestaurants && nearbyRestaurants.length > 0) {
+    // Add a section header for nearby restaurants
+    const nearbySection = (
+      <View style={styles.nearbyHeader}>
+        <Ionicons name="location" size={18} color="#007AFF" />
+        <Text style={styles.nearbyHeaderText}>Nearby Restaurants</Text>
+      </View>
+    );
+
+    nearbyRestaurants.forEach((restaurant) => {
+      // Extract the first branch if available
+      const firstBranch = restaurant.branches && restaurant.branches.length > 0 ? restaurant.branches[0] : null;
+      
+      if (firstBranch) {
+        // Log the branch data to debug
+        console.log(`Branch for ${restaurant.name}:`, {
+          id: firstBranch.id,
+          distance: firstBranch.distance,
+          hasDistance: firstBranch.distance !== undefined,
+          distanceType: typeof firstBranch.distance,
+          latitude: firstBranch.latitude,
+          longitude: firstBranch.longitude
+        });
+        
+        // Ensure distance is a number
+        const distance = typeof firstBranch.distance === 'number' ? firstBranch.distance : 
+                        typeof firstBranch.distance === 'string' ? parseFloat(firstBranch.distance) : undefined;
+        
+        // Calculate distance using Haversine formula
+        let calculatedDistance: number | undefined = undefined;
+        
+        if (location?.coords && firstBranch.latitude && firstBranch.longitude) {
+          try {
+            calculatedDistance = calculateDistance(
+              location.coords.latitude,
+              location.coords.longitude,
+              parseFloat(firstBranch.latitude),
+              parseFloat(firstBranch.longitude)
+            );
+            console.log(`Calculated distance for ${restaurant.name}:`, calculatedDistance);
+          } catch (error) {
+            console.error('Error calculating distance:', error);
+          }
+        }
+        
+        // Use either the API-provided distance or our calculated distance
+        const finalDistance = distance !== undefined ? distance : calculatedDistance;
+        
+        console.log(`Final distance for ${restaurant.name}:`, {
+          apiDistance: distance,
+          calculatedDistance,
+          finalDistance,
+          isNearby: true
+        });
+        
+        allBranches.push({
+          restaurant: {
+            ...restaurant,
+            branches: [{
+              ...firstBranch,
+              distance: finalDistance // Use final distance
+            }]
+          } as RestaurantWithAvailability,
+          branch: {
+            id: firstBranch.id,
+            location: firstBranch.address || '',
+            address: firstBranch.address || '',
+            city: firstBranch.city || '',
+            slots: [],
+            isSaved: false,
+            availableSlots: [],
+            distance: finalDistance // Ensure distance is properly set
+          },
+          branchIndex: 0,
+          isNearby: true // Mark as nearby for special styling
+        });
+      }
+    });
+  }
+
   console.log(`[RestaurantList] Total branches to display: ${allBranches.length}`);
 
   return (
@@ -366,6 +503,7 @@ export function RestaurantList({
               date={date instanceof Date && !isNaN(date.getTime()) ? date.toISOString() : new Date().toISOString()}
               time={time}
               partySize={partySize}
+              isNearby={item.isNearby}
             />
           );
         }}
@@ -411,5 +549,18 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 4,
+  },
+  nearbyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    backgroundColor: '#f7f7f7',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  nearbyHeaderText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
 });

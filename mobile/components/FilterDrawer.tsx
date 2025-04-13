@@ -17,6 +17,8 @@ interface FilterDrawerProps {
   setCuisineFilter: (cuisine: string) => void; // Function to update the selected cuisine
   priceFilter: string;               // Current selected price filter value
   setPriceFilter: (price: string) => void;     // Function to update the selected price range
+  distanceFilter: string;            // Current selected distance filter value
+  setDistanceFilter: (distance: string) => void; // Function to update the selected distance range
   onApplyFilters: () => void;        // Function to apply filters and update the display (e.g., list of restaurants)
 }
 
@@ -40,6 +42,8 @@ const CUISINES = [
 const CITIES = ["Cairo", "Alexandria"];
 // PRICE_RANGES: different price ranges denoted by symbols.
 const PRICE_RANGES = ["$", "$$", "$$$", "$$$$"];
+// DISTANCE_RANGES: different distance ranges in kilometers
+const DISTANCE_RANGES = ["1 km", "5 km", "10 km", "20 km"];
 
 // Get screen dimensions for responsive sizing
 const { height } = Dimensions.get('window');
@@ -55,6 +59,8 @@ export function FilterDrawer({
   setCuisineFilter,
   priceFilter,
   setPriceFilter,
+  distanceFilter,
+  setDistanceFilter,
   onApplyFilters
 }: FilterDrawerProps) {
   // Get the current color scheme (light or dark) and assign colors accordingly.
@@ -69,6 +75,7 @@ export function FilterDrawer({
     setCityFilter('all');
     setCuisineFilter('all');
     setPriceFilter('all');
+    setDistanceFilter('all');
     
     // Apply the reset filters immediately
     onApplyFilters();
@@ -131,6 +138,51 @@ export function FilterDrawer({
                     ]}
                   >
                     {city}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Distance Filter Section */}
+          <View style={styles.filterSection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Distance</Text>
+            <View style={styles.optionsGrid}>
+              {/* "All" option for distance filter */}
+              <TouchableOpacity
+                style={[
+                  styles.optionButton,
+                  distanceFilter === 'all' && { backgroundColor: colors.primary }
+                ]}
+                onPress={() => setDistanceFilter('all')}
+              >
+                <Text 
+                  style={[
+                    styles.optionText, 
+                    distanceFilter === 'all' && styles.selectedOptionText
+                  ]}
+                >
+                  All
+                </Text>
+              </TouchableOpacity>
+
+              {/* Render distance range options */}
+              {DISTANCE_RANGES.map((distance) => (
+                <TouchableOpacity
+                  key={distance}
+                  style={[
+                    styles.optionButton,
+                    distanceFilter === distance && { backgroundColor: colors.primary }
+                  ]}
+                  onPress={() => setDistanceFilter(distance)}
+                >
+                  <Text 
+                    style={[
+                      styles.optionText, 
+                      distanceFilter === distance && styles.selectedOptionText
+                    ]}
+                  >
+                    {distance}
                   </Text>
                 </TouchableOpacity>
               ))}

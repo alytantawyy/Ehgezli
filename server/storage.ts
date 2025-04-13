@@ -131,6 +131,14 @@ export interface IStorage {
     gender: string; 
     favoriteCuisines: string[] 
   }): Promise<void>;
+
+  // Update a user's location information
+  updateUserLocation(userId: number, locationData: {
+    lastLatitude: string;
+    lastLongitude: string;
+    locationUpdatedAt: Date;
+    locationPermissionGranted: boolean;
+  }): Promise<void>;
 }
 
 // This class implements all the database operations defined in IStorage
@@ -218,6 +226,10 @@ export class DatabaseStorage implements IStorage {
         birthday: users.birthday,
         city: users.city,
         favoriteCuisines: users.favoriteCuisines,
+        lastLatitude: users.lastLatitude,
+        lastLongitude: users.lastLongitude,
+        locationUpdatedAt: users.locationUpdatedAt,
+        locationPermissionGranted: users.locationPermissionGranted,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt
       }).from(users).where(eq(users.email, email));
@@ -424,7 +436,9 @@ export class DatabaseStorage implements IStorage {
           seatsCount: restaurantBranches.seatsCount,
           openingTime: restaurantBranches.openingTime,
           closingTime: restaurantBranches.closingTime,
-          reservationDuration: restaurantBranches.reservationDuration
+          reservationDuration: restaurantBranches.reservationDuration,
+          latitude: restaurantBranches.latitude,
+          longitude: restaurantBranches.longitude
         })
         .from(restaurantBranches)
         .where(eq(restaurantBranches.restaurantId, restaurantId));
@@ -441,7 +455,9 @@ export class DatabaseStorage implements IStorage {
         seatsCount: branch.seatsCount,
         openingTime: branch.openingTime,
         closingTime: branch.closingTime,
-        reservationDuration: branch.reservationDuration || 120
+        reservationDuration: branch.reservationDuration || 120,
+        latitude: branch.latitude,
+        longitude: branch.longitude
       }));
     } catch (error) {
       console.error('Error fetching restaurant branches:', error);
@@ -506,16 +522,17 @@ export class DatabaseStorage implements IStorage {
           confirmed: bookings.confirmed,
           arrived: bookings.arrived,
           arrivedAt: bookings.arrivedAt,
-          completed: bookings.completed,
-          restaurantName: restaurantAuth.name,
-          restaurantId: restaurantAuth.id,
-          branchRestaurantId: restaurantBranches.restaurantId,
-          branchCity: restaurantBranches.city,
-          branchAddress: restaurantBranches.address
+          completed: bookings.completed
         })
         .from(bookings)
-        .innerJoin(restaurantBranches, eq(bookings.branchId, restaurantBranches.id))
-        .innerJoin(restaurantAuth, eq(restaurantBranches.restaurantId, restaurantAuth.id))
+        .innerJoin(
+          restaurantBranches,
+          eq(bookings.branchId, restaurantBranches.id)
+        )
+        .innerJoin(
+          restaurantAuth,
+          eq(restaurantBranches.restaurantId, restaurantAuth.id)
+        )
         .where(eq(bookings.userId, userId));
 
       console.log('Found bookings with restaurants:', bookingsWithRestaurants);
@@ -1277,7 +1294,9 @@ export class DatabaseStorage implements IStorage {
             seatsCount: restaurantBranches.seatsCount,
             openingTime: restaurantBranches.openingTime,
             closingTime: restaurantBranches.closingTime,
-            reservationDuration: restaurantBranches.reservationDuration
+            reservationDuration: restaurantBranches.reservationDuration,
+            latitude: restaurantBranches.latitude,
+            longitude: restaurantBranches.longitude
           })
           .from(restaurantBranches)
           .leftJoin(restaurantAuth, eq(restaurantBranches.restaurantId, restaurantAuth.id))
@@ -1450,6 +1469,8 @@ export class DatabaseStorage implements IStorage {
 
             return {
               ...branch,
+              latitude: branch.latitude,
+              longitude: branch.longitude,
               availableSlots
             };
           })
@@ -1550,12 +1571,35 @@ export class DatabaseStorage implements IStorage {
    */
   async getUserById(id: number): Promise<User | undefined> {
     try {
-      const result = await db.query.users.findFirst({
-        where: eq(users.id, id),
-      });
-      return result;
+      console.log(`Looking up user with ID: ${id}`);
+      
+      const user = await db.select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        password: users.password,
+        gender: users.gender,
+        birthday: users.birthday,
+        city: users.city,
+        favoriteCuisines: users.favoriteCuisines,
+        lastLatitude: users.lastLatitude,
+        lastLongitude: users.lastLongitude,
+        locationUpdatedAt: users.locationUpdatedAt,
+        locationPermissionGranted: users.locationPermissionGranted,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt
+      }).from(users).where(eq(users.id, id));
+      
+      if (!user || user.length === 0) {
+        console.log(`No user found with ID: ${id}`);
+        return undefined;
+      }
+      
+      console.log(`Found user: ${user[0].id}`);
+      return user[0];
     } catch (error) {
-      console.error("Error fetching user by ID:", error);
+      console.error('Error in getUserById:', error);
       throw error;
     }
   }
@@ -1582,6 +1626,93 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Error updating user profile:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Update a user's location information
+   */
+  async updateUserLocation(userId: number, locationData: {
+    lastLatitude: string;
+    lastLongitude: string;
+    locationUpdatedAt: Date;
+    locationPermissionGranted: boolean;
+  }): Promise<void> {
+    try {
+      await db.update(users)
+        .set({
+          lastLatitude: locationData.lastLatitude,
+          lastLongitude: locationData.lastLongitude,
+          locationUpdatedAt: locationData.locationUpdatedAt,
+          locationPermissionGranted: locationData.locationPermissionGranted
+        })
+        .where(eq(users.id, userId));
+      
+      console.log(`Updated location for user ${userId}`);
+    } catch (error) {
+      console.error('Error updating user location:', error);
+      throw new Error('Failed to update user location');
+    }
+  }
+
+  // Get a restaurant by its ID with all branches
+  async getRestaurantById(restaurantId: number): Promise<{
+    id: number;
+    auth: {
+      id: number;
+      email: string;
+      password: string;
+      name: string;
+      verified: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+    profile?: {
+      id: number;
+      restaurantId: number;
+      about: string;
+      description: string;
+      cuisine: string;
+      priceRange: string;
+      logo: string;
+      isProfileComplete: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+    branches: {
+      id: number;
+      restaurantId: number;
+      address: string;
+      city: string;
+      tablesCount: number;
+      seatsCount: number;
+      openingTime: string;
+      closingTime: string;
+      reservationDuration: number;
+      latitude: string | null;
+      longitude: string | null;
+      distance?: number;
+    }[];
+  } | undefined> {
+    try {
+      // Get restaurant auth data
+      const restaurant = await this.getRestaurant(restaurantId);
+      if (!restaurant) {
+        return undefined;
+      }
+
+      // Get restaurant branches
+      const branches = await this.getRestaurantBranches(restaurantId);
+
+      return {
+        id: restaurant.id,
+        auth: restaurant,
+        profile: restaurant.profile,
+        branches: branches
+      };
+    } catch (error) {
+      console.error(`Error getting restaurant ${restaurantId}:`, error);
+      throw new Error(`Failed to get restaurant ${restaurantId}`);
     }
   }
 }

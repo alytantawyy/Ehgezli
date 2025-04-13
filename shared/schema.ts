@@ -31,6 +31,10 @@ export const users = pgTable("users", {
   birthday: timestamp("birthday").notNull(),                      // User's birthday
   city: text("city").notNull(),                                  // User's city
   favoriteCuisines: text("favorite_cuisines").array().notNull(), // Array of favorite food types
+  lastLatitude: text("last_latitude"),                           // Last known latitude
+  lastLongitude: text("last_longitude"),                          // Last known longitude
+  locationUpdatedAt: timestamp("location_updated_at"),            // When location was last updated
+  locationPermissionGranted: boolean("location_permission_granted").default(false), // If user granted location permission
   createdAt: timestamp("created_at").notNull().defaultNow(),     // Account creation date
   updatedAt: timestamp("updated_at").notNull().defaultNow(),     // Last update date
 });
@@ -119,8 +123,9 @@ export const restaurantBranches = pgTable("restaurant_branches", {
   openingTime: text("opening_time").notNull(),
   closingTime: text("closing_time").notNull(),
   reservationDuration: integer("reservation_duration").notNull().default(120), // 2 hours default
+  latitude: text("latitude"),  // Geographical coordinate
+  longitude: text("longitude"), // Geographical coordinate
 });
-
 
 // ==================== Bookings ====================
 
@@ -160,7 +165,6 @@ export const savedRestaurants = pgTable("saved_restaurants", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-
 // ==================== Validation Schemas ====================
 
 // Schema for inserting new users
@@ -199,7 +203,9 @@ export const insertRestaurantProfileSchema = createInsertSchema(restaurantProfil
 export const insertBranchSchema = createInsertSchema(restaurantBranches).omit({
   id: true
 }).extend({
-  seatsCount: z.number().min(1, "Must have at least 1 seat per table")
+  seatsCount: z.number().min(1, "Must have at least 1 seat per table"),
+  latitude: z.string(),
+  longitude: z.string(),
 });
 
 // Schema for inserting new bookings

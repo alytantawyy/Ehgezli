@@ -5,6 +5,7 @@ import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '../context/auth-context';
+import { LocationProvider } from '../context/location-context';
 import { Asset } from 'expo-asset';
 
 export {
@@ -122,14 +123,16 @@ function RootLayoutNav() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AuthWrapper>
-          <Stack>
-            <Stack.Screen name="login" options={{ headerShown: false }} />
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: true, headerTitle: 'Ehgezli' }} />
-            <Stack.Screen name="restaurant/[id]" options={{ headerTitle: 'Restaurant Details' }} />
-          </Stack>
-        </AuthWrapper>
+        <LocationProvider>
+          <AuthWrapper>
+            <Stack>
+              <Stack.Screen name="login" options={{ headerShown: false }} />
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: true, headerTitle: 'Ehgezli' }} />
+              <Stack.Screen name="restaurant/[id]" options={{ headerTitle: 'Restaurant Details' }} />
+            </Stack>
+          </AuthWrapper>
+        </LocationProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

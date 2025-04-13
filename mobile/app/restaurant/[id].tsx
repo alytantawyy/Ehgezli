@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getRestaurantById, createBooking, Restaurant, Branch } from '@/shared/api/client';
+import { getRestaurantById, createBooking, Restaurant, Branch, getRestaurantLocation } from '@/shared/api/client';
 import { formatTimeWithAMPM } from '@/shared/utils/time-slots';
 import { EhgezliButton } from '@/components/EhgezliButton';
+import { RestaurantMap } from '@/components/RestaurantMap';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from 'react-native';
 import { format } from 'date-fns';
 import { useAuth } from '@/context/auth-context';
+import { useLocation } from '@/context/location-context';
 
 // Define extended types for the restaurant data that includes profile information
 interface RestaurantWithProfile extends Restaurant {
@@ -45,13 +47,25 @@ export default function RestaurantDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const { user } = useAuth();
+  const { location } = useLocation();
   
   const [selectedTime, setSelectedTime] = useState(time || '');
+  const [showMap, setShowMap] = useState(false);
   
   // Query restaurant details
-  const { data: restaurant, isLoading, error } = useQuery<RestaurantWithProfile | null>({ 
+  const { data: restaurant, isLoading, error } = useQuery<RestaurantWithProfile | null>({
     queryKey: ['restaurant', id],
     queryFn: () => getRestaurantById(Number(id)),
+  });
+  
+  // Query restaurant location with user's coordinates for distance calculation
+  const { data: locationData, isLoading: isLocationLoading } = useQuery({
+    queryKey: ['restaurantLocation', id, location?.coords.latitude, location?.coords.longitude],
+    queryFn: () => getRestaurantLocation(Number(id), {
+      userLatitude: location?.coords.latitude.toString(),
+      userLongitude: location?.coords.longitude.toString(),
+    }),
+    enabled: !!id && !!location,
   });
   
   // Create booking mutation
@@ -92,7 +106,7 @@ export default function RestaurantDetailScreen() {
     });
   };
   
-  if (isLoading) {
+  if (isLoading || isLocationLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -159,6 +173,47 @@ export default function RestaurantDetailScreen() {
         <Text style={[styles.aboutText, { color: colors.text }]}>
           {restaurant.profile?.about || 'No description available for this restaurant.'}
         </Text>
+        
+        <View style={styles.divider} />
+        
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Location</Text>
+        {locationData ? (
+          <TouchableOpacity 
+            style={styles.locationContainer} 
+            onPress={() => setShowMap(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.locationContent}>
+              <Ionicons name="location-outline" size={20} color="#007AFF" />
+              <View style={styles.locationTextContainer}>
+                <Text style={styles.locationAddress}>
+                  {locationData.branches[0]?.address || 'View location'}
+                </Text>
+                {locationData.branches[0]?.distance && (
+                  <Text style={styles.locationDistance}>
+                    {locationData.branches[0].distance.toFixed(1)} km away
+                  </Text>
+                )}
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.loadingMapContainer}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingMapText}>Loading location information...</Text>
+          </View>
+        )}
+        
+        {showMap && (
+          <Modal visible={showMap} animationType="slide">
+            <RestaurantMap 
+              branches={locationData?.branches || []} 
+              restaurantName={locationData?.name || restaurant?.name || ''} 
+              onClose={() => setShowMap(false)}
+            />
+          </Modal>
+        )}
         
         <View style={styles.divider} />
         
@@ -357,5 +412,95 @@ const styles = StyleSheet.create({
   bookButton: {
     marginTop: 8,
     marginBottom: 40,
+  },
+  locationContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  locationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  locationTextContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  locationAddress: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  locationDistance: {
+    fontSize: 14,
+    color: '#666',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  mapPreviewContainer: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  mapPreview: {
+    height: 150,
+    backgroundColor: '#f5f5f5',
+  },
+  viewMapText: {
+    fontSize: 14,
+    color: '#007bff',
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
+  loadingMapContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  loadingMapText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  addressText: {
+    fontSize: 14,
+    color: '#333',
+    padding: 16,
+  },
+  distanceBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: '#007bff',
+    borderRadius: 10,
+    padding: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  distanceText: {
+    fontSize: 12,
+    color: '#fff',
+    marginLeft: 4,
   },
 });

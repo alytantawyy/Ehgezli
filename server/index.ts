@@ -25,7 +25,12 @@ app.use(cors({
     'http://localhost:19002', 
     'exp://localhost:8081',
     'http://localhost:3000',
-    'http://localhost:8080'
+    'http://localhost:8080',
+    'http://10.2.64.32:8081',
+    'exp://10.2.64.32:8081',
+    'exp://10.2.64.32:19000',
+    'exp://10.2.64.32:19001',
+    'exp://10.2.64.32:19002'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

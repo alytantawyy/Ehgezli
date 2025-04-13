@@ -11,18 +11,34 @@ import express from 'express';
 // WebSocket enables real-time updates (e.g., instant booking notifications)
 import { WebSocketServer } from 'ws';
 import WebSocket from 'ws';
+import { z } from 'zod';
 
 // === Authentication & Security ===
 import { setupAuth, authenticateJWT, generateToken, hashPassword } from "./auth";
-import passport from 'passport';
 import jwt from 'jsonwebtoken';
 
 // === Database & Storage ===
 import { DatabaseStorage } from "./storage";
-import { pool } from "./db";
+import { parseISO, format } from 'date-fns';
 
 // === Utilities ===
-import { parseISO} from 'date-fns';
+// Haversine formula to calculate distance between two points on Earth
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const distance = R * c; // Distance in km
+  return distance;
+}
+
+function deg2rad(deg: number): number {
+  return deg * (Math.PI/180);
+}
 
 // Initialize our database operations helper
 const storage = new DatabaseStorage();
@@ -212,7 +228,8 @@ export function registerRoutes(app: Express): Server {
       '/restaurant/branch', 
       '/restaurants',
       '/restaurants/availability',
-      '/default-time-slots'
+      '/default-time-slots',
+      '/restaurants/nearby'
     ];
     
     // If it's a public path, let them through
@@ -338,6 +355,150 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('SERVER: Error in availability endpoint:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  /**
+   * Get Nearby Restaurants
+   * GET /api/restaurants/nearby
+   * 
+   * Finds restaurants within a specified radius of the given coordinates
+   * If no coordinates are provided, it uses the authenticated user's last known location
+   * If user location is not available, it uses default coordinates for Alexandria
+   * 
+   * Query parameters:
+   * - latitude: string (optional) - Center latitude
+   * - longitude: string (optional) - Center longitude
+   * - radius: number (optional) - Search radius in kilometers (default: 5)
+   * - limit: number (optional) - Maximum number of results (default: 20)
+   * 
+   * Returns:
+   * - 200: List of nearby restaurants with distance information
+   * - 400: Invalid input
+   * - 500: Server error
+   */
+  app.get("/api/restaurants/nearby", async (req: Request, res: Response) => {
+    try {
+      console.log("[Debug] GET /api/restaurants/nearby query params:", req.query);
+      
+      // Validate input
+      const querySchema = z.object({
+        latitude: z.string().optional(),
+        longitude: z.string().optional(),
+        radius: z.string().transform(Number).default("5"),
+        limit: z.string().transform(Number).default("20")
+      });
+
+      const result = querySchema.safeParse(req.query);
+      if (!result.success) {
+        console.log("[Debug] Invalid nearby restaurants query:", result.error.format());
+        return res.status(400).json({ 
+          error: "Invalid input", 
+          details: result.error.format() 
+        });
+      }
+
+      let { latitude, longitude, radius, limit } = result.data;
+      
+      // If coordinates are not provided, try to use the authenticated user's location
+      if (!latitude || !longitude) {
+        try {
+          // Check if user is authenticated
+          const authHeader = req.headers.authorization;
+          if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring(7);
+            const decoded = verifyToken(token);
+            
+            if (decoded && decoded.type === 'user') {
+              // Get user's last known location
+              const user = await storage.getUserById(decoded.id);
+              
+              if (user && user.lastLatitude && user.lastLongitude) {
+                latitude = user.lastLatitude;
+                longitude = user.lastLongitude;
+                console.log(`[Debug] Using user's location: lat=${latitude}, lng=${longitude}`);
+              }
+            }
+          }
+        } catch (error) {
+          console.log("[Debug] Error getting user location:", error);
+          // Continue with default coordinates if there's an error
+        }
+      }
+      
+      // If still no coordinates (user not logged in or no location saved), use default
+      if (!latitude || !longitude) {
+        latitude = "31.2156400";  // Default to Alexandria
+        longitude = "29.9553200";
+        console.log(`[Debug] Using default location: lat=${latitude}, lng=${longitude}`);
+      } else {
+        console.log(`[Debug] Using provided coordinates: lat=${latitude}, lng=${longitude}`);
+      }
+      
+      console.log(`[Debug] Final search parameters: lat=${latitude}, lng=${longitude}, radius=${radius}, limit=${limit}`);
+      
+      // Get all restaurant IDs
+      const restaurantIds = (await storage.getRestaurants()).map(r => r.id);
+      
+      // Calculate distance for each restaurant branch and filter by radius
+      const nearbyRestaurants: Array<{ id: number; name: string; branches: Array<{ id: number; address: string; city: string; latitude: string; longitude: string; distance: number }> }> = [];
+      
+      // Process each restaurant with its branches
+      for (const restaurantId of restaurantIds) {
+        // Get the restaurant with full details including branches
+        const restaurant = await storage.getRestaurantById(restaurantId);
+        if (!restaurant) continue;
+        
+        const nearbyBranches: Array<{ id: number; address: string; city: string; latitude: string; longitude: string; distance: number }> = [];
+        
+        for (const branch of restaurant.branches) {
+          if (branch.latitude && branch.longitude) {
+            const distance = calculateDistance(
+              parseFloat(latitude), 
+              parseFloat(longitude), 
+              parseFloat(branch.latitude), 
+              parseFloat(branch.longitude)
+            );
+            
+            if (distance <= radius) {
+              nearbyBranches.push({
+                id: branch.id,
+                address: branch.address,
+                city: branch.city,
+                latitude: branch.latitude,
+                longitude: branch.longitude,
+                distance: parseFloat(distance.toFixed(2))
+              } as const);
+            }
+          }
+        }
+        
+        if (nearbyBranches.length > 0) {
+          nearbyRestaurants.push({
+            id: restaurant.id,
+            name: restaurant.auth.name,
+            branches: nearbyBranches
+          } as const);
+        }
+      }
+      
+      // Sort by distance (closest first) and limit results
+      nearbyRestaurants.sort((a, b) => {
+        const minDistanceA = Math.min(...a.branches.map(branch => branch.distance || Infinity));
+        const minDistanceB = Math.min(...b.branches.map(branch => branch.distance || Infinity));
+        return minDistanceA - minDistanceB;
+      });
+      
+      const limitedResults = nearbyRestaurants.slice(0, limit);
+      
+      res.json({
+        success: true,
+        count: limitedResults.length,
+        restaurants: limitedResults
+      });
+    } catch (error) {
+      console.error("Error finding nearby restaurants:", error);
+      res.status(500).json({ error: "Server error finding nearby restaurants" });
     }
   });
 
@@ -659,6 +820,101 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  /**
+   * Get Restaurant Location Details
+   * GET /api/restaurants/:id/location
+   * 
+   * Gets detailed location information for a specific restaurant
+   * 
+   * URL parameters:
+   * - id: number - Restaurant ID
+   * 
+   * Query parameters:
+   * - branchId: number (optional) - Specific branch ID
+   * - userLatitude: string (optional) - User's current latitude for distance calculation
+   * - userLongitude: string (optional) - User's current longitude for distance calculation
+   * 
+   * Returns:
+   * - 200: Restaurant location details including coordinates and distance
+   * - 404: Restaurant not found
+   * - 500: Server error
+   */
+  app.get("/api/restaurants/:id/location", async (req: Request, res: Response) => {
+    try {
+      console.log("[Debug] GET /api/restaurants/:id/location params:", req.params, "query:", req.query);
+      
+      const restaurantId = parseInt(req.params.id);
+      
+      // Validate restaurant ID
+      if (isNaN(restaurantId)) {
+        console.log(`[Debug] Invalid restaurant ID: ${req.params.id}`);
+        return res.status(400).json({ message: "Invalid restaurant ID" });
+      }
+      
+      const branchId = req.query.branchId ? parseInt(req.query.branchId as string) : undefined;
+      const userLatitude = req.query.userLatitude as string | undefined;
+      const userLongitude = req.query.userLongitude as string | undefined;
+      
+      // Get restaurant data
+      const restaurant = await storage.getRestaurantById(restaurantId);
+      
+      if (!restaurant) {
+        console.log(`[Debug] Restaurant not found: ${restaurantId}`);
+        return res.status(404).json({ error: "Restaurant not found" });
+      }
+      
+      console.log(`[Debug] Found restaurant: ${restaurantId}, branches: ${restaurant.branches.length}`);
+      
+      // Filter branches if branchId is provided
+      let branches = restaurant.branches;
+      if (branchId) {
+        branches = branches.filter(branch => branch.id === branchId);
+        if (branches.length === 0) {
+          return res.status(404).json({ error: "Branch not found" });
+        }
+      }
+      
+      // Add distance information if user coordinates are provided
+      if (userLatitude && userLongitude) {
+        branches = branches.map(branch => {
+          if (branch.latitude && branch.longitude) {
+            const distance = calculateDistance(
+              parseFloat(userLatitude),
+              parseFloat(userLongitude),
+              parseFloat(branch.latitude),
+              parseFloat(branch.longitude)
+            );
+            
+            return {
+              ...branch,
+              distance: parseFloat(distance.toFixed(2))
+            };
+          }
+          return branch;
+        });
+      }
+      
+      res.json({
+        success: true,
+        restaurant: {
+          id: restaurant.id,
+          name: restaurant.auth.name,
+          branches: branches.map(branch => ({
+            id: branch.id,
+            address: branch.address,
+            city: branch.city,
+            latitude: branch.latitude,
+            longitude: branch.longitude,
+            distance: branch.distance
+          }))
+        }
+      });
+    } catch (error) {
+      console.error("Error getting restaurant location:", error);
+      res.status(500).json({ error: "Server error getting restaurant location" });
+    }
+  });
+
   // === USER PROFILE ENDPOINTS ===
 
   /**
@@ -740,6 +996,61 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error updating user profile:", error);
       res.status(500).json({ message: "Failed to update user profile" });
+    }
+  });
+
+  /**
+   * Update User Location
+   * POST /api/users/location
+   * 
+   * Updates the user's current location
+   * 
+   * Request body:
+   * - latitude: string - User's current latitude
+   * - longitude: string - User's current longitude
+   * 
+   * Returns:
+   * - 200: Success message
+   * - 400: Invalid input
+   * - 401: Unauthorized (not logged in)
+   * - 500: Server error
+   */
+  app.post("/api/users/location", requireUserAuth, async (req: Request, res: Response) => {
+    try {
+      // Validate input
+      const locationSchema = z.object({
+        latitude: z.string().refine(val => !isNaN(parseFloat(val)), {
+          message: "Latitude must be a valid number"
+        }),
+        longitude: z.string().refine(val => !isNaN(parseFloat(val)), {
+          message: "Longitude must be a valid number"
+        })
+      });
+
+      const result = locationSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: "Invalid input", 
+          details: result.error.format() 
+        });
+      }
+
+      // Get user ID safely
+      const userId = getUserId(req);
+      
+      // Update user location in database
+      await storage.updateUserLocation(userId, {
+        lastLatitude: result.data.latitude,
+        lastLongitude: result.data.longitude,
+        locationUpdatedAt: new Date(),
+        locationPermissionGranted: true
+      });
+      
+      console.log(`Updated location for user ${userId}: ${result.data.latitude}, ${result.data.longitude}`);
+      res.json({ success: true, message: "Location updated successfully" });
+    } catch (error) {
+      console.error("Error updating user location:", error);
+      res.status(500).json({ error: "Server error updating location" });
     }
   });
 

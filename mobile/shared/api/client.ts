@@ -29,6 +29,9 @@ export interface Branch {
   address: string;
   slots: string[];
   city?: string;
+  latitude?: string;
+  longitude?: string;
+  distance?: number;
   availableSlots?: Array<{ time: string; seats: number }>;
 }
 
@@ -397,6 +400,123 @@ export const getRestaurantsWithAvailability = async (params?: {
     return response.data;
   } catch (error) {
     console.error('Error fetching restaurants with availability:', error);
+    throw error;
+  }
+};
+
+// Location-related functions
+/**
+ * Update the user's current location
+ */
+export const updateUserLocation = async (latitude: string, longitude: string): Promise<void> => {
+  try {
+    const token = await getAuthToken();
+    if (!token) throw new Error('Authentication required');
+    
+    await api.post('/api/users/location', {
+      latitude,
+      longitude
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    console.log('Location updated successfully');
+  } catch (error) {
+    console.error('Error updating location:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get nearby restaurants based on coordinates
+ */
+export const getNearbyRestaurants = async (params?: {
+  latitude?: string;
+  longitude?: string;
+  radius?: number;
+  limit?: number;
+}): Promise<Restaurant[]> => {
+  try {
+    // Build query string from params
+    const queryParams = new URLSearchParams();
+    if (params?.latitude) queryParams.append('latitude', params.latitude);
+    if (params?.longitude) queryParams.append('longitude', params.longitude);
+    if (params?.radius) queryParams.append('radius', params.radius.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    const queryString = queryParams.toString();
+    const url = `/api/restaurants/nearby${queryString ? `?${queryString}` : ''}`;
+    
+    console.log('Calling nearby restaurants API:', url);
+    
+    const token = await getAuthToken();
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    
+    const response = await api.get(url, { headers });
+    
+    // Log the raw response to debug
+    console.log('Nearby restaurants API response:', {
+      success: response.data.success,
+      count: response.data.count,
+      hasRestaurants: Array.isArray(response.data.restaurants),
+      restaurantsCount: response.data.restaurants?.length || 0
+    });
+    
+    // Log the first restaurant to debug distance data
+    if (response.data.restaurants && response.data.restaurants.length > 0) {
+      const firstRestaurant = response.data.restaurants[0];
+      console.log('First nearby restaurant:', {
+        id: firstRestaurant.id,
+        name: firstRestaurant.name,
+        branchesCount: firstRestaurant.branches?.length || 0,
+        firstBranch: firstRestaurant.branches && firstRestaurant.branches.length > 0 ? {
+          id: firstRestaurant.branches[0].id,
+          distance: firstRestaurant.branches[0].distance,
+          hasDistance: firstRestaurant.branches[0].distance !== undefined,
+          distanceType: typeof firstRestaurant.branches[0].distance
+        } : 'No branches'
+      });
+    }
+    
+    // Process the response to ensure distance is properly handled
+    const restaurants = response.data.restaurants || [];
+    return restaurants.map((restaurant: Restaurant) => ({
+      ...restaurant,
+      branches: (restaurant.branches || []).map((branch: Branch) => ({
+        ...branch,
+        // Ensure distance is a number
+        distance: typeof branch.distance === 'number' ? branch.distance : 
+                 typeof branch.distance === 'string' ? parseFloat(branch.distance) : undefined
+      }))
+    }));
+  } catch (error) {
+    console.error('Error fetching nearby restaurants:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get restaurant location details
+ */
+export const getRestaurantLocation = async (restaurantId: number, params?: {
+  branchId?: number;
+  userLatitude?: string;
+  userLongitude?: string;
+}): Promise<{ id: number; name: string; branches: Branch[] }> => {
+  try {
+    // Build query string from params
+    const queryParams = new URLSearchParams();
+    if (params?.branchId) queryParams.append('branchId', params.branchId.toString());
+    if (params?.userLatitude) queryParams.append('userLatitude', params.userLatitude);
+    if (params?.userLongitude) queryParams.append('userLongitude', params.userLongitude);
+    
+    const queryString = queryParams.toString();
+    const url = `/api/restaurants/${restaurantId}/location${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await api.get(url);
+    return response.data.restaurant;
+  } catch (error) {
+    console.error(`Error fetching restaurant ${restaurantId} location:`, error);
     throw error;
   }
 };

@@ -63,7 +63,11 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1990-01-01'),
       city: 'Alexandria',
-      favoriteCuisines: ['Italian', 'Japanese']
+      favoriteCuisines: ['Italian', 'Japanese'],
+      lastLatitude: '25.7617',  // Miami area
+      lastLongitude: '-80.1918',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     },
     {
       firstName: 'Jane',
@@ -73,7 +77,11 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1992-05-15'),
       city: 'Cairo',
-      favoriteCuisines: ['Middle Eastern', 'Mediterranean']
+      favoriteCuisines: ['Middle Eastern', 'Mediterranean'],
+      lastLatitude: '27.9500',  // Tampa area
+      lastLongitude: '-82.4572',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     },
     {
       firstName: 'Ahmed',
@@ -83,7 +91,11 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1988-10-20'),
       city: 'Alexandria',
-      favoriteCuisines: ['Egyptian', 'Middle Eastern', 'Mediterranean']
+      favoriteCuisines: ['Egyptian', 'Middle Eastern', 'Mediterranean'],
+      lastLatitude: '25.7617',  // Miami area
+      lastLongitude: '-80.1918',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     },
     {
       firstName: 'Fatima',
@@ -93,7 +105,11 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1995-03-08'),
       city: 'Cairo',
-      favoriteCuisines: ['Indian', 'Chinese']
+      favoriteCuisines: ['Indian', 'Chinese'],
+      lastLatitude: '27.9500',  // Tampa area
+      lastLongitude: '-82.4572',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     },
     {
       firstName: 'Mohamed',
@@ -103,7 +119,11 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1985-12-15'),
       city: 'Alexandria',
-      favoriteCuisines: ['French', 'Italian']
+      favoriteCuisines: ['French', 'Italian'],
+      lastLatitude: '25.7617',  // Miami area
+      lastLongitude: '-80.1918',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     },
     {
       firstName: 'Layla',
@@ -113,7 +133,11 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1993-07-22'),
       city: 'Cairo',
-      favoriteCuisines: ['Japanese', 'Thai']
+      favoriteCuisines: ['Japanese', 'Thai'],
+      lastLatitude: '27.9500',  // Tampa area
+      lastLongitude: '-82.4572',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     },
     {
       firstName: 'Omar',
@@ -123,7 +147,11 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1991-09-05'),
       city: 'Alexandria',
-      favoriteCuisines: ['Mexican', 'American']
+      favoriteCuisines: ['Mexican', 'American'],
+      lastLatitude: '25.7617',  // Miami area
+      lastLongitude: '-80.1918',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     },
     {
       firstName: 'Nour',
@@ -133,7 +161,11 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1994-02-18'),
       city: 'Cairo',
-      favoriteCuisines: ['Lebanese', 'Greek']
+      favoriteCuisines: ['Lebanese', 'Greek'],
+      lastLatitude: '27.9500',  // Tampa area
+      lastLongitude: '-82.4572',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     },
     {
       firstName: 'Youssef',
@@ -143,7 +175,11 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1989-11-30'),
       city: 'Alexandria',
-      favoriteCuisines: ['Chinese', 'Indian']
+      favoriteCuisines: ['Chinese', 'Indian'],
+      lastLatitude: '25.7617',  // Miami area
+      lastLongitude: '-80.1918',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     },
     {
       firstName: 'Amira',
@@ -153,7 +189,11 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1996-04-12'),
       city: 'Cairo',
-      favoriteCuisines: ['Italian', 'French']
+      favoriteCuisines: ['Italian', 'French'],
+      lastLatitude: '27.9500',  // Tampa area
+      lastLongitude: '-82.4572',
+      locationUpdatedAt: new Date(),
+      locationPermissionGranted: true
     }
   ];
 
@@ -168,6 +208,10 @@ async function seed() {
         birthday: user.birthday,
         city: user.city,
         favoriteCuisines: user.favoriteCuisines,
+        lastLatitude: user.lastLatitude,
+        lastLongitude: user.lastLongitude,
+        locationUpdatedAt: user.locationUpdatedAt,
+        locationPermissionGranted: user.locationPermissionGranted,
         createdAt: new Date(),
         updatedAt: new Date()
       })
@@ -216,7 +260,9 @@ async function seed() {
           tablesCount: 15,
           seatsCount: 60,
           openingTime: '12:00',
-          closingTime: '23:00'
+          closingTime: '23:00',
+          latitude: '25.7617',  // Miami coordinates
+          longitude: '-80.1918'
         },
         {
           address: '456 Nile View St',
@@ -224,7 +270,9 @@ async function seed() {
           tablesCount: 20,
           seatsCount: 80,
           openingTime: '12:00',
-          closingTime: '00:00'
+          closingTime: '00:00',
+          latitude: '27.9500',  // Tampa coordinates
+          longitude: '-82.4572'
         }
       ]
     },
@@ -252,7 +300,9 @@ async function seed() {
           tablesCount: 12,
           seatsCount: 48,
           openingTime: '13:00',
-          closingTime: '23:00'
+          closingTime: '23:00',
+          latitude: '25.7617',  // Miami coordinates
+          longitude: '-80.1918'
         }
       ]
     },
@@ -280,7 +330,9 @@ async function seed() {
           tablesCount: 25,
           seatsCount: 100,
           openingTime: '11:00',
-          closingTime: '01:00'
+          closingTime: '01:00',
+          latitude: '27.9500',  // Tampa coordinates
+          longitude: '-82.4572'
         },
         {
           address: '654 Seafront Road',
@@ -288,7 +340,9 @@ async function seed() {
           tablesCount: 18,
           seatsCount: 72,
           openingTime: '12:00',
-          closingTime: '00:00'
+          closingTime: '00:00',
+          latitude: '25.7617',  // Miami coordinates
+          longitude: '-80.1918'
         }
       ]
     },
@@ -313,11 +367,13 @@ async function seed() {
       branches: [
         {
           address: '45 Tahrir Square',
-          city: 'Cairo',
+          city: 'Tampa',
           tablesCount: 22,
           seatsCount: 88,
           openingTime: '12:00',
-          closingTime: '23:30'
+          closingTime: '23:30',
+          latitude: '27.9500',  // Tampa coordinates
+          longitude: '-82.4572'
         }
       ]
     },
@@ -340,20 +396,24 @@ async function seed() {
       },
       branches: [
         {
-          address: '78 Corniche Road',
-          city: 'Alexandria',
+          address: '78 Brickell Avenue',
+          city: 'Miami',
           tablesCount: 20,
           seatsCount: 80,
           openingTime: '11:30',
-          closingTime: '23:00'
+          closingTime: '23:00',
+          latitude: '25.7617',  // Miami coordinates
+          longitude: '-80.1918'
         },
         {
-          address: '123 Downtown Road',
-          city: 'Cairo',
+          address: '123 Downtown Tampa',
+          city: 'Tampa',
           tablesCount: 25,
           seatsCount: 100,
           openingTime: '12:00',
-          closingTime: '00:00'
+          closingTime: '00:00',
+          latitude: '27.9500',  // Tampa coordinates
+          longitude: '-82.4572'
         }
       ]
     },
@@ -381,7 +441,9 @@ async function seed() {
           tablesCount: 30,
           seatsCount: 120,
           openingTime: '10:00',
-          closingTime: '01:00'
+          closingTime: '01:00',
+          latitude: '25.7617',  // Miami coordinates
+          longitude: '-80.1918'
         },
         {
           address: '89 Alexandria Corniche',
@@ -389,7 +451,9 @@ async function seed() {
           tablesCount: 25,
           seatsCount: 100,
           openingTime: '10:00',
-          closingTime: '00:00'
+          closingTime: '00:00',
+          latitude: '27.9500',  // Tampa coordinates
+          longitude: '-82.4572'
         }
       ]
     },
@@ -417,7 +481,9 @@ async function seed() {
           tablesCount: 18,
           seatsCount: 72,
           openingTime: '12:00',
-          closingTime: '23:00'
+          closingTime: '23:00',
+          latitude: '25.7617',  // Miami coordinates
+          longitude: '-80.1918'
         },
         {
           address: '67 Nile Bay',
@@ -425,7 +491,9 @@ async function seed() {
           tablesCount: 22,
           seatsCount: 88,
           openingTime: '12:00',
-          closingTime: '00:00'
+          closingTime: '00:00',
+          latitude: '27.9500',  // Tampa coordinates
+          longitude: '-82.4572'
         }
       ]
     },
@@ -453,7 +521,9 @@ async function seed() {
           tablesCount: 15,
           seatsCount: 60,
           openingTime: '11:00',
-          closingTime: '23:00'
+          closingTime: '23:00',
+          latitude: '25.7617',  // Miami coordinates
+          longitude: '-80.1918'
         }
       ]
     }

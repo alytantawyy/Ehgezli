@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Modal, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { StyleSheet, View, Modal, TouchableOpacity, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/Themed';
 import { SearchBar } from '@/components/SearchBar';
 import { RestaurantList } from '@/components/RestaurantList';
@@ -8,19 +8,24 @@ import { Avatar } from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { useAuth } from '@/context/auth-context';
+import { useLocation } from '@/context/location-context';
 import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getDefaultTimeForDisplay, getBaseTime, generateTimeSlotsFromTime } from '@/shared/utils/time-slots';
+import { useQuery, useQueries } from '@tanstack/react-query';
+import { getRestaurants, getRestaurantLocation, getNearbyRestaurants } from '@/shared/api/client';
 
 export default function TabOneScreen() {
   console.log('[HomePage] rendering');
   const { user } = useAuth();
+  const { location, requestLocationPermission } = useLocation();
   
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [cityFilter, setCityFilter] = useState('all');
   const [cuisineFilter, setCuisineFilter] = useState('all');
   const [priceFilter, setPriceFilter] = useState('all');
+  const [distanceFilter, setDistanceFilter] = useState('all');
   
   // Get the default date (today or tomorrow for late night hours)
   const getDefaultDate = () => {
@@ -205,6 +210,65 @@ export default function TabOneScreen() {
     setIsFilterDrawerVisible(false);
   };
 
+  const { data: nearbyRestaurants, isLoading: isLoadingNearbyRestaurants } = useQuery({
+    queryKey: ['nearbyRestaurants', location?.coords?.latitude, location?.coords?.longitude],
+    queryFn: async () => {
+      if (!location) return [];
+      try {
+        const restaurants = await getNearbyRestaurants({
+          latitude: location.coords.latitude.toString(),
+          longitude: location.coords.longitude.toString(),
+          radius: 5, // 5km radius
+          limit: 10 // Limit to 10 restaurants
+        });
+        
+        // For each restaurant, fetch location data with distance
+        const restaurantsWithDistance = await Promise.all(
+          restaurants.map(async (restaurant) => {
+            try {
+              // Only fetch if we have location data
+              if (location?.coords) {
+                const locationData = await getRestaurantLocation(restaurant.id, {
+                  userLatitude: location.coords.latitude.toString(),
+                  userLongitude: location.coords.longitude.toString(),
+                });
+                
+                // Return restaurant with updated branches that include distance
+                return {
+                  ...restaurant,
+                  branches: locationData.branches
+                };
+              }
+              return restaurant;
+            } catch (error) {
+              console.error(`Error fetching location for restaurant ${restaurant.id}:`, error);
+              return restaurant;
+            }
+          })
+        );
+        
+        console.log('Restaurants with distance data:', 
+          restaurantsWithDistance.map(r => ({
+            id: r.id,
+            name: r.name,
+            branches: r.branches?.map(b => ({
+              id: b.id,
+              distance: b.distance,
+              hasDistance: b.distance !== undefined
+            }))
+          }))
+        );
+        
+        return restaurantsWithDistance;
+      } catch (error) {
+        console.error('Error fetching nearby restaurants:', error);
+        return [];
+      }
+    },
+    enabled: !!location,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -280,7 +344,7 @@ export default function TabOneScreen() {
             onPress={() => setIsFilterDrawerVisible(true)}
           >
             <Ionicons 
-              name={(cityFilter == 'all' && cuisineFilter == 'all' && priceFilter == 'all') ? 'funnel-outline' : 'funnel'} 
+              name={(cityFilter == 'all' && cuisineFilter == 'all' && priceFilter == 'all' && distanceFilter == 'all') ? 'funnel-outline' : 'funnel'} 
               size={16} 
               color="#fff"    
               style={styles.buttonIcon}
@@ -290,16 +354,38 @@ export default function TabOneScreen() {
         </View>
       </View>
       
-      <RestaurantList
-        searchQuery={searchQuery}
-        cityFilter={cityFilter}
-        cuisineFilter={cuisineFilter}
-        priceFilter={priceFilter}
-        date={date}
-        time={time}
-        partySize={partySize}
-        showSavedOnly={showSavedOnly}
-      />
+      {!location && (
+        <TouchableOpacity 
+          style={styles.locationPrompt}
+          onPress={() => {
+            if (location) return;
+            requestLocationPermission();
+          }}
+        >
+          <Ionicons name="location-outline" size={20} color="#007AFF" />
+          <Text style={styles.locationPromptText}>Enable location to see nearby restaurants</Text>
+        </TouchableOpacity>
+      )}
+      
+      {isLoadingNearbyRestaurants ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#333" />
+          <Text style={styles.loadingText}>Finding restaurants near you...</Text>
+        </View>
+      ) : (
+        <RestaurantList
+          searchQuery={searchQuery}
+          cityFilter={cityFilter}
+          cuisineFilter={cuisineFilter}
+          priceFilter={priceFilter}
+          distanceFilter={distanceFilter}
+          date={date}
+          time={time}
+          partySize={partySize}
+          showSavedOnly={showSavedOnly}
+          nearbyRestaurants={nearbyRestaurants}
+        />
+      )}
       
       <Modal
         visible={isFilterDrawerVisible}
@@ -316,6 +402,8 @@ export default function TabOneScreen() {
           setCuisineFilter={setCuisineFilter}
           priceFilter={priceFilter}
           setPriceFilter={setPriceFilter}
+          distanceFilter={distanceFilter}
+          setDistanceFilter={setDistanceFilter}
           onApplyFilters={applyFilters}
         />
       </Modal>
@@ -562,5 +650,27 @@ const styles = StyleSheet.create({
   },
   partySizeText: {
     fontSize: 16,
+  },
+  locationPrompt: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationPromptText: {
+    color: '#fff',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 8,
   },
 });
