@@ -14,7 +14,7 @@ interface SearchBarProps {
 export function SearchBar({
   onSearch,
   initialValue = '',
-  placeholder = 'Search restaurants...',
+  placeholder = 'Search restaurants, cuisines or cities...',
   debounceTime = 300,
   containerStyle
 }: SearchBarProps) {

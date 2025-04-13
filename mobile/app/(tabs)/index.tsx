@@ -32,12 +32,20 @@ export default function TabOneScreen() {
     const now = new Date();
     const currentHour = now.getHours();
     
-    // If it's late night (10 PM to 6 AM), use tomorrow's date
-    if (currentHour >= 22 || currentHour < 6) {
+    // If it's before midnight (but after 6pm), use tomorrow's date
+    if (currentHour >= 20 && currentHour < 24) {
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       console.log('Using tomorrow for default date:', tomorrow.toDateString());
       return tomorrow;
+    }
+    
+    // If it's after midnight (12am-6am), use current day at noon
+    if (currentHour >= 0 && currentHour < 6) {
+      const today = new Date(now);
+      today.setHours(12, 0, 0, 0);
+      console.log('Using today for default date (after midnight):', today.toDateString());
+      return today;
     }
     
     console.log('Using today for default date:', now.toDateString());

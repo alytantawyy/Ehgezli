@@ -90,149 +90,101 @@ export default function ProfileScreen() {
     <ScrollView style={styles.scrollView}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: Colors.text }]}>Your Profile</Text>
+          <Text style={styles.title}>My Profile</Text>
           {!isEditing && (
             <TouchableOpacity 
               style={styles.editButton} 
               onPress={() => setIsEditing(true)}
             >
-              <Ionicons name="pencil" size={20} color={Colors.primary} />
-              <Text style={[styles.editButtonText, { color: Colors.primary }]}>Edit</Text>
+              <Ionicons name="pencil-outline" size={16} color="white" style={{marginRight: 6}} />
+              <Text style={styles.editButtonText}>Edit Profile</Text>
             </TouchableOpacity>
           )}
         </View>
+        
+        <Text style={styles.subtitle}>View and manage your account information</Text>
 
-        <View style={[styles.profileCard, { borderColor: Colors.border, backgroundColor: colorScheme === 'dark' ? Colors.background : '#fff' }]}>
-          <View style={styles.profileHeader}>
-            <Avatar 
-              firstName={user.firstName}
-              lastName={user.lastName}
-              size={60}
-            />
-            <View style={styles.profileInfo}>
-              {isEditing ? (
-                <>
-                  <View style={styles.inputRow}>
-                    <TextInput
-                      style={[styles.input, { borderColor: Colors.border, color: Colors.text }]}
-                      value={firstName}
-                      onChangeText={setFirstName}
-                      placeholder="First Name"
-                      placeholderTextColor="#999"
-                    />
-                    <TextInput
-                      style={[styles.input, { borderColor: Colors.border, color: Colors.text }]}
-                      value={lastName}
-                      onChangeText={setLastName}
-                      placeholder="Last Name"
-                      placeholderTextColor="#999"
-                    />
+        <View style={styles.profileCard}>
+          {isEditing ? (
+            // Edit Mode
+            <>
+              <View style={styles.welcomeSection}>
+                <View style={styles.avatarContainer}>
+                  <Avatar 
+                    firstName={firstName}
+                    lastName={lastName}
+                    size={70}
+                  />
+                  <View style={styles.welcomeTextContainer}>
+                    <Text style={styles.welcomeText}>Hi, {firstName}!</Text>
+                    <Text style={styles.memberSince}>Member since March 2025</Text>
                   </View>
-                </>
-              ) : (
-                <Text style={[styles.userName, { color: Colors.text }]}>
-                  {user.firstName} {user.lastName}
-                </Text>
-              )}
-              <Text style={[styles.userEmail, { color: Colors.text }]}>{user.email}</Text>
-            </View>
-          </View>
-
-          <View style={styles.profileDetails}>
-            <View style={styles.detailItem}>
-              <Text style={[styles.detailLabel, { color: Colors.text }]}>City</Text>
-              {isEditing ? (
+                </View>
+              </View>
+              
+              <View style={styles.fieldSection}>
+                <Text style={styles.fieldLabel}>First Name</Text>
                 <TextInput
-                  style={[styles.input, { borderColor: Colors.border, color: Colors.text }]}
-                  value={city}
-                  onChangeText={setCity}
-                  placeholder="Your City"
+                  style={styles.input}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  placeholder="First Name"
                   placeholderTextColor="#999"
                 />
-              ) : (
-                <Text style={[styles.detailValue, { color: Colors.text }]}>
-                  {user.city || 'Not specified'}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.detailItem}>
-              <Text style={[styles.detailLabel, { color: Colors.text }]}>Gender</Text>
-              {isEditing ? (
-                <View style={styles.genderOptions}>
-                  <TouchableOpacity
-                    style={[
-                      styles.genderOption,
-                      gender === 'Male' && { backgroundColor: Colors.primary }
-                    ]}
-                    onPress={() => setGender('Male')}
-                  >
-                    <Text 
-                      style={[
-                        styles.genderOptionText, 
-                        gender === 'Male' && styles.selectedOptionText
-                      ]}
-                    >
-                      Male
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.genderOption,
-                      gender === 'Female' && { backgroundColor: Colors.primary }
-                    ]}
-                    onPress={() => setGender('Female')}
-                  >
-                    <Text 
-                      style={[
-                        styles.genderOptionText, 
-                        gender === 'Female' && styles.selectedOptionText
-                      ]}
-                    >
-                      Female
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.genderOption,
-                      gender === 'Other' && { backgroundColor: Colors.primary }
-                    ]}
-                    onPress={() => setGender('Other')}
-                  >
-                    <Text 
-                      style={[
-                        styles.genderOptionText, 
-                        gender === 'Other' && styles.selectedOptionText
-                      ]}
-                    >
-                      Other
-                    </Text>
-                  </TouchableOpacity>
+              </View>
+              
+              <View style={styles.fieldSection}>
+                <Text style={styles.fieldLabel}>Last Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  placeholder="Last Name"
+                  placeholderTextColor="#999"
+                />
+              </View>
+              
+              <View style={styles.rowContainer}>
+                <View style={styles.halfFieldSection}>
+                  <Text style={styles.fieldLabel}>City</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={city}
+                    onChangeText={setCity}
+                    placeholder="Your City"
+                    placeholderTextColor="#999"
+                  />
                 </View>
-              ) : (
-                <Text style={[styles.detailValue, { color: Colors.text }]}>
-                  {user.gender || 'Not specified'}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.detailItem}>
-              <Text style={[styles.detailLabel, { color: Colors.text }]}>Favorite Cuisines</Text>
-              {isEditing ? (
+                
+                <View style={styles.halfFieldSection}>
+                  <Text style={styles.fieldLabel}>Gender</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={gender}
+                    onChangeText={setGender}
+                    placeholder="Your Gender"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+              </View>
+              
+              <View style={styles.fieldSection}>
+                <Text style={styles.fieldLabel}>Favorite Cuisines</Text>
+                <Text style={styles.cuisineHelper}>Select your favorite cuisines to get better restaurant recommendations</Text>
                 <View style={styles.cuisinesGrid}>
                   {CUISINES.map((cuisine) => (
                     <TouchableOpacity
                       key={cuisine}
                       style={[
                         styles.cuisineOption,
-                        favoriteCuisines.includes(cuisine) && { backgroundColor: Colors.primary }
+                        favoriteCuisines.includes(cuisine) && styles.cuisineOptionSelected
                       ]}
                       onPress={() => toggleCuisine(cuisine)}
                     >
                       <Text 
                         style={[
-                          styles.cuisineOptionText, 
-                          favoriteCuisines.includes(cuisine) && styles.selectedOptionText
+                          styles.cuisineOptionText,
+                          favoriteCuisines.includes(cuisine) && styles.cuisineOptionTextSelected
                         ]}
                       >
                         {cuisine}
@@ -240,53 +192,132 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-              ) : (
-                <View style={styles.cuisinesList}>
+              </View>
+              
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity 
+                  style={styles.saveButton} 
+                  onPress={handleSaveProfile}
+                  disabled={updateProfileMutation.isPending}
+                >
+                  {updateProfileMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                  )}
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.cancelButton} 
+                  onPress={() => {
+                    setIsEditing(false);
+                    setFirstName(user?.firstName || '');
+                    setLastName(user?.lastName || '');
+                    setCity(user?.city || '');
+                    setGender(user?.gender || '');
+                    setFavoriteCuisines(user?.favoriteCuisines || []);
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            // View Mode
+            <>
+              <View style={styles.welcomeSection}>
+                <View style={styles.avatarContainer}>
+                  <Avatar 
+                    firstName={user.firstName}
+                    lastName={user.lastName}
+                    size={70}
+                  />
+                  <View style={styles.welcomeTextContainer}>
+                    <Text style={styles.welcomeText}>Hi, {user.firstName}!</Text>
+                    <Text style={styles.memberSince}>Member since March 2025</Text>
+                  </View>
+                </View>
+              </View>
+              
+              <View style={styles.infoSection}>
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Full Name</Text>
+                    <Text style={styles.infoValue}>{user.firstName} {user.lastName}</Text>
+                  </View>
+                  
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Email</Text>
+                    <Text style={styles.infoValue}>{user.email}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>City</Text>
+                    <View style={styles.locationRow}>
+                      <Ionicons name="location-outline" size={16} color="#666" style={styles.infoIcon} />
+                      <Text style={styles.infoValue}>{user.city || 'Not specified'}</Text>
+                      {user.city && (
+                        <TouchableOpacity 
+                          style={styles.locationButton}
+                          onPress={() => {
+                            // In a real implementation, this would open a map view
+                            Alert.alert('Location', `View restaurants near ${user.city}?`, [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'View Nearby', onPress: () => console.log('Navigate to nearby restaurants') }
+                            ]);
+                          }}
+                        >
+                          <Text style={styles.locationButtonText}>Nearby</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                  
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Gender</Text>
+                    <View style={styles.locationRow}>
+                      <Ionicons name="person-outline" size={16} color="#666" style={styles.infoIcon} />
+                      <Text style={styles.infoValue}>{user.gender || 'Not specified'}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+              
+              <View style={styles.cuisineSection}>
+                <Text style={styles.cuisineLabel}>Favorite Cuisines</Text>
+                <View style={styles.cuisineTagsContainer}>
                   {user.favoriteCuisines && user.favoriteCuisines.length > 0 ? (
-                    user.favoriteCuisines.map((cuisine, index) => (
-                      <View key={index} style={[styles.cuisineTag, { backgroundColor: Colors.secondary }]}>
-                        <Text style={[styles.cuisineTagText, { color: Colors.text }]}>{cuisine}</Text>
+                    user.favoriteCuisines.map((cuisine) => (
+                      <View key={cuisine} style={styles.cuisineTag}>
+                        {cuisine === 'Italian' && <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />}
+                        {cuisine === 'Japanese' && <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />}
+                        <Text style={styles.cuisineTagText}>{cuisine}</Text>
                       </View>
                     ))
                   ) : (
-                    <Text style={[styles.detailValue, { color: Colors.text }]}>No favorite cuisines selected</Text>
+                    <Text style={styles.noCuisinesText}>No favorite cuisines selected</Text>
                   )}
                 </View>
-              )}
-            </View>
-          </View>
-
-          {isEditing && (
-            <View style={styles.editActions}>
-              <EhgezliButton
-                title="Cancel"
-                variant="outline"
-                onPress={() => {
-                  setIsEditing(false);
-                  // Reset form values
-                  setFirstName(user.firstName || '');
-                  setLastName(user.lastName || '');
-                  setCity(user.city || '');
-                  setGender(user.gender || '');
-                  setFavoriteCuisines(user.favoriteCuisines || []);
-                }}
-                style={styles.editActionButton}
-              />
-              <EhgezliButton
-                title="Save"
-                variant="ehgezli"
-                onPress={handleSaveProfile}
-                loading={updateProfileMutation.isPending}
-                style={styles.editActionButton}
-              />
-            </View>
+              </View>
+            </>
           )}
         </View>
 
         <EhgezliButton
           title="Log Out"
           variant="outline"
-          onPress={logout}
+          onPress={() => {
+            Alert.alert(
+              'Log Out',
+              'Are you sure you want to log out?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Log Out', onPress: logout, style: 'destructive' }
+              ]
+            );
+          }}
           style={styles.logoutButton}
         />
       </View>
@@ -297,93 +328,192 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
+    backgroundColor: '#f8f8f8'
   },
   container: {
     flex: 1,
-    padding: 16,
-    paddingTop: 60, // Add space for status bar
+    padding: 20,
+    paddingTop: 40,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
+    color: '#333',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 24,
   },
   editButton: {
+    backgroundColor: '#B91C1C',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
   },
   editButtonText: {
-    marginLeft: 4,
-    fontSize: 16,
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
   profileCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 16,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
     marginBottom: 24,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  profileHeader: {
+  welcomeSection: {
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 16,
+  },
+  avatarContainer: {
     flexDirection: 'row',
-    marginBottom: 24,
+    alignItems: 'center',
   },
-  profileInfo: {
-    flex: 1,
-    justifyContent: 'center',
+  welcomeTextContainer: {
+    marginLeft: 16,
   },
-  userName: {
-    fontSize: 20,
+  welcomeText: {
+    fontSize: 22,
     fontWeight: 'bold',
+    color: '#333',
     marginBottom: 4,
   },
-  userEmail: {
+  memberSince: {
     fontSize: 14,
-    opacity: 0.7,
+    color: '#666',
   },
-  profileDetails: {
+  infoSection: {
+    marginBottom: 24,
+    backgroundColor: '#fafafa',
+    borderRadius: 12,
+    padding: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
     marginBottom: 16,
   },
-  detailItem: {
+  infoItem: {
+    flex: 1,
     marginBottom: 16,
   },
-  detailLabel: {
+  infoLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  infoValue: {
     fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
+  },
+  infoIcon: {
+    marginRight: 8,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  locationButton: {
+    backgroundColor: '#B91C1C',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  locationButtonText: {
+    color: 'white',
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 8,
   },
-  detailValue: {
-    fontSize: 16,
+  cuisineSection: {
+    marginTop: 8,
+    backgroundColor: '#fafafa',
+    borderRadius: 12,
+    padding: 16,
+  },
+  cuisineLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+  },
+  cuisineTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  cuisineTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  cuisineIcon: {
+    marginRight: 4,
+  },
+  cuisineTagText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  noCuisinesText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  fieldSection: {
+    marginBottom: 20,
+  },
+  rowContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  halfFieldSection: {
+    width: '48%',
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    padding: 12,
     fontSize: 16,
-    marginBottom: 8,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  genderOptions: {
-    flexDirection: 'row',
-  },
-  genderOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
-    marginRight: 8,
-  },
-  genderOptionText: {
-    fontSize: 14,
+    backgroundColor: '#fff',
     color: '#333',
+  },
+  cuisineHelper: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
   },
   cuisinesGrid: {
     flexDirection: 'row',
@@ -391,42 +521,47 @@ const styles = StyleSheet.create({
     marginHorizontal: -4,
   },
   cuisineOption: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 16,
+    borderRadius: 20,
     backgroundColor: '#f0f0f0',
     margin: 4,
+    marginBottom: 8,
+  },
+  cuisineOptionSelected: {
+    backgroundColor: '#B91C1C',
   },
   cuisineOptionText: {
     fontSize: 14,
     color: '#333',
   },
-  selectedOptionText: {
-    color: '#fff',
+  cuisineOptionTextSelected: {
+    color: 'white',
     fontWeight: '500',
   },
-  cuisinesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 4,
+  buttonContainer: {
+    marginTop: 24,
   },
-  cuisineTag: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
+  saveButton: {
+    backgroundColor: '#B91C1C',
+    borderRadius: 6,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  cuisineTagText: {
-    fontSize: 14,
+  saveButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
-  editActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+  cancelButton: {
+    borderRadius: 6,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
-  editActionButton: {
-    minWidth: 100,
-    marginLeft: 8,
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
   },
   logoutButton: {
     marginBottom: 40,
@@ -435,6 +570,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    flex: 1,
   },
   icon: {
     marginBottom: 16,
@@ -443,7 +579,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 24,
-    opacity: 0.7,
+    color: '#666',
   },
   button: {
     minWidth: 150,
