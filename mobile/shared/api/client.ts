@@ -65,7 +65,7 @@ export interface SavedRestaurantItem {
 }
 
 // Base API URL - replace with your actual API endpoint
-const API_BASE_URL = 'http://localhost:4000';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 
 // Create axios instance
 export const api = axios.create({
