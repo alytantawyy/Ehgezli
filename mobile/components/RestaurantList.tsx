@@ -7,6 +7,7 @@ import { getRestaurants, getSavedRestaurants, SavedRestaurantItem, getRestaurant
 import { generateLocalTimeSlots, formatTimeWithAMPM, getBaseTime, generateTimeSlotsFromTime } from '../shared/utils/time-slots';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocation } from '../context/location-context';
+import { useAuth } from '../context/auth-context';
 
 // Function to calculate distance between two coordinates using Haversine formula
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -55,6 +56,10 @@ export function RestaurantList({
 
   // Get location from context
   const { location } = useLocation();
+
+  // Get user's favorite cuisines from auth context
+  const { user } = useAuth();
+  const favoriteCuisines = user?.favoriteCuisines || [];
 
   // Generate time slots based on the selected time or default time
   const generateTimeSlots = () => {
@@ -357,17 +362,9 @@ export function RestaurantList({
           availableSlots: branch.availableSlots || []
         };
 
-        // If distance filter is applied, filter by distance
-        if (distanceFilter !== 'all' && location?.coords) {
-          const maxDistance = parseInt(distanceFilter.split(' ')[0]); // Extract number from "X km"
-          
-          // Only include branches within the specified distance
-          if (branch.distance !== undefined && branch.distance > maxDistance) {
-            return; // Skip this branch if it's too far away
-          }
-          
-          // If no distance data but we have coordinates, calculate it
-          if (branch.distance === undefined && branch.latitude && branch.longitude) {
+        // Always calculate distance if we have coordinates, regardless of filter
+        if (location?.coords && branch.latitude && branch.longitude) {
+          try {
             const distance = calculateDistance(
               location.coords.latitude,
               location.coords.longitude,
@@ -375,14 +372,27 @@ export function RestaurantList({
               parseFloat(branch.longitude)
             );
             
-            // Skip if beyond the filter distance
-            if (distance > maxDistance) {
-              return;
-            }
-            
             // Store the calculated distance
             branch.distance = distance;
             branchWithAvailability.distance = distance;
+            console.log(`Calculated distance for ${restaurant.name} (branch ${branchIndex}):`, distance);
+          } catch (error) {
+            console.error('Error calculating distance:', error);
+          }
+        } else if (branch.distance !== undefined) {
+          // Use existing distance if available
+          branchWithAvailability.distance = typeof branch.distance === 'number' ? 
+            branch.distance : typeof branch.distance === 'string' ? 
+            parseFloat(branch.distance) : undefined;
+        }
+
+        // Apply distance filter if needed
+        if (distanceFilter !== 'all' && location?.coords) {
+          const maxDistance = parseInt(distanceFilter.split(' ')[0]); // Extract number from "X km"
+          
+          // Skip this branch if it's too far away
+          if (branchWithAvailability.distance !== undefined && branchWithAvailability.distance > maxDistance) {
+            return;
           }
         }
 
@@ -405,6 +415,50 @@ export function RestaurantList({
       });
     });
   }
+
+  console.log(`[RestaurantList] Total branches to display: ${allBranches.length}`);
+
+  // Debug distances before sorting
+  allBranches.forEach((item, index) => {
+    console.log(`Branch ${index}: ${item.restaurant.name}, Distance: ${item.branch.distance}, Saved: ${item.branch.isSaved}, Cuisine: ${item.restaurant.cuisine || item.restaurant.profile?.cuisine}`);
+  });
+
+  // Sort all branches by the three criteria:
+  // 1. Saved status (saved first)
+  // 2. Distance (closest first)
+  // 3. Favorite cuisine (matching user's favorites first)
+  allBranches.sort((a, b) => {
+    // First priority: Saved status
+    if (a.branch.isSaved && !b.branch.isSaved) return -1;
+    if (!a.branch.isSaved && b.branch.isSaved) return 1;
+    
+    // Second priority: Distance (if available)
+    const distanceA = a.branch.distance !== undefined ? a.branch.distance : Number.MAX_VALUE;
+    const distanceB = b.branch.distance !== undefined ? b.branch.distance : Number.MAX_VALUE;
+    
+    if (distanceA !== distanceB) {
+      return distanceA - distanceB; // Sort by distance (closest first)
+    }
+    
+    // Third priority: Favorite cuisine
+    const cuisineA = a.restaurant.cuisine || a.restaurant.profile?.cuisine || '';
+    const cuisineB = b.restaurant.cuisine || b.restaurant.profile?.cuisine || '';
+    
+    const isAFavorite = favoriteCuisines.includes(cuisineA);
+    const isBFavorite = favoriteCuisines.includes(cuisineB);
+    
+    if (isAFavorite && !isBFavorite) return -1;
+    if (!isAFavorite && isBFavorite) return 1;
+    
+    // If all criteria are equal, sort by name
+    return a.restaurant.name.localeCompare(b.restaurant.name);
+  });
+
+  // Debug distances after sorting
+  console.log("AFTER SORTING:");
+  allBranches.forEach((item, index) => {
+    console.log(`Branch ${index}: ${item.restaurant.name}, Distance: ${item.branch.distance}, Saved: ${item.branch.isSaved}, Cuisine: ${item.restaurant.cuisine || item.restaurant.profile?.cuisine}`);
+  });
 
   // Add nearby restaurants
   if (nearbyRestaurants && nearbyRestaurants.length > 0) {
@@ -487,13 +541,11 @@ export function RestaurantList({
     });
   }
 
-  console.log(`[RestaurantList] Total branches to display: ${allBranches.length}`);
-
   return (
     <View style={styles.container}>
       <FlatList
         data={allBranches}
-        keyExtractor={(item) => `${item.restaurant.id}-${item.branchIndex}`}
+        keyExtractor={(item, index) => `${item.restaurant.id}-${item.branch.id}-${item.branchIndex}-${index}`}
         renderItem={({ item }) => {
           console.log(`Rendering restaurant: ${item.restaurant.name}, has branches: ${item.restaurant.branches?.length || 0}`);
           return (
