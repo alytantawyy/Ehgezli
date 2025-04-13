@@ -154,13 +154,23 @@ export function RestaurantList({
 
           // Generate time slots for each branch
           restaurant.branches.forEach((branch, index) => {
-            // Generate time slots using our utility function (returns 24h format)
-            const timeSlots = generateTimeSlots();
+            // If branch has availableSlots but no slots, generate them
+            if (branch.availableSlots && branch.availableSlots.length > 0 && (!branch.slots || branch.slots.length === 0)) {
+              console.log(`Mapping availableSlots to slots for restaurant ${restaurant.id}, branch ${branch.id}`);
 
-            // Store the time slots in 24h format (don't format them yet)
-            branch.slots = timeSlots;
+              // Generate time slots using our utility function
+              const timeSlots = generateTimeSlots();
 
-            console.log(`Generated time slots for saved restaurant ${restaurant.name}, branch ${index}:`, branch.slots);
+              // Store the time slots in 24h format (don't format them yet)
+              branch.slots = timeSlots;
+
+              console.log('Final branch slots:', branch.slots);
+            }
+
+            // Ensure each branch has slots array (even if empty)
+            if (!branch.slots) {
+              branch.slots = [];
+            }
           });
 
           // Mark this restaurant as saved
@@ -225,6 +235,12 @@ export function RestaurantList({
       return restaurantsData.map(restaurant => {
         // Convert to expected type
         const result = restaurant as unknown as RestaurantWithAvailability;
+
+        // Ensure cuisine is available at both levels
+        result.cuisine = result.profile?.cuisine || result.cuisine || 'Various Cuisine';
+        if (result.profile) {
+          result.profile.cuisine = result.profile.cuisine || result.cuisine || 'Various Cuisine';
+        }
 
         // Ensure restaurant has branches array (even if empty)
         if (!result.branches) {
@@ -335,28 +351,19 @@ export function RestaurantList({
 
       // Process each branch
       restaurant.branches.forEach((branch, branchIndex) => {
-        // Initialize slots array if it doesn't exist
-        if (!branch.slots) {
-          branch.slots = [];
-        }
-
         // Create a BranchWithAvailability object
         const branchWithAvailability: BranchWithAvailability = {
           id: branch.id,
           location: branch.location,
           address: branch.address,
           city: branch.city || '',
-          slots: branch.slots.map((slot: any) => {
-            // Handle both string slots and object slots
+          slots: branch.slots.map((slot: string | any) => {
+            // Convert string slots to TimeSlot objects
             if (typeof slot === 'string') {
-              return { time: slot }; // Simple time slot
-            } else if (typeof slot === 'object') {
-              return {
-                time: slot.time || '',
-                availableSeats: typeof slot.availableSeats === 'number' ? slot.availableSeats : 0
-              };
+              return { time: slot };
             }
-            return { time: '' }; // Fallback
+            // If it's already a TimeSlot object, return it as is
+            return slot;
           }),
           isSaved: branch.isSaved || false,
           availableSlots: branch.availableSlots || []
@@ -470,7 +477,16 @@ export function RestaurantList({
       </View>
     );
 
+    // Create a set to track which restaurant IDs have already been added
+    const addedRestaurantIds = new Set(allBranches.map(item => item.restaurant.id));
+    
     nearbyRestaurants.forEach((restaurant) => {
+      // Skip if this restaurant is already in the list
+      if (addedRestaurantIds.has(restaurant.id)) {
+        console.log(`Skipping duplicate nearby restaurant: ${restaurant.name} (ID: ${restaurant.id})`);
+        return;
+      }
+      
       // Extract the first branch if available
       const firstBranch = restaurant.branches && restaurant.branches.length > 0 ? restaurant.branches[0] : null;
       
@@ -516,22 +532,51 @@ export function RestaurantList({
           isNearby: true
         });
         
+        // Process restaurant data to ensure cuisine is available at both levels
+        const processedRestaurant = {
+          ...restaurant,
+          cuisine: restaurant.profile?.cuisine || restaurant.cuisine || 'Various Cuisine',
+          profile: restaurant.profile ? {
+            ...restaurant.profile,
+            cuisine: restaurant.profile.cuisine || restaurant.cuisine || 'Various Cuisine'
+          } : undefined
+        };
+        
+        // Ensure the branch has proper slots data
+        const processedBranch = {
+          ...firstBranch,
+          distance: finalDistance, // Use final distance
+          // Ensure slots array exists and is populated
+          slots: firstBranch.slots ? firstBranch.slots.map((slot: string | any) => {
+            // Convert string slots to TimeSlot objects
+            if (typeof slot === 'string') {
+              return { time: slot };
+            }
+            // If it's already a TimeSlot object, return it as is
+            return slot;
+          }) : [],
+          availableSlots: firstBranch.availableSlots || []
+        };
+        
+        // If the branch doesn't have slots but has availableSlots, use those
+        if ((processedBranch.slots.length === 0) && processedBranch.availableSlots && processedBranch.availableSlots.length > 0) {
+          console.log(`Nearby restaurant ${processedRestaurant.id} (${processedRestaurant.name}): Adding slots from availableSlots`);
+          processedBranch.slots = processedBranch.availableSlots.map((slot: any) => slot.time || slot);
+        }
+        
         allBranches.push({
           restaurant: {
-            ...restaurant,
-            branches: [{
-              ...firstBranch,
-              distance: finalDistance // Use final distance
-            }]
+            ...processedRestaurant,
+            branches: [processedBranch]
           } as RestaurantWithAvailability,
           branch: {
-            id: firstBranch.id,
-            location: firstBranch.address || '',
-            address: firstBranch.address || '',
-            city: firstBranch.city || '',
-            slots: [],
+            id: processedBranch.id,
+            location: processedBranch.address || '',
+            address: processedBranch.address || '',
+            city: processedBranch.city || '',
+            slots: processedBranch.slots, // Use the processed branch slots
             isSaved: false,
-            availableSlots: [],
+            availableSlots: processedBranch.availableSlots,
             distance: finalDistance // Ensure distance is properly set
           },
           branchIndex: 0,

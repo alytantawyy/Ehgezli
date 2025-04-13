@@ -386,7 +386,7 @@ async function seed() {
       branches: [
         {
           address: '45 Tahrir Square',
-          city: 'Tampa',
+          city: 'Cairo',
           tablesCount: 22,
           seatsCount: 88,
           openingTime: '12:00',
@@ -416,7 +416,7 @@ async function seed() {
       branches: [
         {
           address: '78 Brickell Avenue',
-          city: 'Miami',
+          city: 'Alexandria',
           tablesCount: 20,
           seatsCount: 80,
           openingTime: '11:30',
@@ -426,7 +426,7 @@ async function seed() {
         },
         {
           address: '123 Downtown Tampa',
-          city: 'Tampa',
+          city: 'Cairo',
           tablesCount: 25,
           seatsCount: 100,
           openingTime: '12:00',

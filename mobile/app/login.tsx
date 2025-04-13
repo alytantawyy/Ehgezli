@@ -16,11 +16,14 @@ import {
   ViewStyle,
   ImageStyle,
   Image,
+  Keyboard,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/auth-context';
 import { EhgezliButton } from '../components/EhgezliButton';
 import Colors from '../constants/Colors';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width, height } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -60,6 +63,32 @@ type Styles = {
   forgotPassword: ViewStyle;
   forgotPasswordText: TextStyle;
   imageBackground: ViewStyle;
+  cuisineContainer: ViewStyle;
+  cuisineItem: ViewStyle;
+  selectedCuisineItem: ViewStyle;
+  checkboxContainer: ViewStyle;
+  checkbox: ViewStyle;
+  checkedBox: ViewStyle;
+  cuisineText: TextStyle;
+  checkmark: TextStyle;
+  dropdown: ViewStyle;
+  dropdownItem: ViewStyle;
+  dropdownText: TextStyle;
+  cityDropdownContainer: ViewStyle;
+  cityDropdown: ViewStyle;
+  cityDropdownList: ViewStyle;
+  cityDropdownItem: ViewStyle;
+  selectedCityItem: ViewStyle;
+  dropdownIcon: TextStyle;
+  datePickerContainer: ViewStyle;
+  dateText: TextStyle;
+  modalOverlay: ViewStyle;
+  modalContent: ViewStyle;
+  modalHeader: ViewStyle;
+  modalCancel: TextStyle;
+  modalTitle: TextStyle;
+  modalDone: TextStyle;
+  datePicker: ViewStyle;
 };
 
 function LoginScreen() {
@@ -68,20 +97,61 @@ function LoginScreen() {
   const [isLogin, setIsLogin] = useState(true);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [gender, setGender] = useState('');
+  const [birthday, setBirthday] = useState<Date | null>(null);
+  const [city, setCity] = useState('');
+  const [cuisines, setCuisines] = useState<string[]>([]);
+  const [availableCuisines] = useState([
+    'Italian', 'Chinese', 'Japanese', 'Mexican', 'Indian', 'French', 
+    'Thai', 'Mediterranean', 'American', 'Middle Eastern', 'Greek', 
+    'Spanish', 'Korean', 'Vietnamese', 'Turkish', 'Egyptian'
+  ]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
   
   const { login, register, isLoading, error, clearError } = useAuth();
   const router = useRouter();
+
+  const onChangeBirthday = (event: any, selectedDate: Date | undefined) => {
+    const currentDate = selectedDate || birthday;
+    setShowBirthdayPicker(Platform.OS === 'ios');
+    setBirthday(currentDate);
+  };
+
+  const formatBirthdayForAPI = () => {
+    return birthday ? birthday.toISOString() : '';
+  };
+
+  // Format date for display
+  const formatDate = (date: Date | null) => {
+    if (!date) return 'Select a date';
+    return date.toISOString().split('T')[0];
+  };
 
   const handleSubmit = async () => {
     try {
       if (isLogin) {
         await login(email, password);
       } else {
-        if (!firstName || !lastName) {
+        if (!firstName || !lastName || !gender || !city || !birthday) {
           Alert.alert('Error', 'Please fill in all required fields');
           return;
         }
-        await register({ firstName, lastName, email, password });
+        if (password.length < 8) {
+          Alert.alert('Error', 'Password must be at least 8 characters long');
+          return;
+        }
+        await register({ 
+          firstName, 
+          lastName, 
+          email, 
+          password, 
+          gender, 
+          birthday: formatBirthdayForAPI(), 
+          city,
+          cuisines 
+        });
       }
     } catch (err: any) {
       // Error is already set in the auth context
@@ -135,46 +205,212 @@ function LoginScreen() {
                     : 'Sign up to start booking restaurant reservations'}
                 </Text>
                 
+                {isLogin && (
+                  <>
+                    <Text style={styles.label}>Email</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                    
+                    <Text style={styles.label}>Password</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                    />
+                  </>
+                )}
+                
                 {!isLogin && (
-                  <View style={styles.nameRow}>
-                    <View style={styles.nameField}>
-                      <Text style={styles.label}>First Name</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={firstName}
-                        onChangeText={setFirstName}
-                        autoCapitalize="words"
-                      />
+                  <View>
+                    <View style={styles.nameRow}>
+                      <View style={styles.nameField}>
+                        <Text style={styles.label}>First Name</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={firstName}
+                          onChangeText={setFirstName}
+                          autoCapitalize="words"
+                        />
+                      </View>
+                      
+                      <View style={styles.nameField}>
+                        <Text style={styles.label}>Last Name</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={lastName}
+                          onChangeText={setLastName}
+                          autoCapitalize="words"
+                        />
+                      </View>
                     </View>
                     
-                    <View style={styles.nameField}>
-                      <Text style={styles.label}>Last Name</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={lastName}
-                        onChangeText={setLastName}
-                        autoCapitalize="words"
+                    <Text style={styles.label}>Email</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                    
+                    <Text style={styles.label}>Password</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                    />
+                    
+                    <Text style={styles.label}>Gender</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={gender}
+                      onChangeText={setGender}
+                      autoCapitalize="words"
+                    />
+                    
+                    <Text style={styles.label}>Birthday</Text>
+                    <TouchableOpacity 
+                      onPress={() => setShowBirthdayPicker(true)}
+                      style={styles.datePickerContainer}
+                    >
+                      <Text style={styles.dateText}>{formatDate(birthday)}</Text>
+                    </TouchableOpacity>
+                    
+                    {/* Custom Date Picker Modal */}
+                    {Platform.OS === 'ios' && (
+                      <Modal
+                        animationType="slide"
+                        transparent={true}
+                        visible={showBirthdayPicker}
+                        onRequestClose={() => setShowBirthdayPicker(false)}
+                      >
+                        <View style={styles.modalOverlay}>
+                          <View style={styles.modalContent}>
+                            <View style={styles.modalHeader}>
+                              <TouchableOpacity onPress={() => setShowBirthdayPicker(false)}>
+                                <Text style={styles.modalCancel}>Cancel</Text>
+                              </TouchableOpacity>
+                              <Text style={styles.modalTitle}>Select Birthday</Text>
+                              <TouchableOpacity 
+                                onPress={() => {
+                                  setShowBirthdayPicker(false);
+                                }}
+                              >
+                                <Text style={styles.modalDone}>Done</Text>
+                              </TouchableOpacity>
+                            </View>
+                            <View style={{backgroundColor: 'white'}}>
+                              <DateTimePicker
+                                testID="dateTimePicker"
+                                value={birthday || new Date()}
+                                mode={datePickerMode}
+                                is24Hour={true}
+                                display="spinner"
+                                onChange={(event, selectedDate) => {
+                                  if (selectedDate) {
+                                    setBirthday(selectedDate);
+                                  }
+                                }}
+                                style={styles.datePicker}
+                                textColor="black"
+                                themeVariant="light"
+                              />
+                            </View>
+                          </View>
+                        </View>
+                      </Modal>
+                    )}
+                    
+                    {/* Android Date Picker */}
+                    {Platform.OS === 'android' && showBirthdayPicker && (
+                      <DateTimePicker
+                        testID="dateTimePicker"
+                        value={birthday || new Date()}
+                        mode="date"
+                        is24Hour={true}
+                        display="default"
+                        onChange={(event, selectedDate) => {
+                          setShowBirthdayPicker(false);
+                          if (selectedDate) {
+                            setBirthday(selectedDate);
+                          }
+                        }}
                       />
+                    )}
+                    
+                    <Text style={styles.label}>City</Text>
+                    <View style={styles.cityDropdownContainer}>
+                      <TouchableOpacity 
+                        style={styles.cityDropdown}
+                        onPress={() => setShowCityDropdown(!showCityDropdown)}
+                      >
+                        <Text style={styles.dropdownText}>{city || 'Select City'}</Text>
+                        <Text style={styles.dropdownIcon}>▼</Text>
+                      </TouchableOpacity>
+                      
+                      {showCityDropdown && (
+                        <View style={styles.cityDropdownList}>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, city === 'Alexandria' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setCity('Alexandria');
+                              setShowCityDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Alexandria</Text>
+                            {city === 'Alexandria' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, city === 'Cairo' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setCity('Cairo');
+                              setShowCityDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Cairo</Text>
+                            {city === 'Cairo' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                    
+                    <Text style={styles.label}>Favorite Cuisines (Max 3)</Text>
+                    <View style={styles.cuisineContainer}>
+                      {availableCuisines.map((cuisine, index) => (
+                        <TouchableOpacity 
+                          key={index} 
+                          style={[styles.cuisineItem, cuisines.includes(cuisine) && styles.selectedCuisineItem]}
+                          onPress={() => {
+                            if (cuisines.includes(cuisine)) {
+                              // Remove if already selected
+                              setCuisines(cuisines.filter(c => c !== cuisine));
+                            } else if (cuisines.length < 3) {
+                              // Add if less than 3 selected
+                              setCuisines([...cuisines, cuisine]);
+                            } else {
+                              // Alert if trying to select more than 3
+                              Alert.alert('Limit Reached', 'You can select a maximum of 3 cuisines');
+                            }
+                          }}
+                        >
+                          <View style={styles.checkboxContainer}>
+                            <View style={[styles.checkbox, cuisines.includes(cuisine) && styles.checkedBox]}>
+                              {cuisines.includes(cuisine) && <Text style={styles.checkmark}>✓</Text>}
+                            </View>
+                            <Text style={styles.cuisineText}>{cuisine}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
                     </View>
                   </View>
                 )}
-                
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
                 
                 {error && <Text style={styles.errorText}>{error}</Text>}
                 
@@ -262,46 +498,212 @@ function LoginScreen() {
                     : 'Sign up to start booking restaurant reservations'}
                 </Text>
                 
+                {isLogin && (
+                  <>
+                    <Text style={styles.label}>Email</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                    
+                    <Text style={styles.label}>Password</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                    />
+                  </>
+                )}
+                
                 {!isLogin && (
-                  <View style={styles.nameRow}>
-                    <View style={styles.nameField}>
-                      <Text style={styles.label}>First Name</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={firstName}
-                        onChangeText={setFirstName}
-                        autoCapitalize="words"
-                      />
+                  <View>
+                    <View style={styles.nameRow}>
+                      <View style={styles.nameField}>
+                        <Text style={styles.label}>First Name</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={firstName}
+                          onChangeText={setFirstName}
+                          autoCapitalize="words"
+                        />
+                      </View>
+                      
+                      <View style={styles.nameField}>
+                        <Text style={styles.label}>Last Name</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={lastName}
+                          onChangeText={setLastName}
+                          autoCapitalize="words"
+                        />
+                      </View>
                     </View>
                     
-                    <View style={styles.nameField}>
-                      <Text style={styles.label}>Last Name</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={lastName}
-                        onChangeText={setLastName}
-                        autoCapitalize="words"
+                    <Text style={styles.label}>Email</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                    
+                    <Text style={styles.label}>Password</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                    />
+                    
+                    <Text style={styles.label}>Gender</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={gender}
+                      onChangeText={setGender}
+                      autoCapitalize="words"
+                    />
+                    
+                    <Text style={styles.label}>Birthday</Text>
+                    <TouchableOpacity 
+                      onPress={() => setShowBirthdayPicker(true)}
+                      style={styles.datePickerContainer}
+                    >
+                      <Text style={styles.dateText}>{formatDate(birthday)}</Text>
+                    </TouchableOpacity>
+                    
+                    {/* Custom Date Picker Modal */}
+                    {Platform.OS === 'ios' && (
+                      <Modal
+                        animationType="slide"
+                        transparent={true}
+                        visible={showBirthdayPicker}
+                        onRequestClose={() => setShowBirthdayPicker(false)}
+                      >
+                        <View style={styles.modalOverlay}>
+                          <View style={styles.modalContent}>
+                            <View style={styles.modalHeader}>
+                              <TouchableOpacity onPress={() => setShowBirthdayPicker(false)}>
+                                <Text style={styles.modalCancel}>Cancel</Text>
+                              </TouchableOpacity>
+                              <Text style={styles.modalTitle}>Select Birthday</Text>
+                              <TouchableOpacity 
+                                onPress={() => {
+                                  setShowBirthdayPicker(false);
+                                }}
+                              >
+                                <Text style={styles.modalDone}>Done</Text>
+                              </TouchableOpacity>
+                            </View>
+                            <View style={{backgroundColor: 'white'}}>
+                              <DateTimePicker
+                                testID="dateTimePicker"
+                                value={birthday || new Date()}
+                                mode={datePickerMode}
+                                is24Hour={true}
+                                display="spinner"
+                                onChange={(event, selectedDate) => {
+                                  if (selectedDate) {
+                                    setBirthday(selectedDate);
+                                  }
+                                }}
+                                style={styles.datePicker}
+                                textColor="black"
+                                themeVariant="light"
+                              />
+                            </View>
+                          </View>
+                        </View>
+                      </Modal>
+                    )}
+                    
+                    {/* Android Date Picker */}
+                    {Platform.OS === 'android' && showBirthdayPicker && (
+                      <DateTimePicker
+                        testID="dateTimePicker"
+                        value={birthday || new Date()}
+                        mode="date"
+                        is24Hour={true}
+                        display="default"
+                        onChange={(event, selectedDate) => {
+                          setShowBirthdayPicker(false);
+                          if (selectedDate) {
+                            setBirthday(selectedDate);
+                          }
+                        }}
                       />
+                    )}
+                    
+                    <Text style={styles.label}>City</Text>
+                    <View style={styles.cityDropdownContainer}>
+                      <TouchableOpacity 
+                        style={styles.cityDropdown}
+                        onPress={() => setShowCityDropdown(!showCityDropdown)}
+                      >
+                        <Text style={styles.dropdownText}>{city || 'Select City'}</Text>
+                        <Text style={styles.dropdownIcon}>▼</Text>
+                      </TouchableOpacity>
+                      
+                      {showCityDropdown && (
+                        <View style={styles.cityDropdownList}>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, city === 'Alexandria' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setCity('Alexandria');
+                              setShowCityDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Alexandria</Text>
+                            {city === 'Alexandria' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, city === 'Cairo' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setCity('Cairo');
+                              setShowCityDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Cairo</Text>
+                            {city === 'Cairo' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                    
+                    <Text style={styles.label}>Favorite Cuisines (Max 3)</Text>
+                    <View style={styles.cuisineContainer}>
+                      {availableCuisines.map((cuisine, index) => (
+                        <TouchableOpacity 
+                          key={index} 
+                          style={[styles.cuisineItem, cuisines.includes(cuisine) && styles.selectedCuisineItem]}
+                          onPress={() => {
+                            if (cuisines.includes(cuisine)) {
+                              // Remove if already selected
+                              setCuisines(cuisines.filter(c => c !== cuisine));
+                            } else if (cuisines.length < 3) {
+                              // Add if less than 3 selected
+                              setCuisines([...cuisines, cuisine]);
+                            } else {
+                              // Alert if trying to select more than 3
+                              Alert.alert('Limit Reached', 'You can select a maximum of 3 cuisines');
+                            }
+                          }}
+                        >
+                          <View style={styles.checkboxContainer}>
+                            <View style={[styles.checkbox, cuisines.includes(cuisine) && styles.checkedBox]}>
+                              {cuisines.includes(cuisine) && <Text style={styles.checkmark}>✓</Text>}
+                            </View>
+                            <Text style={styles.cuisineText}>{cuisine}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
                     </View>
                   </View>
                 )}
-                
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
                 
                 {error && <Text style={styles.errorText}>{error}</Text>}
                 
@@ -503,6 +905,145 @@ const styles = StyleSheet.create<Styles>({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    width: '100%',
+  },
+  cuisineContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  cuisineItem: {
+    width: '48%',
+    marginBottom: 10,
+  },
+  selectedCuisineItem: {
+    backgroundColor: '#f5f5f5',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkedBox: {
+    backgroundColor: '#C1272D',
+    borderColor: '#C1272D',
+  },
+  cuisineText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  checkmark: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    backgroundColor: '#fafafa',
+  },
+  dropdownItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  cityDropdownContainer: {
+    position: 'relative',
+    paddingBottom: 15,
+  },
+  cityDropdown: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fafafa',
+  },
+  cityDropdownList: {
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    zIndex: 1,
+  },
+  cityDropdownItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  selectedCityItem: {
+    backgroundColor: '#f5f5f5',
+  },
+  dropdownIcon: {
+    fontSize: 16,
+    color: '#333',
+  },
+  datePickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    backgroundColor: '#fafafa',
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalCancel: {
+    fontSize: 16,
+    color: '#666',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalDone: {
+    fontSize: 16,
+    color: Colors.primary,
+  },
+  datePicker: {
     width: '100%',
   },
 });

@@ -14,6 +14,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { getDefaultTimeForDisplay, getBaseTime, generateTimeSlotsFromTime } from '@/shared/utils/time-slots';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { getRestaurants, getRestaurantLocation, getNearbyRestaurants } from '@/shared/api/client';
+import * as ExpoLocation from 'expo-location';
 
 export default function TabOneScreen() {
   console.log('[HomePage] rendering');
@@ -62,6 +63,7 @@ export default function TabOneScreen() {
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
   const [isPartySizePickerVisible, setIsPartySizePickerVisible] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -277,6 +279,18 @@ export default function TabOneScreen() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  // Check location permission on component mount
+  useEffect(() => {
+    const checkLocationPermission = async () => {
+      const { status } = await ExpoLocation.getForegroundPermissionsAsync();
+      if (status !== 'granted' && user) {
+        setShowLocationModal(true);
+      }
+    };
+    
+    checkLocationPermission();
+  }, [user]);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -362,18 +376,44 @@ export default function TabOneScreen() {
         </View>
       </View>
       
-      {!location && (
-        <TouchableOpacity 
-          style={styles.locationPrompt}
-          onPress={() => {
-            if (location) return;
-            requestLocationPermission();
-          }}
-        >
-          <Ionicons name="location-outline" size={20} color="#007AFF" />
-          <Text style={styles.locationPromptText}>Enable location to see nearby restaurants</Text>
-        </TouchableOpacity>
-      )}
+      {/* Location Permission Modal */}
+      <Modal
+        visible={showLocationModal}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.locationModalContainer}>
+            <View style={styles.locationModalHeader}>
+              <Ionicons name="location" size={32} color="#B91C1C" />
+              <Text style={styles.locationModalTitle}>Enable Location Services</Text>
+            </View>
+            
+            <Text style={styles.locationModalText}>
+              Ehgezli works best when we can show you restaurants near your current location. Would you like to enable location services?
+            </Text>
+            
+            <View style={styles.locationModalButtons}>
+              <TouchableOpacity 
+                style={styles.locationModalSecondaryButton}
+                onPress={() => setShowLocationModal(false)}
+              >
+                <Text style={styles.locationModalSecondaryButtonText}>Not Now</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.locationModalPrimaryButton}
+                onPress={() => {
+                  requestLocationPermission();
+                  setShowLocationModal(false);
+                }}
+              >
+                <Text style={styles.locationModalPrimaryButtonText}>Enable</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       
       {isLoadingNearbyRestaurants ? (
         <View style={styles.loadingContainer}>
@@ -443,6 +483,8 @@ export default function TabOneScreen() {
                 onChange={handleDateChange}
                 style={{ width: '100%' }}
                 minimumDate={new Date()}
+                themeVariant="light"
+                textColor="black"
               />
             </View>
           </TouchableOpacity>
@@ -476,6 +518,8 @@ export default function TabOneScreen() {
                 onChange={handleTimeChange}
                 style={{ width: '100%' }}
                 minimumDate={getMinimumTime()}
+                themeVariant="light"
+                textColor="black"
               />
             </View>
           </TouchableOpacity>
@@ -659,18 +703,60 @@ const styles = StyleSheet.create({
   partySizeText: {
     fontSize: 16,
   },
-  locationPrompt: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 8,
+  locationModalContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  locationModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 16,
   },
-  locationPromptText: {
-    color: '#fff',
+  locationModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginLeft: 12,
+    color: '#333',
+  },
+  locationModalText: {
     fontSize: 16,
-    marginLeft: 8,
+    color: '#666',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  locationModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  locationModalPrimaryButton: {
+    backgroundColor: '#B91C1C',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  locationModalPrimaryButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  locationModalSecondaryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  locationModalSecondaryButtonText: {
+    color: '#666',
+    fontWeight: '600',
+    fontSize: 16,
   },
   loadingContainer: {
     flex: 1,

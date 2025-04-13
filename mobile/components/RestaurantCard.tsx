@@ -457,7 +457,7 @@ export function RestaurantCard({
               </Text>
               <Text style={styles.dot}>•</Text>
               <Text style={[styles.cuisine, { color: colors.text }]}>
-                {restaurant.profile?.cuisine || 'Various Cuisine'}
+                {restaurant.profile?.cuisine || restaurant.cuisine || 'Various Cuisine'}
               </Text>
               
               {(distance !== undefined) && (
