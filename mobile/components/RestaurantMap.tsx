@@ -24,7 +24,9 @@ export function RestaurantMap({ branches, restaurantName, onClose, isPreview = f
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerText}>Location</Text>
+          <Text style={styles.headerText} numberOfLines={1} ellipsizeMode="tail">
+            Location
+          </Text>
           {onClose && (
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#000" />
@@ -130,7 +132,9 @@ export function RestaurantMap({ branches, restaurantName, onClose, isPreview = f
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerText}>Location</Text>
+        <Text style={styles.headerText} numberOfLines={1} ellipsizeMode="tail">
+          {restaurantName ? `${restaurantName} Location` : 'Location'}
+        </Text>
         {onClose && (
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color="#000" />
@@ -186,13 +190,16 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    paddingTop: 50, // Add extra padding for status bar
   },
   headerText: {
     fontSize: 18,
     fontWeight: 'bold',
+    flex: 1, // Allow text to take available space
+    marginRight: 10, // Add margin to prevent overlap with close button
   },
   closeButton: {
-    padding: 4,
+    padding: 8, // Increase touch target
   },
   map: {
     width: Dimensions.get('window').width,

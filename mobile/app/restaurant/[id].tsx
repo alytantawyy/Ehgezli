@@ -208,7 +208,7 @@ export default function RestaurantDetailScreen() {
         {showMap && (
           <Modal visible={showMap} animationType="slide">
             <RestaurantMap 
-              branches={locationData?.branches || []} 
+              branches={selectedBranch ? [selectedBranch as unknown as Branch] : []} 
               restaurantName={locationData?.name || restaurant?.name || ''} 
               onClose={() => setShowMap(false)}
             />
