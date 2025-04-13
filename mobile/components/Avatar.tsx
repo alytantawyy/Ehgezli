@@ -24,7 +24,9 @@ export function Avatar({
   onPress 
 }: AvatarProps) {
   const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  
+  // Use Colors directly
+  const colors = Colors;
   
   // Get user initials for the fallback avatar
   const getInitials = () => {

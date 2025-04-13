@@ -2,11 +2,11 @@ import React, { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import Colors from '@/constants/Colors';
-import { useColorScheme, Image } from 'react-native';
+import { Image } from 'react-native';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  // Use Colors directly without color scheme
+  const colors = Colors;
 
   useEffect(() => {
     console.log('Tab layout is rendering');
@@ -19,8 +19,8 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#888',
         tabBarStyle: {
           borderTopWidth: 1,
-          borderTopColor: colorScheme === 'dark' ? '#333' : '#e0e0e0',
-          backgroundColor: colorScheme === 'dark' ? '#1c1c1c' : '#ffffff',
+          borderTopColor: '#e0e0e0',
+          backgroundColor: '#ffffff',
           height: 80, // Increased height
           display: 'flex',
           paddingBottom: 25, // Increased bottom padding to account for iPhone home indicator

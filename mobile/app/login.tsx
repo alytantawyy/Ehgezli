@@ -62,7 +62,7 @@ type Styles = {
   imageBackground: ViewStyle;
 };
 
-export default function LoginScreen() {
+function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
@@ -327,6 +327,8 @@ export default function LoginScreen() {
   );
 }
 
+export default LoginScreen;
+
 const styles = StyleSheet.create<Styles>({
   container: {
     flex: 1,
@@ -437,14 +439,14 @@ const styles = StyleSheet.create<Styles>({
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: Colors.light.primary,
+    borderBottomColor: Colors.primary,
   },
   tabText: {
     fontSize: 16,
     color: '#666',
   },
   activeTabText: {
-    color: Colors.light.primary,
+    color: Colors.primary,
     fontWeight: '600',
   },
   form: {
@@ -493,7 +495,7 @@ const styles = StyleSheet.create<Styles>({
     marginTop: 15,
   },
   forgotPasswordText: {
-    color: Colors.light.primary,
+    color: Colors.primary,
     fontSize: 14,
   },
   imageBackground: {

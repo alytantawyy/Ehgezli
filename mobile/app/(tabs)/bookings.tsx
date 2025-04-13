@@ -14,7 +14,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 export default function BookingsScreen() {
   const { user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  const colors = Colors; // Use Colors directly
+
   const queryClient = useQueryClient();
 
   // State for edit booking modal

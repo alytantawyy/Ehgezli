@@ -3,7 +3,6 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // For using icon components (in this case, a close icon)
 import Colors from '../constants/Colors'; // Custom color constants based on your app's theme
-import { useColorScheme } from 'react-native'; // Hook to detect current color scheme (light/dark)
 import { EhgezliButton } from './EhgezliButton'; // Custom button component used in the footer
 
 // Define the component's props interface using TypeScript.
@@ -63,11 +62,10 @@ export function FilterDrawer({
   setDistanceFilter,
   onApplyFilters
 }: FilterDrawerProps) {
-  // Get the current color scheme (light or dark) and assign colors accordingly.
-  const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  // Use Colors directly
+  const colors = Colors;
 
-  // If the drawer is not visible, do not render anything.
+  // If the drawer is not visible, don't render anything.
   if (!isVisible) return null;
 
   // Reset function that resets all the filters to their default state ('all').
@@ -87,8 +85,8 @@ export function FilterDrawer({
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         
         {/* Header section containing the title and close button */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text, textAlign: 'center', flex: 1 }]}>Filters</Text>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Filters</Text>
           
           {/* Close button wrapped in TouchableOpacity */}
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -129,7 +127,7 @@ export function FilterDrawer({
                     styles.optionButton,
                     cityFilter === city && { backgroundColor: colors.primary }
                   ]}
-                  onPress={() => setCityFilter(city)}
+                  onPress={() => setCityFilter(city === cityFilter ? 'all' : city)}
                 >
                   <Text 
                     style={[
@@ -174,7 +172,7 @@ export function FilterDrawer({
                     styles.optionButton,
                     distanceFilter === distance && { backgroundColor: colors.primary }
                   ]}
-                  onPress={() => setDistanceFilter(distance)}
+                  onPress={() => setDistanceFilter(distance === distanceFilter ? 'all' : distance)}
                 >
                   <Text 
                     style={[
@@ -219,7 +217,7 @@ export function FilterDrawer({
                     styles.optionButton,
                     cuisineFilter === cuisine && { backgroundColor: colors.primary }
                   ]}
-                  onPress={() => setCuisineFilter(cuisine)}
+                  onPress={() => setCuisineFilter(cuisine === cuisineFilter ? 'all' : cuisine)}
                 >
                   <Text 
                     style={[
@@ -264,7 +262,7 @@ export function FilterDrawer({
                     styles.optionButton,
                     priceFilter === price && { backgroundColor: colors.primary }
                   ]}
-                  onPress={() => setPriceFilter(price)}
+                  onPress={() => setPriceFilter(price === priceFilter ? 'all' : price)}
                 >
                   <Text 
                     style={[
@@ -281,7 +279,7 @@ export function FilterDrawer({
         </ScrollView>
 
         {/* Footer containing reset and apply buttons */}
-        <View style={styles.footer}>
+        <View style={[styles.footer, { borderTopColor: colors.border }]}>
           {/* Reset button: resets all filters to default when pressed */}
           <EhgezliButton
             title="Reset"
@@ -333,7 +331,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   // Title text styling for the header.
   title: {
@@ -376,7 +373,6 @@ const styles = StyleSheet.create({
   // Text styling for options.
   optionText: {
     fontSize: 14,
-    color: '#333',
   },
   // Text styling for selected options.
   selectedOptionText: {
@@ -389,7 +385,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
   },
   // Styling for individual buttons in the footer.
   footerButton: {

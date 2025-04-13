@@ -25,7 +25,9 @@ export function EhgezliButton({
   textStyle
 }: ButtonProps) {
   const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  
+  // Use Colors directly
+  const colors = Colors;
   
   // Determine styles based on variant and size
   const getButtonStyle = () => {

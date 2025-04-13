@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '../context/auth-context';
 import { LocationProvider } from '../context/location-context';
+import { ThemeProvider } from '../context/theme-context';
 import { Asset } from 'expo-asset';
 
 export {
@@ -121,19 +122,21 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
 function RootLayoutNav() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <LocationProvider>
-          <AuthWrapper>
-            <Stack>
-              <Stack.Screen name="login" options={{ headerShown: false }} />
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: true, headerTitle: 'Ehgezli' }} />
-              <Stack.Screen name="restaurant/[id]" options={{ headerTitle: 'Restaurant Details' }} />
-            </Stack>
-          </AuthWrapper>
-        </LocationProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <LocationProvider>
+            <AuthWrapper>
+              <Stack>
+                <Stack.Screen name="login" options={{ headerShown: false }} />
+                <Stack.Screen name="index" options={{ headerShown: false }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: true, headerTitle: 'Ehgezli' }} />
+                <Stack.Screen name="restaurant/[id]" options={{ headerTitle: 'Restaurant Details' }} />
+              </Stack>
+            </AuthWrapper>
+          </LocationProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

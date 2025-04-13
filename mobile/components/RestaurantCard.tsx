@@ -3,11 +3,10 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, Alert } from 'react-na
 import { RelativePathString, useRouter } from 'expo-router';
 import { formatTimeWithAMPM } from '../shared/utils/time-slots';
 import { isRestaurantSaved, saveRestaurant, unsaveRestaurant } from '../shared/api/client';
-import { useAuth } from '../context/auth-context';
-import { useLocation } from '../context/location-context';
-import Colors from '../constants/Colors';
-import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocation } from '../context/location-context';
+import { useAuth } from '../context/auth-context';
+import Colors from '../constants/Colors';
 
 // Define extended types for the restaurant data
 export interface RestaurantWithAvailability {
@@ -80,6 +79,126 @@ function deg2rad(deg: number): number {
   return deg * (Math.PI / 180);
 }
 
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 15,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardContent: {
+    padding: 15,
+  },
+  imageContainer: {
+    position: 'relative',
+  },
+  image: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+  },
+  saveButtonInline: {
+    position: 'absolute',
+    right: 0,
+    padding: 0,
+  },
+  detailsContainer: {
+    marginTop: 10,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  name: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    flex: 1,
+    paddingRight: 30, 
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 15, // Changed from paddingBottom to marginBottom for consistency
+  },
+  priceAndCuisine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  price: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dot: {
+    fontSize: 14,
+    marginHorizontal: 6,
+    opacity: 0.7,
+  },
+  cuisine: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  location: {
+    fontSize: 13,
+    opacity: 0.7,
+  },
+  distanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  distanceText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  timeSlotsSection: {
+    borderTopWidth: 1,
+    paddingTop: 15,
+    paddingBottom: 15,
+    paddingHorizontal: 0,
+    alignItems: 'center',
+  },
+  timeSlots: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  timeSlot: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginRight: 8,
+    marginBottom: 6,
+  },
+  timeSlotText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'normal',
+  },
+  noAvailability: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    opacity: 0.7,
+    textAlign: 'center',
+  },
+  debugButton: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  debugButtonText: {
+    fontSize: 12,
+  },
+});
+
 export function RestaurantCard({ 
   restaurant, 
   branchIndex, 
@@ -89,8 +208,7 @@ export function RestaurantCard({
   isNearby = false
 }: RestaurantCardProps) {
   console.log(`[RestaurantCard] rendering ${restaurant.id}, branch ${branchIndex}`);
-  const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  const colors = Colors;
   const router = useRouter();
   const { user } = useAuth();
   const { location } = useLocation();
@@ -292,7 +410,11 @@ export function RestaurantCard({
 
   return (
     <TouchableOpacity 
-      style={[styles.card, { borderColor: colors.border }]} 
+      style={[styles.card, { 
+        borderColor: colors.border,
+        backgroundColor: colors.background,
+        shadowColor: '#000000',
+      }]} 
       onPress={handlePress}
       activeOpacity={0.8}
     >
@@ -356,7 +478,7 @@ export function RestaurantCard({
             </Text>
           </View>
           
-          <View style={styles.timeSlotsSection}>
+          <View style={[styles.timeSlotsSection, { borderTopColor: colors.border }]}>
             {(branch.slots && branch.slots.length > 0) ? (
               <View style={styles.timeSlots}>
                 {(branch.slots || []).map((slot: any, index: number) => {
@@ -425,9 +547,9 @@ export function RestaurantCard({
                     `Date: ${date}\n` +
                     `Time: ${time || 'Not specified'}`
                   )}
-                  style={styles.debugButton}
+                  style={[styles.debugButton, { backgroundColor: '#eee' }]}
                 >
-                  <Text style={styles.debugButtonText}>Debug Info</Text>
+                  <Text style={[styles.debugButtonText, { color: colors.text }]}>Debug Info</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -437,129 +559,3 @@ export function RestaurantCard({
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 15,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cardContent: {
-    padding: 15,
-  },
-  imageContainer: {
-    position: 'relative',
-  },
-  image: {
-    width: '100%',
-    height: 120,
-    borderRadius: 8,
-  },
-  saveButtonInline: {
-    position: 'absolute',
-    right: 0,
-    padding: 0,
-  },
-  detailsContainer: {
-    marginTop: 10,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  name: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    flex: 1,
-    paddingRight: 30, 
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 15, // Changed from paddingBottom to marginBottom for consistency
-  },
-  priceAndCuisine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  price: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  dot: {
-    fontSize: 14,
-    marginHorizontal: 6,
-    opacity: 0.7,
-  },
-  cuisine: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  location: {
-    fontSize: 13,
-    opacity: 0.7,
-  },
-  distanceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  distanceText: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  timeSlotsSection: {
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    paddingTop: 15,
-    paddingBottom: 15,
-    paddingHorizontal: 0,
-    alignItems: 'center',
-  },
-  timeSlots: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  timeSlot: {
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginRight: 8,
-    marginBottom: 6,
-    backgroundColor: 'hsl(355,79%,36%)',
-  },
-  timeSlotText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'normal',
-  },
-  noAvailability: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    opacity: 0.7,
-    textAlign: 'center',
-  },
-  debugButton: {
-    marginTop: 8,
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#eee',
-    alignSelf: 'center',
-  },
-  debugButtonText: {
-    fontSize: 12,
-    color: '#666',
-  },
-});

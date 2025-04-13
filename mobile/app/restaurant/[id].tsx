@@ -45,7 +45,7 @@ export default function RestaurantDetailScreen() {
   
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  const colors = Colors;
   const { user } = useAuth();
   const { location } = useLocation();
   

@@ -13,7 +13,6 @@ import { updateUserProfile } from '@/shared/api/client';
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
   
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState(user?.firstName || '');
@@ -38,9 +37,9 @@ export default function ProfileScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.authPrompt}>
-          <Ionicons name="person-outline" size={64} color={colors.primary} style={styles.icon} />
-          <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
-          <Text style={[styles.message, { color: colors.text }]}>
+          <Ionicons name="person-outline" size={64} color={Colors.primary} style={styles.icon} />
+          <Text style={[styles.title, { color: Colors.text }]}>Profile</Text>
+          <Text style={[styles.message, { color: Colors.text }]}>
             Please log in to view and edit your profile
           </Text>
           <EhgezliButton 
@@ -91,19 +90,19 @@ export default function ProfileScreen() {
     <ScrollView style={styles.scrollView}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Your Profile</Text>
+          <Text style={[styles.title, { color: Colors.text }]}>Your Profile</Text>
           {!isEditing && (
             <TouchableOpacity 
               style={styles.editButton} 
               onPress={() => setIsEditing(true)}
             >
-              <Ionicons name="pencil" size={20} color={colors.primary} />
-              <Text style={[styles.editButtonText, { color: colors.primary }]}>Edit</Text>
+              <Ionicons name="pencil" size={20} color={Colors.primary} />
+              <Text style={[styles.editButtonText, { color: Colors.primary }]}>Edit</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        <View style={[styles.profileCard, { borderColor: colors.border, backgroundColor: colorScheme === 'dark' ? colors.background : '#fff' }]}>
+        <View style={[styles.profileCard, { borderColor: Colors.border, backgroundColor: colorScheme === 'dark' ? Colors.background : '#fff' }]}>
           <View style={styles.profileHeader}>
             <Avatar 
               firstName={user.firstName}
@@ -115,14 +114,14 @@ export default function ProfileScreen() {
                 <>
                   <View style={styles.inputRow}>
                     <TextInput
-                      style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                      style={[styles.input, { borderColor: Colors.border, color: Colors.text }]}
                       value={firstName}
                       onChangeText={setFirstName}
                       placeholder="First Name"
                       placeholderTextColor="#999"
                     />
                     <TextInput
-                      style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                      style={[styles.input, { borderColor: Colors.border, color: Colors.text }]}
                       value={lastName}
                       onChangeText={setLastName}
                       placeholder="Last Name"
@@ -131,40 +130,40 @@ export default function ProfileScreen() {
                   </View>
                 </>
               ) : (
-                <Text style={[styles.userName, { color: colors.text }]}>
+                <Text style={[styles.userName, { color: Colors.text }]}>
                   {user.firstName} {user.lastName}
                 </Text>
               )}
-              <Text style={[styles.userEmail, { color: colors.text }]}>{user.email}</Text>
+              <Text style={[styles.userEmail, { color: Colors.text }]}>{user.email}</Text>
             </View>
           </View>
 
           <View style={styles.profileDetails}>
             <View style={styles.detailItem}>
-              <Text style={[styles.detailLabel, { color: colors.text }]}>City</Text>
+              <Text style={[styles.detailLabel, { color: Colors.text }]}>City</Text>
               {isEditing ? (
                 <TextInput
-                  style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                  style={[styles.input, { borderColor: Colors.border, color: Colors.text }]}
                   value={city}
                   onChangeText={setCity}
                   placeholder="Your City"
                   placeholderTextColor="#999"
                 />
               ) : (
-                <Text style={[styles.detailValue, { color: colors.text }]}>
+                <Text style={[styles.detailValue, { color: Colors.text }]}>
                   {user.city || 'Not specified'}
                 </Text>
               )}
             </View>
 
             <View style={styles.detailItem}>
-              <Text style={[styles.detailLabel, { color: colors.text }]}>Gender</Text>
+              <Text style={[styles.detailLabel, { color: Colors.text }]}>Gender</Text>
               {isEditing ? (
                 <View style={styles.genderOptions}>
                   <TouchableOpacity
                     style={[
                       styles.genderOption,
-                      gender === 'Male' && { backgroundColor: colors.primary }
+                      gender === 'Male' && { backgroundColor: Colors.primary }
                     ]}
                     onPress={() => setGender('Male')}
                   >
@@ -180,7 +179,7 @@ export default function ProfileScreen() {
                   <TouchableOpacity
                     style={[
                       styles.genderOption,
-                      gender === 'Female' && { backgroundColor: colors.primary }
+                      gender === 'Female' && { backgroundColor: Colors.primary }
                     ]}
                     onPress={() => setGender('Female')}
                   >
@@ -196,7 +195,7 @@ export default function ProfileScreen() {
                   <TouchableOpacity
                     style={[
                       styles.genderOption,
-                      gender === 'Other' && { backgroundColor: colors.primary }
+                      gender === 'Other' && { backgroundColor: Colors.primary }
                     ]}
                     onPress={() => setGender('Other')}
                   >
@@ -211,14 +210,14 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <Text style={[styles.detailValue, { color: colors.text }]}>
+                <Text style={[styles.detailValue, { color: Colors.text }]}>
                   {user.gender || 'Not specified'}
                 </Text>
               )}
             </View>
 
             <View style={styles.detailItem}>
-              <Text style={[styles.detailLabel, { color: colors.text }]}>Favorite Cuisines</Text>
+              <Text style={[styles.detailLabel, { color: Colors.text }]}>Favorite Cuisines</Text>
               {isEditing ? (
                 <View style={styles.cuisinesGrid}>
                   {CUISINES.map((cuisine) => (
@@ -226,7 +225,7 @@ export default function ProfileScreen() {
                       key={cuisine}
                       style={[
                         styles.cuisineOption,
-                        favoriteCuisines.includes(cuisine) && { backgroundColor: colors.primary }
+                        favoriteCuisines.includes(cuisine) && { backgroundColor: Colors.primary }
                       ]}
                       onPress={() => toggleCuisine(cuisine)}
                     >
@@ -245,12 +244,12 @@ export default function ProfileScreen() {
                 <View style={styles.cuisinesList}>
                   {user.favoriteCuisines && user.favoriteCuisines.length > 0 ? (
                     user.favoriteCuisines.map((cuisine, index) => (
-                      <View key={index} style={[styles.cuisineTag, { backgroundColor: colors.secondary }]}>
-                        <Text style={[styles.cuisineTagText, { color: colors.text }]}>{cuisine}</Text>
+                      <View key={index} style={[styles.cuisineTag, { backgroundColor: Colors.secondary }]}>
+                        <Text style={[styles.cuisineTagText, { color: Colors.text }]}>{cuisine}</Text>
                       </View>
                     ))
                   ) : (
-                    <Text style={[styles.detailValue, { color: colors.text }]}>No favorite cuisines selected</Text>
+                    <Text style={[styles.detailValue, { color: Colors.text }]}>No favorite cuisines selected</Text>
                   )}
                 </View>
               )}

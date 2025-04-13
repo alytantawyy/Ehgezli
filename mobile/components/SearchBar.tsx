@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, TextInput, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
-import { useColorScheme } from 'react-native';
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
@@ -22,8 +21,8 @@ export function SearchBar({
   console.log('[SearchBar] rendering');
   const [searchQuery, setSearchQuery] = useState(initialValue);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  // Use Colors directly
+  const colors = Colors;
 
   // Implement debounced search as mentioned in memories
   useEffect(() => {
@@ -51,12 +50,19 @@ export function SearchBar({
   };
 
   return (
-    <View style={[styles.container, containerStyle]}>
+    <View style={[
+      styles.container, 
+      containerStyle, 
+      { 
+        backgroundColor: colors.background,
+        borderColor: colors.border 
+      }
+    ]}>
       <Ionicons name="search" size={20} color={colors.text} style={styles.searchIcon} />
       <TextInput
         style={[styles.input, { color: colors.text }]}
         placeholder={placeholder}
-        placeholderTextColor={colorScheme === 'dark' ? '#888' : '#999'}
+        placeholderTextColor="#999"
         value={searchQuery}
         onChangeText={setSearchQuery}
         returnKeyType="search"
@@ -78,8 +84,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 48,
-    borderColor: '#e0e0e0',
-    backgroundColor: '#ffffff',
   },
   searchIcon: {
     marginRight: 8,
