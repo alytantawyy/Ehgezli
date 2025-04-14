@@ -181,6 +181,25 @@ export const registerUser = async (userData: {
     // Save the auth token
     if (response.data.token) {
       await SecureStore.setItemAsync('authToken', response.data.token);
+      
+      // After registration and token storage, update the user profile with cuisines
+      try {
+        // Use the token to update the user profile
+        await updateUserProfile({
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          city: userData.city,
+          gender: userData.gender,
+          favoriteCuisines: userData.cuisines
+        });
+        
+        // Now get the updated user data
+        const updatedUser = await getCurrentUser();
+        return { ...response.data, user: updatedUser };
+      } catch (profileError) {
+        console.error('Error updating profile after registration:', profileError);
+        // Continue with the original response even if profile update fails
+      }
     }
     
     return response.data;

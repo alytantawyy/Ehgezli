@@ -94,7 +94,7 @@ type Styles = {
 function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLoginMode, setIsLoginMode] = useState(true);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [gender, setGender] = useState('');
@@ -131,18 +131,22 @@ function LoginScreen() {
 
   const handleSubmit = async () => {
     try {
-      if (isLogin) {
+      if (isLoginMode) {
         await login(email, password);
+        router.replace('/(tabs)');
       } else {
-        if (!firstName || !lastName || !gender || !city || !birthday) {
-          Alert.alert('Error', 'Please fill in all required fields');
+        // Validate form
+        if (!firstName || !lastName || !email || !password || !gender || !birthday || !city || cuisines.length === 0) {
+          Alert.alert('Error', 'Please fill in all fields');
           return;
         }
         if (password.length < 8) {
           Alert.alert('Error', 'Password must be at least 8 characters long');
           return;
         }
-        await register({ 
+        
+        // Register the user and wait for the registration to complete
+        const result = await register({ 
           firstName, 
           lastName, 
           email, 
@@ -152,6 +156,9 @@ function LoginScreen() {
           city,
           cuisines 
         });
+        
+        // Now we can safely navigate to the index page with user data properly set
+        router.replace('/(tabs)');
       }
     } catch (err: any) {
       // Error is already set in the auth context
@@ -167,7 +174,7 @@ function LoginScreen() {
 
   const toggleMode = (mode: 'login' | 'register' | 'restaurant') => {
     clearError();
-    setIsLogin(mode === 'login');
+    setIsLoginMode(mode === 'login');
   };
 
   return (
@@ -179,16 +186,16 @@ function LoginScreen() {
             <View style={styles.formContainer}>
               <View style={styles.tabs}>
                 <TouchableOpacity 
-                  style={[styles.tab, isLogin ? styles.activeTab : null]} 
+                  style={[styles.tab, isLoginMode ? styles.activeTab : null]} 
                   onPress={() => toggleMode('login')}
                 >
-                  <Text style={[styles.tabText, isLogin ? styles.activeTabText : null]}>Login</Text>
+                  <Text style={[styles.tabText, isLoginMode ? styles.activeTabText : null]}>Login</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[styles.tab, !isLogin ? styles.activeTab : null]} 
+                  style={[styles.tab, !isLoginMode ? styles.activeTab : null]} 
                   onPress={() => toggleMode('register')}
                 >
-                  <Text style={[styles.tabText, !isLogin ? styles.activeTabText : null]}>Register</Text>
+                  <Text style={[styles.tabText, !isLoginMode ? styles.activeTabText : null]}>Register</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.tab}>
                   <Text style={styles.tabText}>Restaurant</Text>
@@ -197,15 +204,15 @@ function LoginScreen() {
               
               <View style={styles.form}>
                 <Text style={styles.welcomeText}>
-                  {isLogin ? 'Welcome Back' : 'Create Account'}
+                  {isLoginMode ? 'Welcome Back' : 'Create Account'}
                 </Text>
                 <Text style={styles.subtitle}>
-                  {isLogin 
+                  {isLoginMode 
                     ? 'Login to manage your restaurant reservations' 
                     : 'Sign up to start booking restaurant reservations'}
                 </Text>
                 
-                {isLogin && (
+                {isLoginMode && (
                   <>
                     <Text style={styles.label}>Email</Text>
                     <TextInput
@@ -226,7 +233,7 @@ function LoginScreen() {
                   </>
                 )}
                 
-                {!isLogin && (
+                {!isLoginMode && (
                   <View>
                     <View style={styles.nameRow}>
                       <View style={styles.nameField}>
@@ -415,14 +422,14 @@ function LoginScreen() {
                 {error && <Text style={styles.errorText}>{error}</Text>}
                 
                 <EhgezliButton
-                  title={isLogin ? 'Login' : 'Register'}
+                  title={isLoginMode ? 'Login' : 'Register'}
                   onPress={handleSubmit}
                   variant="ehgezli"
                   loading={isLoading}
                   style={styles.button}
                 />
                 
-                {isLogin && (
+                {isLoginMode && (
                   <TouchableOpacity style={styles.forgotPassword}>
                     <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
                   </TouchableOpacity>
@@ -472,16 +479,16 @@ function LoginScreen() {
             <View style={styles.formContainer}>
               <View style={styles.tabs}>
                 <TouchableOpacity 
-                  style={[styles.tab, isLogin ? styles.activeTab : null]} 
+                  style={[styles.tab, isLoginMode ? styles.activeTab : null]} 
                   onPress={() => toggleMode('login')}
                 >
-                  <Text style={[styles.tabText, isLogin ? styles.activeTabText : null]}>Login</Text>
+                  <Text style={[styles.tabText, isLoginMode ? styles.activeTabText : null]}>Login</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[styles.tab, !isLogin ? styles.activeTab : null]} 
+                  style={[styles.tab, !isLoginMode ? styles.activeTab : null]} 
                   onPress={() => toggleMode('register')}
                 >
-                  <Text style={[styles.tabText, !isLogin ? styles.activeTabText : null]}>Register</Text>
+                  <Text style={[styles.tabText, !isLoginMode ? styles.activeTabText : null]}>Register</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.tab}>
                   <Text style={styles.tabText}>Restaurant</Text>
@@ -490,15 +497,15 @@ function LoginScreen() {
               
               <View style={styles.form}>
                 <Text style={styles.welcomeText}>
-                  {isLogin ? 'Welcome Back' : 'Create Account'}
+                  {isLoginMode ? 'Welcome Back' : 'Create Account'}
                 </Text>
                 <Text style={styles.subtitle}>
-                  {isLogin 
+                  {isLoginMode 
                     ? 'Login to manage your restaurant reservations' 
                     : 'Sign up to start booking restaurant reservations'}
                 </Text>
                 
-                {isLogin && (
+                {isLoginMode && (
                   <>
                     <Text style={styles.label}>Email</Text>
                     <TextInput
@@ -519,7 +526,7 @@ function LoginScreen() {
                   </>
                 )}
                 
-                {!isLogin && (
+                {!isLoginMode && (
                   <View>
                     <View style={styles.nameRow}>
                       <View style={styles.nameField}>
@@ -708,14 +715,14 @@ function LoginScreen() {
                 {error && <Text style={styles.errorText}>{error}</Text>}
                 
                 <EhgezliButton
-                  title={isLogin ? 'Login' : 'Register'}
+                  title={isLoginMode ? 'Login' : 'Register'}
                   onPress={handleSubmit}
                   variant="ehgezli"
                   loading={isLoading}
                   style={styles.button}
                 />
                 
-                {isLogin && (
+                {isLoginMode && (
                   <TouchableOpacity style={styles.forgotPassword}>
                     <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
                   </TouchableOpacity>

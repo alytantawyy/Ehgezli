@@ -15,7 +15,7 @@ interface AuthContextType {
     birthday: string; // ISO date string
     city: string;
     cuisines: string[];
-  }) => Promise<void>;
+  }) => Promise<User>;
   logout: () => Promise<void>;
   clearError: () => void;
 }
@@ -99,8 +99,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
+      // Register the user - the updated registerUser function now handles updating the profile with cuisines
       const response = await registerUser(userData);
-      setUser(response.user);
+      
+      // Get the user data from the response or fetch it explicitly
+      let userToSet = response.user;
+      
+      // If no user data in response, fetch it explicitly
+      if (!userToSet) {
+        userToSet = await getCurrentUser();
+        
+        if (!userToSet) {
+          throw new Error('Failed to load user data after registration');
+        }
+      }
+      
+      // Ensure favorite cuisines are included in the user object
+      const userWithCuisines = {
+        ...userToSet,
+        favoriteCuisines: userData.cuisines
+      };
+      
+      // Set the user in the auth context
+      setUser(userWithCuisines);
+      
+      // Return the user data so the caller knows registration is complete
+      return userWithCuisines;
     } catch (err) {
       setError('Registration failed. Please try again.');
       throw err;

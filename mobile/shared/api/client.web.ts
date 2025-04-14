@@ -1,10 +1,67 @@
 import axios from 'axios';
 
-// Import all the types from the original client
-import { User, Restaurant, Branch, Booking, SavedRestaurantItem } from './client';
+// Define types directly in this file
+export interface User {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  city?: string;
+  gender?: string;
+  favoriteCuisines?: string[];
+}
 
-// Re-export the types so they can be imported from this file
-export { User, Restaurant, Branch, Booking, SavedRestaurantItem };
+export interface Branch {
+  distance: any;
+  id: number;
+  restaurantId: number;
+  address: string;
+  city: string;
+  location: {
+    latitude: string;
+    longitude: string;
+  };
+  slots?: Array<{ time: string }>;
+}
+
+export interface Restaurant {
+  id: number;
+  name: string;
+  description?: string;
+  cuisine?: string;
+  priceRange?: string;
+  rating?: number;
+  imageUrl?: string;
+  branches: Branch[];
+  profile?: {
+    description?: string;
+    cuisine?: string;
+    priceRange?: string;
+    rating?: number;
+    imageUrl?: string;
+  };
+}
+
+export interface Booking {
+  id: number;
+  userId: number;
+  restaurantId: number;
+  branchId: number;
+  date: string;
+  time: string;
+  partySize: number;
+  status: string;
+  restaurantName?: string;
+  branchAddress?: string;
+}
+
+export interface SavedRestaurantItem {
+  id: number;
+  userId: number;
+  restaurantId: number;
+  branchIndex: number;
+  restaurant?: Restaurant;
+}
 
 // Base API URL - replace with your actual API endpoint
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
