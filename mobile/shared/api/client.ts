@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
 // Define types for our data models
 export interface User {
@@ -75,8 +76,29 @@ export interface SavedRestaurantItem {
   restaurant: Restaurant;
 }
 
-// Base API URL - replace with your actual API endpoint
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+// Base API URL with Expo Constants for dynamic IP detection
+const getApiBaseUrl = () => {
+  // First check if there's an environment variable set
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  // Use Expo Constants to get the dev server URL
+  if (Constants.expoConfig?.hostUri) {
+    // hostUri format is typically "192.168.x.x:8081"
+    const hostParts = Constants.expoConfig.hostUri.split(':');
+    if (hostParts.length > 0) {
+      // Use the same IP but with port 4000 for the API server
+      return `http://${hostParts[0]}:4000`;
+    }
+  }
+
+  // Fallback to localhost (will work for development on same machine)
+  return 'http://localhost:4000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+console.log('Using API base URL:', API_BASE_URL);
 
 // Create axios instance
 export const api = axios.create({
