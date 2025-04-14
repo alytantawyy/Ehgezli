@@ -56,7 +56,7 @@ export default function RestaurantDetailScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
   
   // Parse time from params or use empty string
-  const [selectedTime, setSelectedTime] = useState(time || '');
+  const [selectedTime, setSelectedTime] = useState(time ? formatTimeWithAMPM(time) : '');
   
   // Parse party size from params or use default of 2
   const [selectedPartySize, setSelectedPartySize] = useState(Number(partySize || '2'));

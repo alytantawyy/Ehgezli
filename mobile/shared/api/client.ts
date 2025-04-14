@@ -338,19 +338,66 @@ export const createBooking = async (bookingData: {
     const token = await getAuthToken();
     if (!token) throw new Error('Authentication required');
 
-    const response = await axios.post(`${API_BASE_URL}/bookings`, bookingData, {
+    // Convert date and time to a single Date object for the server
+    // The server expects a single date field with both date and time
+    const { date, time, ...otherData } = bookingData;
+    
+    // Log the data being sent
+    console.log('Sending booking data:', { ...otherData, date, time });
+    
+    // Parse the time from 12-hour format to 24-hour format if needed
+    let timeValue = time;
+    if (time.includes('AM') || time.includes('PM')) {
+      const [timePart, ampm] = time.split(' ');
+      const [hours, minutes] = timePart.split(':').map(Number);
+      
+      let hour24 = hours;
+      if (ampm === 'PM' && hours < 12) hour24 += 12;
+      if (ampm === 'AM' && hours === 12) hour24 = 0;
+      
+      timeValue = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+    
+    // Create a combined date-time string
+    const dateTime = new Date(`${date}T${timeValue}`);
+    
+    // Format the data for the server
+    const serverData = {
+      ...otherData,
+      date: dateTime.toISOString(),
+    };
+    
+    console.log('Formatted booking data for server:', serverData);
+
+    const response = await axios.post(`${API_BASE_URL}/api/bookings`, serverData, {
       headers: { Authorization: `Bearer ${token}` }
     });
     
     console.log('Create booking response:', response.data);
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create booking error:', error);
+    
+    // Handle specific error codes
+    if (error.response) {
+      const status = error.response.status;
+      const errorMessage = error.response.data?.message || 'An error occurred';
+      
+      if (status === 409) {
+        throw new Error('Not enough seats available for this time slot. Please select a different time or reduce your party size.');
+      } else if (status === 400) {
+        throw new Error(errorMessage);
+      } else if (status === 401) {
+        throw new Error('Authentication required. Please log in again.');
+      } else {
+        throw new Error(`Booking failed: ${errorMessage}`);
+      }
+    }
+    
     throw error;
   }
 };
 
-// User profile functions
 export const updateUserProfile = async (profileData: {
   firstName: string;
   lastName: string;
@@ -361,6 +408,8 @@ export const updateUserProfile = async (profileData: {
   try {
     const token = await getAuthToken();
     if (!token) throw new Error('Authentication required');
+
+    console.log('Sending profile update data:', JSON.stringify(profileData, null, 2));
 
     const response = await axios.put(`${API_BASE_URL}/api/user/profile`, profileData, {
       headers: { Authorization: `Bearer ${token}` }

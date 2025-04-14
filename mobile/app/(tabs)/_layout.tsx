@@ -52,7 +52,11 @@ export default function TabLayout() {
                 resizeMode="contain"
               />
             ) : (
-              <Ionicons name="home-outline" size={size} color={color} />
+              <Image 
+                source={require('../../assets/Ehgezli-logo-white.png')} 
+                style={{ width: 24, height: 24 }}
+                resizeMode="contain"
+              />
             )
           ),
         }}

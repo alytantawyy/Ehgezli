@@ -1619,6 +1619,11 @@ export class DatabaseStorage implements IStorage {
     favoriteCuisines: string[] 
   }): Promise<void> {
     try {
+      console.log('Storage: Updating user profile in database:', {
+        userId,
+        profileData
+      });
+      
       await db.update(users).set({
         firstName: profileData.firstName,
         lastName: profileData.lastName,
@@ -1627,6 +1632,13 @@ export class DatabaseStorage implements IStorage {
         favoriteCuisines: profileData.favoriteCuisines,
         updatedAt: new Date(),
       }).where(eq(users.id, userId));
+      
+      // Verify the update by fetching the updated user
+      const updatedUser = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+      
+      console.log('Storage: User profile after update:', updatedUser);
     } catch (error) {
       console.error("Error updating user profile:", error);
       throw error;

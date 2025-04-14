@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/context/auth-context';
-import { EhgezliButton } from '@/components/EhgezliButton';
-import { Avatar } from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
+import { EhgezliButton } from '@/components/EhgezliButton';
+import { Avatar } from '@/components/Avatar';
 import { useColorScheme } from 'react-native';
-import { TextInput } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
-import { updateUserProfile } from '@/shared/api/client';
+import { updateUserProfile, getCurrentUser } from '@/shared/api/client';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   
   const [isEditing, setIsEditing] = useState(false);
@@ -25,9 +24,15 @@ export default function ProfileScreen() {
   // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: updateUserProfile,
-    onSuccess: () => {
-      setIsEditing(false);
-      Alert.alert('Success', 'Your profile has been updated');
+    onSuccess: async () => {
+      try {
+        // Refresh user data after successful update
+        await refreshUser();
+        setIsEditing(false);
+        Alert.alert('Success', 'Your profile has been updated');
+      } catch (error) {
+        console.error('Failed to refresh user data after update:', error);
+      }
     },
     onError: () => {
       Alert.alert('Error', 'Failed to update profile');
@@ -55,6 +60,14 @@ export default function ProfileScreen() {
   }
 
   const handleSaveProfile = () => {
+    console.log('Attempting to update profile with:', {
+      firstName,
+      lastName,
+      city,
+      gender,
+      favoriteCuisines
+    });
+    
     updateProfileMutation.mutate({
       firstName,
       lastName,
@@ -262,8 +275,7 @@ export default function ProfileScreen() {
                   {user.favoriteCuisines && user.favoriteCuisines.length > 0 ? (
                     user.favoriteCuisines.map((cuisine) => (
                       <View key={cuisine} style={styles.cuisineTag}>
-                        {cuisine === 'Italian' && <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />}
-                        {cuisine === 'Japanese' && <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />}
+                        <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />
                         <Text style={styles.cuisineTagText}>{cuisine}</Text>
                       </View>
                     ))

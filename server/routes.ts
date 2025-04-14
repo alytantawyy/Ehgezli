@@ -980,10 +980,20 @@ export function registerRoutes(app: Express): Server {
       
       // Validate required fields
       if (!firstName || !lastName || !city || !gender || !Array.isArray(favoriteCuisines)) {
+        console.log('Profile update validation failed:', { firstName, lastName, city, gender, favoriteCuisines });
         return res.status(400).json({ message: "All fields are required" });
       }
       
       // Update user profile
+      console.log('Server received profile update request:', {
+        userId,
+        firstName,
+        lastName,
+        city,
+        gender,
+        favoriteCuisines
+      });
+      
       await storage.updateUserProfile(userId, {
         firstName,
         lastName,

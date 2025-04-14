@@ -18,6 +18,7 @@ interface AuthContextType {
   }) => Promise<User>;
   logout: () => Promise<void>;
   clearError: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -147,6 +148,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = () => setError(null);
 
+  const refreshUser = async () => {
+    setIsLoading(true);
+    try {
+      const userData = await getCurrentUser();
+      setUser(userData);
+    } catch (err) {
+      setError('Failed to refresh user data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const value = {
     user,
     isLoading,
@@ -155,6 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register,
     logout,
     clearError,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
