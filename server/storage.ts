@@ -516,7 +516,11 @@ export class DatabaseStorage implements IStorage {
         .select({
           id: bookings.id,
           userId: bookings.userId,
+          restaurantId: restaurantBranches.restaurantId,
+          restaurantName: restaurantAuth.name,
           branchId: bookings.branchId,
+          branchCity: restaurantBranches.city,
+          branchAddress: restaurantBranches.address,
           date: bookings.date,
           partySize: bookings.partySize,
           confirmed: bookings.confirmed,

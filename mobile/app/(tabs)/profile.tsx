@@ -92,15 +92,6 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>My Profile</Text>
-          {!isEditing && (
-            <TouchableOpacity 
-              style={styles.editButton} 
-              onPress={() => setIsEditing(true)}
-            >
-              <Ionicons name="pencil-outline" size={16} color="white" style={{marginRight: 6}} />
-              <Text style={styles.editButtonText}>Edit Profile</Text>
-            </TouchableOpacity>
-          )}
         </View>
         
         <Text style={styles.subtitle}>View and manage your account information</Text>
@@ -148,13 +139,21 @@ export default function ProfileScreen() {
               <View style={styles.rowContainer}>
                 <View style={styles.halfFieldSection}>
                   <Text style={styles.fieldLabel}>City</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={city}
-                    onChangeText={setCity}
-                    placeholder="Your City"
-                    placeholderTextColor="#999"
-                  />
+                  <View style={styles.dropdownContainer}>
+                    <TouchableOpacity 
+                      style={[styles.cityOption, city === 'Alexandria' && styles.cityOptionSelected]} 
+                      onPress={() => setCity('Alexandria')}
+                    >
+                      <Text style={[styles.cityText, city === 'Alexandria' && styles.cityTextSelected]}>Alexandria</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.cityOption, city === 'Cairo' && styles.cityOptionSelected]} 
+                      onPress={() => setCity('Cairo')}
+                    >
+                      <Text style={[styles.cityText, city === 'Cairo' && styles.cityTextSelected]}>Cairo</Text>
+                    </TouchableOpacity>
+                    
+                  </View>
                 </View>
               </View>
               
@@ -273,13 +272,23 @@ export default function ProfileScreen() {
                   )}
                 </View>
               </View>
+              {!isEditing && (
+                        <EhgezliButton
+                          title="Edit Profile"
+                          variant="ehgezli"
+                          onPress={() => setIsEditing(true)}
+                          style={styles.editProfileButton}
+                        />
+                      )}
             </>
           )}
         </View>
 
+        
+
         <EhgezliButton
           title="Log Out"
-          variant="outline"
+          variant="ehgezli"
           onPress={() => {
             Alert.alert(
               'Log Out',
@@ -323,18 +332,9 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 24,
   },
-  editButton: {
-    backgroundColor: '#B91C1C',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  editButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 14,
+  editProfileButton: {
+    marginBottom: 12,
+    marginTop: 12,
   },
   profileCard: {
     backgroundColor: 'white',
@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   saveButton: {
-    backgroundColor: '#B91C1C',
+    backgroundColor: Colors.primary,
     borderRadius: 6,
     paddingVertical: 12,
     alignItems: 'center',
@@ -555,5 +555,31 @@ const styles = StyleSheet.create({
   },
   button: {
     minWidth: 150,
+  },
+  dropdownContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '180%',
+  },
+  cityOption: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  cityOptionSelected: {
+    backgroundColor: '#B91C1C',
+  },
+  cityText: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+  },
+  cityTextSelected: {
+    color: 'white',
+    fontWeight: '500',
   },
 });

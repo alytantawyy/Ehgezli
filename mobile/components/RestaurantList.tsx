@@ -471,8 +471,8 @@ export function RestaurantList({
     console.log(`Branch ${index}: ${item.restaurant.name}, Distance: ${item.branch.distance}, Saved: ${item.branch.isSaved}, Cuisine: ${item.restaurant.cuisine || item.restaurant.profile?.cuisine}`);
   });
 
-  // Add nearby restaurants
-  if (nearbyRestaurants && nearbyRestaurants.length > 0) {
+  // Add nearby restaurants - but skip when showing saved only
+  if (!showSavedOnly && nearbyRestaurants && nearbyRestaurants.length > 0) {
     // Add a section header for nearby restaurants
     const nearbySection = (
       <View style={styles.nearbyHeader}>

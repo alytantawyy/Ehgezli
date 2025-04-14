@@ -6,7 +6,7 @@ import { RestaurantList } from '@/components/RestaurantList';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { Avatar } from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
-import { format, parseISO } from 'date-fns';
+import { format} from 'date-fns';
 import { useAuth } from '@/context/auth-context';
 import { useLocation } from '@/context/location-context';
 import { router } from 'expo-router';
