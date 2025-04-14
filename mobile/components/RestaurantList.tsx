@@ -61,6 +61,14 @@ export function RestaurantList({
   const { user } = useAuth();
   const favoriteCuisines = user?.favoriteCuisines || [];
 
+  // Centralized function to generate and format time slots consistently
+  const generateAndFormatTimeSlots = () => {
+    // Always use generateLocalTimeSlots directly to ensure consistency
+    const timeSlots = generateLocalTimeSlots();
+    // Convert the string times to TimeSlot objects
+    return timeSlots.map(timeStr => ({ time: timeStr }));
+  };
+
   // Generate time slots based on the selected time or default time
   const generateTimeSlots = () => {
     if (time) {
@@ -156,22 +164,21 @@ export function RestaurantList({
           restaurant.branches.forEach((branch, index) => {
             console.log(`Processing branch ${index} for saved restaurant ${restaurant.id}`);
             
-            // Always generate time slots for saved restaurants
-            // This ensures saved restaurants always have time slots displayed
-            console.log(`Generating time slots for saved restaurant ${restaurant.id}, branch ${branch.id}`);
+            // Only generate new slots if the branch doesn't already have them
+            if (!branch.slots || branch.slots.length === 0) {
+              console.log(`Generating time slots for saved restaurant ${restaurant.id}, branch ${branch.id}`);
+              const timeSlots = generateAndFormatTimeSlots();
+              // Store the time slots in the branch
+              branch.slots = timeSlots;
+              console.log(`Generated ${timeSlots.length} time slots for saved restaurant ${restaurant.id}`);
+              console.log('Time slots sample:', timeSlots.slice(0, 3));
+            } else {
+              console.log(`Using existing slots for saved restaurant ${restaurant.id}, count: ${branch.slots.length}`);
+            }
             
-            // Generate time slots using our utility function
-            const timeSlots = generateTimeSlots();
-            
-            // Store the time slots in the branch
-            branch.slots = timeSlots;
-            
-            console.log(`Generated ${timeSlots.length} time slots for saved restaurant ${restaurant.id}`);
-            console.log('Time slots sample:', timeSlots.slice(0, 3));
+            // Mark this branch as saved instead of the restaurant
+            branch.isSaved = true;
           });
-
-          // Mark this restaurant as saved
-          restaurant.isSaved = true;
 
           // Make sure we're using the restaurant ID, not the saved record ID
           restaurant.id = restaurant.id || item.restaurantId;
@@ -251,9 +258,9 @@ export function RestaurantList({
             console.log(`Mapping availableSlots to slots for restaurant ${result.id}, branch ${branch.id}`);
 
             // Generate time slots using our utility function
-            const timeSlots = generateTimeSlots();
-
-            // Store the time slots in 24h format (don't format them yet)
+            const timeSlots = generateAndFormatTimeSlots();
+            
+            // Store the time slots in the branch
             branch.slots = timeSlots;
 
             console.log('Final branch slots:', branch.slots);
@@ -401,7 +408,7 @@ export function RestaurantList({
         }
 
         // If showSavedOnly is true, only include saved branches
-        if (showSavedOnly && !branch.isSaved && !restaurant.isSaved) {
+        if (showSavedOnly && !branch.isSaved) {
           return;
         }
 

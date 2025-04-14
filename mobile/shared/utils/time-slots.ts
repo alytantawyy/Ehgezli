@@ -104,7 +104,10 @@ export const formatTimeWithAMPM = (time: string | undefined, forceFormat: boolea
     
     // Check if time is in the expected 24-hour format (HH:mm)
     if (!/^\d{1,2}:\d{2}$/.test(time)) {
-      console.warn(`Invalid time format: ${time}`);
+      // Don't warn for times that include AM/PM as they're already formatted
+      if (!time.includes('AM') && !time.includes('PM')) {
+        console.warn(`Invalid time format: ${time}`);
+      }
       return time; // Return the original if it's not in the expected format
     }
     

@@ -17,7 +17,7 @@ export interface RestaurantWithAvailability {
   priceRange?: string;
   rating?: number;
   imageUrl?: string;
-  branches: any[];
+  branches: BranchWithAvailability[];
   profile?: {
     logo?: string;
     cuisine?: string;
@@ -25,7 +25,6 @@ export interface RestaurantWithAvailability {
     description?: string;
     rating?: number;
   };
-  isSaved?: boolean;
 }
 
 // Define time slot interface
@@ -50,6 +49,8 @@ export interface BranchWithAvailability {
   availableSlots?: AvailableSlot[];
   isSaved?: boolean;
   distance?: number;
+  latitude?: string;
+  longitude?: string;
 }
 
 export interface RestaurantCardProps {
@@ -269,7 +270,9 @@ export function RestaurantCard({
     availableSlots: originalBranch.availableSlots && Array.isArray(originalBranch.availableSlots) 
       ? originalBranch.availableSlots.map((slot: any) => ({ time: slot.time, seats: slot.seats }))
       : [],
-    distance: originalBranch.distance
+    distance: originalBranch.distance,
+    latitude: originalBranch.latitude,
+    longitude: originalBranch.longitude
   } : {
     id: 0,
     location: '',
@@ -277,7 +280,9 @@ export function RestaurantCard({
     city: '',
     slots: [],
     availableSlots: [],
-    distance: undefined
+    distance: undefined,
+    latitude: undefined,
+    longitude: undefined
   };
 
   // Calculate distance using Haversine formula
@@ -321,19 +326,26 @@ export function RestaurantCard({
     }
   }, [restaurant.name, originalBranch, branch.distance, isNearby, restaurant.id]);
 
-  // Check if restaurant is saved when component mounts
+  // Check if restaurant branch is saved when component mounts or if originalBranch changes
   useEffect(() => {
     const checkSavedStatus = async () => {
       try {
-        const saved = await isRestaurantSaved(restaurant.id, branchIndex);
-        setIsSaved(saved);
+        // First check if the branch already has isSaved property set (from the API response)
+        if (originalBranch && originalBranch.isSaved !== undefined) {
+          console.log(`Branch already has isSaved property: ${originalBranch.isSaved}`);
+          setIsSaved(!!originalBranch.isSaved);
+        } else {
+          // Otherwise check with the API
+          const saved = await isRestaurantSaved(restaurant.id, branchIndex);
+          setIsSaved(saved);
+        }
       } catch (error) {
         console.error('Error checking saved status:', error);
       }
     };
     
     checkSavedStatus();
-  }, [restaurant.id, branchIndex]);
+  }, [restaurant.id, branchIndex, originalBranch]);
 
   const handleSaveToggle = async () => {
     try {
