@@ -130,7 +130,7 @@ function RootLayoutNav() {
               <Stack>
                 <Stack.Screen name="login" options={{ headerShown: false }} />
                 <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen name="(tabs)" options={{ headerShown: true, headerTitle: 'Ehgezli' }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false, headerTitle: 'Ehgezli' }} />
                 <Stack.Screen name="restaurant/[id]" options={{ headerTitle: 'Restaurant Details' }} />
               </Stack>
             </AuthWrapper>

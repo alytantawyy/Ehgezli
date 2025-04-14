@@ -10,6 +10,7 @@ import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { EhgezliButton } from '@/components/EhgezliButton';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function BookingsScreen() {
   const { user } = useAuth();
@@ -389,7 +390,7 @@ export default function BookingsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.headerContainer}>
         <View style={styles.headerContent}>
           <View>
@@ -619,7 +620,7 @@ export default function BookingsScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -657,7 +658,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     backgroundColor: '#f5f5f5',
-    marginBottom: 60,
+    marginBottom: 26,
   },
   headerContainer: {
     marginBottom: 16,

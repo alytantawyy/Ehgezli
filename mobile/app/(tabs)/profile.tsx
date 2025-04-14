@@ -9,6 +9,7 @@ import { useColorScheme } from 'react-native';
 import { TextInput } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
 import { updateUserProfile } from '@/shared/api/client';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -88,7 +89,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.scrollView}>
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>My Profile</Text>
           {!isEditing && (
@@ -155,22 +156,11 @@ export default function ProfileScreen() {
                     placeholderTextColor="#999"
                   />
                 </View>
-                
-                <View style={styles.halfFieldSection}>
-                  <Text style={styles.fieldLabel}>Gender</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={gender}
-                    onChangeText={setGender}
-                    placeholder="Your Gender"
-                    placeholderTextColor="#999"
-                  />
-                </View>
               </View>
               
               <View style={styles.fieldSection}>
                 <Text style={styles.fieldLabel}>Favorite Cuisines</Text>
-                <Text style={styles.cuisineHelper}>Select your favorite cuisines to get better restaurant recommendations</Text>
+                <Text style={styles.cuisineHelper}>Select up to 3 of your favorite cuisines to get better restaurant recommendations</Text>
                 <View style={styles.cuisinesGrid}>
                   {CUISINES.map((cuisine) => (
                     <TouchableOpacity
@@ -179,7 +169,11 @@ export default function ProfileScreen() {
                         styles.cuisineOption,
                         favoriteCuisines.includes(cuisine) && styles.cuisineOptionSelected
                       ]}
-                      onPress={() => toggleCuisine(cuisine)}
+                      onPress={() => {
+                        if (favoriteCuisines.length < 3 || favoriteCuisines.includes(cuisine)) {
+                          toggleCuisine(cuisine);
+                        }
+                      }}
                     >
                       <Text 
                         style={[
@@ -258,28 +252,6 @@ export default function ProfileScreen() {
                     <View style={styles.locationRow}>
                       <Ionicons name="location-outline" size={16} color="#666" style={styles.infoIcon} />
                       <Text style={styles.infoValue}>{user.city || 'Not specified'}</Text>
-                      {user.city && (
-                        <TouchableOpacity 
-                          style={styles.locationButton}
-                          onPress={() => {
-                            // In a real implementation, this would open a map view
-                            Alert.alert('Location', `View restaurants near ${user.city}?`, [
-                              { text: 'Cancel', style: 'cancel' },
-                              { text: 'View Nearby', onPress: () => console.log('Navigate to nearby restaurants') }
-                            ]);
-                          }}
-                        >
-                          <Text style={styles.locationButtonText}>Nearby</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-                  
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Gender</Text>
-                    <View style={styles.locationRow}>
-                      <Ionicons name="person-outline" size={16} color="#666" style={styles.infoIcon} />
-                      <Text style={styles.infoValue}>{user.gender || 'Not specified'}</Text>
                     </View>
                   </View>
                 </View>
@@ -320,7 +292,7 @@ export default function ProfileScreen() {
           }}
           style={styles.logoutButton}
         />
-      </View>
+      </SafeAreaView>
     </ScrollView>
   );
 }

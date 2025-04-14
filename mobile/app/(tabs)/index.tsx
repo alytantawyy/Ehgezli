@@ -15,6 +15,7 @@ import { getDefaultTimeForDisplay, getBaseTime, generateTimeSlotsFromTime } from
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { getRestaurants, getRestaurantLocation, getNearbyRestaurants } from '@/shared/api/client';
 import * as ExpoLocation from 'expo-location';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TabOneScreen() {
   console.log('[HomePage] rendering');
@@ -292,7 +293,7 @@ export default function TabOneScreen() {
   }, [user]);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View>
@@ -562,7 +563,7 @@ export default function TabOneScreen() {
           </TouchableOpacity>
         </Modal>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
