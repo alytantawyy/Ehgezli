@@ -276,12 +276,30 @@ export function RestaurantList({
             if (branch.closingTime) {
               const [closingHour, closingMinutes] = branch.closingTime.split(':').map(Number);
               
-              // Check if current time is past closing time
-              const isPastClosingTime = 
-                (currentHour > closingHour) || 
-                (currentHour === closingHour && currentMinutes >= closingMinutes);
+              // Improved logic for checking if current time is past closing time
+              // Handle midnight crossing (when closing time is between 00:00 and 06:00)
+              const isClosingAfterMidnight = closingHour >= 0 && closingHour < 6;
               
-              if (isPastClosingTime) {
+              let isPastClosingTime = false;
+              
+              if (isClosingAfterMidnight) {
+                // For closing times after midnight (e.g., 01:00)
+                // It's past closing time if current hour is between closing time and opening time
+                // For example, if closing is 01:00 and it's currently 02:30, it's past closing
+                isPastClosingTime = 
+                  (currentHour >= closingHour && currentHour < 10) || // After closing, before typical opening
+                  (currentHour >= 22); // Late night approaching midnight
+              } else {
+                // Normal case (e.g., closing at 23:00)
+                isPastClosingTime = 
+                  (currentHour > closingHour) || 
+                  (currentHour === closingHour && currentMinutes >= closingMinutes);
+              }
+              
+              // If user explicitly selected a time, respect that choice and don't override with noon slots
+              const userSelectedTime = time && time.length > 0;
+              
+              if (isPastClosingTime && !userSelectedTime) {
                 console.log(`Restaurant ${result.id} (${result.name}): Past closing time ${branch.closingTime}, showing slots for next day at noon`);
                 
                 // Create a date for tomorrow at noon
@@ -301,15 +319,34 @@ export function RestaurantList({
                   { time: '12:30' },
                   { time: '13:00' }
                 ];
+              } else if (userSelectedTime) {
+                console.log(`User selected time ${time}, generating slots based on that time`);
                 
-                console.log(`New time slots for ${result.name}:`, branch.slots);
+                // If user selected a time, generate slots around that time
+                try {
+                  const [timePart, ampm] = time.split(' ');
+                  const [hours, minutes] = timePart.split(':').map(Number);
+
+                  let hour24 = hours;
+                  if (ampm === 'PM' && hours < 12) hour24 += 12;
+                  if (ampm === 'AM' && hours === 12) hour24 = 0;
+
+                  // Create a date object with the selected time
+                  const selectedTimeDate = new Date();
+                  selectedTimeDate.setHours(hour24, minutes, 0, 0);
+                  
+                  // Generate time slots around the selected time
+                  const timeSlots = generateTimeSlotsFromTime(selectedTimeDate);
+                  
+                  // Convert to the expected format
+                  branch.slots = timeSlots.map(timeStr => ({ time: timeStr }));
+                  
+                  console.log(`Generated slots based on user selection:`, branch.slots);
+                } catch (error) {
+                  console.error('Error generating slots from user-selected time:', error);
+                }
               }
             }
-          }
-
-          // Ensure each branch has slots array (even if empty)
-          if (!branch.slots) {
-            branch.slots = [];
           }
         });
 
