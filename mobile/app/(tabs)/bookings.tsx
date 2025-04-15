@@ -11,11 +11,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { EhgezliButton } from '@/components/EhgezliButton';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 export default function BookingsScreen() {
   const { user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors; // Use Colors directly
+  const router = useRouter(); // Move useRouter to the top level
 
   const queryClient = useQueryClient();
 
@@ -246,19 +248,22 @@ export default function BookingsScreen() {
   }
 
   if (!bookings || bookings.length === 0) {
+    
     return (
       <View style={styles.container}>
-        <Ionicons name="calendar-outline" size={64} color={colors.primary} style={styles.icon} />
-        <Text style={[styles.title, { color: colors.text }]}>No Bookings Yet</Text>
-        <Text style={[styles.message, { color: colors.text }]}>
-          You haven't made any restaurant bookings yet
-        </Text>
-        <EhgezliButton 
-          title="Find Restaurants" 
-          variant="ehgezli" 
-          onPress={() => {/* Navigate to home */}}
-          style={styles.button}
-        />
+        <View style={styles.emptyStateContainer}>
+          <Ionicons name="calendar-outline" size={64} color={colors.primary} style={styles.icon} />
+          <Text style={[styles.title, { color: colors.text }]}>No Bookings Yet</Text>
+          <Text style={[styles.message, { color: colors.text }]}>
+            You haven't made any restaurant bookings yet
+          </Text>
+          <EhgezliButton 
+            title="Find Restaurants" 
+            variant="ehgezli" 
+            onPress={() => router.navigate('/')} 
+            style={styles.button}
+          />
+        </View>
       </View>
     );
   }
@@ -799,7 +804,12 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60, // Shift content down
   },
   errorText: {
     fontSize: 16,

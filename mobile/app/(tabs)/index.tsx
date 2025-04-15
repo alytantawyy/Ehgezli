@@ -134,10 +134,18 @@ export default function TabOneScreen() {
     setIsTimePickerVisible(false);
     
     if (selectedTime) {
-      // Format the selected time for display
+      // Round to nearest 30-minute interval
       const hours = selectedTime.getHours();
-      const minutes = selectedTime.getMinutes();
+      let minutes = selectedTime.getMinutes();
       
+      // Round minutes to nearest 30 (0 or 30)
+      minutes = minutes >= 30 ? 30 : 0;
+      
+      // Create a new date with rounded minutes
+      const roundedTime = new Date(selectedTime);
+      roundedTime.setMinutes(minutes);
+      
+      // Format the selected time for display
       const ampm = hours >= 12 ? 'PM' : 'AM';
       const displayHours = hours % 12 || 12;
       const displayTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;

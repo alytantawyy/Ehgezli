@@ -1,3 +1,14 @@
+import { Platform } from 'react-native';
+
+// Re-export from the appropriate platform-specific implementation
+if (Platform.OS === 'web') {
+  // For web platforms, use the web-specific implementation
+  module.exports = require('./client.web');
+} else {
+  // For native platforms (iOS, Android), use the native implementation
+  // The actual implementation is in this file, so we don't need to do anything special here
+}
+
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';

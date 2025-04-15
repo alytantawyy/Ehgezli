@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, TextInput, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, TextInput, ActivityIndicator, Platform } from 'react-native';
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
@@ -302,14 +302,23 @@ export default function ProfileScreen() {
           title="Log Out"
           variant="ehgezli"
           onPress={() => {
-            Alert.alert(
-              'Log Out',
-              'Are you sure you want to log out?',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Log Out', onPress: logout, style: 'destructive' }
-              ]
-            );
+            // Use different confirmation approaches based on platform
+            if (Platform.OS === 'web') {
+              // For web, use the browser's native confirm dialog
+              if (window.confirm('Are you sure you want to log out?')) {
+                logout();
+              }
+            } else {
+              // For native platforms, use React Native's Alert
+              Alert.alert(
+                'Log Out',
+                'Are you sure you want to log out?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Log Out', onPress: logout, style: 'destructive' }
+                ]
+              );
+            }
           }}
           style={styles.logoutButton}
         />
