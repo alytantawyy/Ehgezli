@@ -284,21 +284,21 @@ export default function ProfileScreen() {
                   )}
                 </View>
               </View>
-              {!isEditing && (
-                        <EhgezliButton
-                          title="Edit Profile"
-                          variant="ehgezli"
-                          onPress={() => setIsEditing(true)}
-                          style={styles.editProfileButton}
-                        />
-                      )}
+              
             </>
           )}
         </View>
 
         
-
-        <EhgezliButton
+        {!isEditing && (
+                <EhgezliButton
+                  title="Edit Profile"
+                  variant="ehgezli"
+                  onPress={() => setIsEditing(true)}
+                  style={styles.editProfileButton}
+                />
+              )}        
+              <EhgezliButton
           title="Log Out"
           variant="ehgezli"
           onPress={() => {
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   },
   editProfileButton: {
     marginBottom: 12,
-    marginTop: 12,
+    marginTop: 0,
   },
   profileCard: {
     backgroundColor: 'white',
