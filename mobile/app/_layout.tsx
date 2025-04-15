@@ -100,8 +100,9 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     // Skip redirects when still loading auth state or navigation isn't ready
     if (isLoading || !isNavigationReady) return;
 
-    // Define protected routes - all routes except login
-    const isProtectedRoute = pathname !== '/login';
+    // Define protected routes - all routes except login and password reset screens
+    const publicRoutes = ['/login', '/forgot-password', '/reset-password'];
+    const isProtectedRoute = !publicRoutes.includes(pathname);
 
     if (!user && isProtectedRoute) {
       // Redirect to login if not authenticated and trying to access a protected route
@@ -129,6 +130,8 @@ function RootLayoutNav() {
             <AuthWrapper>
               <Stack>
                 <Stack.Screen name="login" options={{ headerShown: false }} />
+                <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                <Stack.Screen name="reset-password" options={{ headerShown: false }} />
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false, headerTitle: 'Ehgezli' }} />
                 <Stack.Screen name="restaurant/[id]" options={{ headerShown: false, headerTitle: 'Restaurant Details' }} />

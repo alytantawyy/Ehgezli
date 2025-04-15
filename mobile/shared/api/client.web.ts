@@ -101,7 +101,7 @@ export const api = axios.create({
 
 // Add auth token to requests
 api.interceptors.request.use(async (config) => {
-  const token = localStorage.getItem('authToken');
+  const token = await getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -567,7 +567,38 @@ export const getRestaurantLocation = async (restaurantId: number, params?: {
   }
 };
 
+
+// Password reset functions
+export const requestPasswordReset = async (email: string): Promise<{ message: string; previewUrl?: string }> => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/api/forgot-password`, { email });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to request password reset');
+    }
+    throw new Error('Network error. Please check your connection and try again.');
+  }
+};
+
+export const resetPassword = async (token: string, password: string): Promise<{ message: string }> => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/api/reset-password`, { token, password });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to reset password');
+    }
+    throw new Error('Network error. Please check your connection and try again.');
+  }
+};
+
 // Helper function to get auth token
 export const getAuthToken = async (): Promise<string | null> => {
   return localStorage.getItem('authToken');
+};
+
+// Helper function to clear auth token
+export const clearAuthToken = async (): Promise<void> => {
+  localStorage.removeItem('authToken');
 };

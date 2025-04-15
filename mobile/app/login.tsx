@@ -430,7 +430,13 @@ function LoginScreen() {
                 />
                 
                 {isLoginMode && (
-                  <TouchableOpacity style={styles.forgotPassword}>
+                  <TouchableOpacity 
+                    style={styles.forgotPassword}
+                    onPress={() => {
+                      console.log('Navigating to forgot password screen');
+                      router.push('/forgot-password');
+                    }}
+                  >
                     <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
                   </TouchableOpacity>
                 )}
@@ -723,7 +729,13 @@ function LoginScreen() {
                 />
                 
                 {isLoginMode && (
-                  <TouchableOpacity style={styles.forgotPassword}>
+                  <TouchableOpacity 
+                    style={styles.forgotPassword}
+                    onPress={() => {
+                      console.log('Navigating to forgot password screen');
+                      router.push('/forgot-password');
+                    }}
+                  >
                     <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
                   </TouchableOpacity>
                 )}

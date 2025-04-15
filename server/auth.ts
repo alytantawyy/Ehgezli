@@ -334,6 +334,14 @@ export function setupAuth(app: Express) {
         // Create reset token and send email
         const token = await storage.createPasswordResetToken(user.id);
         emailInfo = await sendPasswordResetEmail(email, token);
+        
+        // Log the token in development mode for testing
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('=================================================');
+          console.log(`PASSWORD RESET TOKEN for ${email}: ${token}`);
+          console.log('Use this token in the reset password screen');
+          console.log('=================================================');
+        }
       }
       
       // Always return success to prevent email enumeration
