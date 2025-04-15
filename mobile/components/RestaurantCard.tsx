@@ -49,8 +49,14 @@ export interface BranchWithAvailability {
   availableSlots?: AvailableSlot[];
   isSaved?: boolean;
   distance?: number;
+  openingTime?: string;
+  closingTime?: string;
+  seatsCount?: number;
+  tablesCount?: number;
+  restaurantId?: number;
   latitude?: string;
   longitude?: string;
+  reservationDuration?: number;
 }
 
 export interface RestaurantCardProps {
@@ -272,7 +278,13 @@ export function RestaurantCard({
       : [],
     distance: originalBranch.distance,
     latitude: originalBranch.latitude,
-    longitude: originalBranch.longitude
+    longitude: originalBranch.longitude,
+    openingTime: originalBranch.openingTime,
+    closingTime: originalBranch.closingTime,
+    seatsCount: originalBranch.seatsCount,
+    tablesCount: originalBranch.tablesCount,
+    restaurantId: originalBranch.restaurantId,
+    reservationDuration: originalBranch.reservationDuration
   } : {
     id: 0,
     location: '',
@@ -282,7 +294,13 @@ export function RestaurantCard({
     availableSlots: [],
     distance: undefined,
     latitude: undefined,
-    longitude: undefined
+    longitude: undefined,
+    openingTime: undefined,
+    closingTime: undefined,
+    seatsCount: undefined,
+    tablesCount: undefined,
+    restaurantId: undefined,
+    reservationDuration: undefined
   };
 
   // Calculate distance using Haversine formula

@@ -255,7 +255,7 @@ export function RestaurantList({
         result.branches.forEach(branch => {
           // If branch has availableSlots but no slots, generate them
           if (branch.availableSlots && branch.availableSlots.length > 0 && (!branch.slots || branch.slots.length === 0)) {
-            console.log(`Mapping availableSlots to slots for restaurant ${result.id}, branch ${branch.id}`);
+            console.log(`Restaurant ${result.id} (${result.name}): Adding slots from availableSlots`);
 
             // Generate time slots using our utility function
             const timeSlots = generateAndFormatTimeSlots();
@@ -264,6 +264,47 @@ export function RestaurantList({
             branch.slots = timeSlots;
 
             console.log('Final branch slots:', branch.slots);
+          }
+
+          // Check if it's past the restaurant's closing time
+          if (branch.slots && branch.slots.length > 0) {
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinutes = now.getMinutes();
+            
+            // Parse closing time (format: "HH:MM")
+            if (branch.closingTime) {
+              const [closingHour, closingMinutes] = branch.closingTime.split(':').map(Number);
+              
+              // Check if current time is past closing time
+              const isPastClosingTime = 
+                (currentHour > closingHour) || 
+                (currentHour === closingHour && currentMinutes >= closingMinutes);
+              
+              if (isPastClosingTime) {
+                console.log(`Restaurant ${result.id} (${result.name}): Past closing time ${branch.closingTime}, showing slots for next day at noon`);
+                
+                // Create a date for tomorrow at noon
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(12, 0, 0, 0);
+                
+                // If it's past midnight but before noon, use today at noon instead
+                if (currentHour >= 0 && currentHour < 12) {
+                  tomorrow.setDate(tomorrow.getDate() - 1); // Use today instead of tomorrow
+                  console.log(`It's after midnight but before noon, using today at noon instead`);
+                }
+                
+                // Generate noon time slots: 12:00, 12:30, 1:00
+                branch.slots = [
+                  { time: '12:00' },
+                  { time: '12:30' },
+                  { time: '13:00' }
+                ];
+                
+                console.log(`New time slots for ${result.name}:`, branch.slots);
+              }
+            }
           }
 
           // Ensure each branch has slots array (even if empty)
