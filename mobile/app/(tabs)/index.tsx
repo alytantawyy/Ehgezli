@@ -305,7 +305,7 @@ export default function TabOneScreen() {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.title}>Ehgezli</Text>
+            <Text style={styles.title}>ehgezli</Text>
             <Text style={styles.subtitle}>Find and book restaurants</Text>
           </View>
           
