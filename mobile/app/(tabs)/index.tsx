@@ -13,13 +13,13 @@ import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getDefaultTimeForDisplay, getBaseTime, generateTimeSlotsFromTime } from '@/shared/utils/time-slots';
 import { useQuery, useQueries } from '@tanstack/react-query';
-import { getRestaurants, getRestaurantLocation, getNearbyRestaurants } from '@/shared/api/client';
+import { getRestaurants, getRestaurantLocation, getNearbyRestaurants, User, RestaurantUser } from '@/shared/api/client';
 import * as ExpoLocation from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TabOneScreen() {
   console.log('[HomePage] rendering');
-  const { user } = useAuth();
+  const { user, isRestaurant } = useAuth();
   const { location, requestLocationPermission } = useLocation();
   
   // Search and filter state
@@ -311,11 +311,19 @@ export default function TabOneScreen() {
           
           {user && (
             <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
-              <Avatar 
-                firstName={user.firstName} 
-                lastName={user.lastName} 
-                size={40} 
-              />
+              {isRestaurant ? (
+                <Avatar 
+                  firstName={(user as RestaurantUser).name} 
+                  lastName="" 
+                  size={40} 
+                />
+              ) : (
+                <Avatar 
+                  firstName={(user as User).firstName} 
+                  lastName={(user as User).lastName} 
+                  size={40} 
+                />
+              )}
             </TouchableOpacity>
           )}
         </View>
@@ -323,7 +331,10 @@ export default function TabOneScreen() {
         {user && (
           <View style={styles.userInfo}>
             <Text style={styles.welcomeText}>
-              Welcome, {user.firstName}!
+              {isRestaurant 
+                ? `Welcome, ${(user as RestaurantUser).name}` 
+                : `Welcome back, ${(user as User).firstName}`
+              }
             </Text>
           </View>
         )}

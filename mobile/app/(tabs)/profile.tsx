@@ -7,19 +7,31 @@ import { EhgezliButton } from '@/components/EhgezliButton';
 import { Avatar } from '@/components/Avatar';
 import { useColorScheme } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
-import { updateUserProfile, getCurrentUser } from '@/shared/api/client';
+import { updateUserProfile, getCurrentUser, User } from '@/shared/api/client';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, isRestaurant } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
+  const router = useRouter();
+  
+  // If this is a restaurant user, redirect to restaurant profile
+  React.useEffect(() => {
+    if (isRestaurant) {
+      router.replace('/restaurant-dashboard');
+    }
+  }, [isRestaurant, router]);
+  
+  // Type assertion - we know this is a regular user in this tab
+  const regularUser = user as User;
   
   const [isEditing, setIsEditing] = useState(false);
-  const [firstName, setFirstName] = useState(user?.firstName || '');
-  const [lastName, setLastName] = useState(user?.lastName || '');
-  const [city, setCity] = useState(user?.city || '');
-  const [gender, setGender] = useState(user?.gender || '');
-  const [favoriteCuisines, setFavoriteCuisines] = useState<string[]>(user?.favoriteCuisines || []);
+  const [firstName, setFirstName] = useState(regularUser?.firstName || '');
+  const [lastName, setLastName] = useState(regularUser?.lastName || '');
+  const [city, setCity] = useState(regularUser?.city || '');
+  const [gender, setGender] = useState(regularUser?.gender || '');
+  const [favoriteCuisines, setFavoriteCuisines] = useState<string[]>(regularUser?.favoriteCuisines || []);
 
   // Update profile mutation
   const updateProfileMutation = useMutation({
@@ -217,11 +229,11 @@ export default function ProfileScreen() {
                   style={styles.cancelButton} 
                   onPress={() => {
                     setIsEditing(false);
-                    setFirstName(user?.firstName || '');
-                    setLastName(user?.lastName || '');
-                    setCity(user?.city || '');
-                    setGender(user?.gender || '');
-                    setFavoriteCuisines(user?.favoriteCuisines || []);
+                    setFirstName(regularUser?.firstName || '');
+                    setLastName(regularUser?.lastName || '');
+                    setCity(regularUser?.city || '');
+                    setGender(regularUser?.gender || '');
+                    setFavoriteCuisines(regularUser?.favoriteCuisines || []);
                   }}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -234,12 +246,12 @@ export default function ProfileScreen() {
               <View style={styles.welcomeSection}>
                 <View style={styles.avatarContainer}>
                   <Avatar 
-                    firstName={user.firstName}
-                    lastName={user.lastName}
+                    firstName={regularUser.firstName}
+                    lastName={regularUser.lastName}
                     size={70}
                   />
                   <View style={styles.welcomeTextContainer}>
-                    <Text style={styles.welcomeText}>Hi, {user.firstName}!</Text>
+                    <Text style={styles.welcomeText}>Hi, {regularUser.firstName}!</Text>
                     <Text style={styles.memberSince}>Member since March 2025</Text>
                   </View>
                 </View>
@@ -249,12 +261,12 @@ export default function ProfileScreen() {
                 <View style={styles.infoRow}>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Full Name</Text>
-                    <Text style={styles.infoValue}>{user.firstName} {user.lastName}</Text>
+                    <Text style={styles.infoValue}>{regularUser.firstName} {regularUser.lastName}</Text>
                   </View>
                   
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Email</Text>
-                    <Text style={styles.infoValue}>{user.email}</Text>
+                    <Text style={styles.infoValue}>{regularUser.email}</Text>
                   </View>
                 </View>
                 
@@ -263,7 +275,7 @@ export default function ProfileScreen() {
                     <Text style={styles.infoLabel}>City</Text>
                     <View style={styles.locationRow}>
                       <Ionicons name="location-outline" size={16} color="#666" style={styles.infoIcon} />
-                      <Text style={styles.infoValue}>{user.city || 'Not specified'}</Text>
+                      <Text style={styles.infoValue}>{regularUser.city || 'Not specified'}</Text>
                     </View>
                   </View>
                 </View>
@@ -272,8 +284,8 @@ export default function ProfileScreen() {
               <View style={styles.cuisineSection}>
                 <Text style={styles.cuisineLabel}>Favorite Cuisines</Text>
                 <View style={styles.cuisineTagsContainer}>
-                  {user.favoriteCuisines && user.favoriteCuisines.length > 0 ? (
-                    user.favoriteCuisines.map((cuisine) => (
+                  {regularUser.favoriteCuisines && regularUser.favoriteCuisines.length > 0 ? (
+                    regularUser.favoriteCuisines.map((cuisine) => (
                       <View key={cuisine} style={styles.cuisineTag}>
                         <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />
                         <Text style={styles.cuisineTagText}>{cuisine}</Text>

@@ -1,4 +1,25 @@
 import { Platform } from 'react-native';
+import axios from 'axios';
+import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
+
+// Simple function to decode JWT tokens without external dependencies
+export function decodeJWT(token: string): any {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('Error decoding JWT token:', error);
+    return null;
+  }
+}
 
 // Re-export from the appropriate platform-specific implementation
 if (Platform.OS === 'web') {
@@ -8,10 +29,6 @@ if (Platform.OS === 'web') {
   // For native platforms (iOS, Android), use the native implementation
   // The actual implementation is in this file, so we don't need to do anything special here
 }
-
-import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
-import Constants from 'expo-constants';
 
 // Define types for our data models
 export interface User {
@@ -44,6 +61,18 @@ export interface RestaurantProfile {
   logo?: string;
   rating?: number;
   isProfileComplete?: boolean;
+}
+
+export interface RestaurantUser {
+  id: number;
+  name: string;
+  email: string;
+  about?: string;
+  cuisine?: string;
+  priceRange?: string;
+  logo?: string;
+  isRestaurant: true;
+  branches?: Branch[];
 }
 
 export interface Branch {
@@ -118,7 +147,7 @@ export const api = axios.create({
 
 // Add auth token to requests
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('authToken');
+  const token = await getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -133,7 +162,7 @@ export const loginUser = async (email: string, password: string) => {
     
     // Save the auth token
     if (response.data.token) {
-      await SecureStore.setItemAsync('authToken', response.data.token);
+      await SecureStore.setItemAsync('auth_token', response.data.token);
     }
     
     return response.data;
@@ -213,7 +242,7 @@ export const registerUser = async (userData: {
     
     // Save the auth token
     if (response.data.token) {
-      await SecureStore.setItemAsync('authToken', response.data.token);
+      await SecureStore.setItemAsync('auth_token', response.data.token);
       
       // After registration and token storage, update the user profile with cuisines
       try {
@@ -253,12 +282,12 @@ export const logoutUser = async () => {
     }
     
     // Remove the token from storage
-    await SecureStore.deleteItemAsync('authToken');
+    await SecureStore.deleteItemAsync('auth_token');
     return true;
   } catch (error) {
     console.error('Logout error:', error);
     // Still delete the token even if the API call fails
-    await SecureStore.deleteItemAsync('authToken');
+    await SecureStore.deleteItemAsync('auth_token');
     throw error;
   }
 };
@@ -279,6 +308,192 @@ export const getCurrentUser = async (): Promise<User | null> => {
     return null;
   }
 };
+
+// Restaurant auth functions
+export async function loginRestaurant(email: string, password: string): Promise<void> {
+  try {
+    // Log the request for debugging
+    console.log('Attempting to login restaurant with:', { email });
+
+    // Make the API call
+    const response = await api.post('/api/restaurant/login', {
+      email,
+      password,
+    });
+
+    // Store the token
+    const { token } = response.data;
+    console.log('Token received from server:', token ? 'Token exists' : 'No token');
+    
+    if (token) {
+      // Try to decode the token to verify it contains the correct type
+      try {
+        const decoded = decodeJWT(token);
+        console.log('Restaurant login - Decoded token:', JSON.stringify(decoded));
+      } catch (decodeError) {
+        console.error('Failed to decode token:', decodeError);
+      }
+      
+      await SecureStore.setItemAsync('auth_token', token);
+      
+      // Verify token was stored
+      const storedToken = await SecureStore.getItemAsync('auth_token');
+      console.log('Token stored successfully:', storedToken ? 'Token stored' : 'Token not stored');
+    } else {
+      throw new Error('No token received from server');
+    }
+
+    console.log('Restaurant login successful');
+  } catch (error: any) {
+    console.error('Restaurant login error:', error.response?.data || error.message);
+    
+    // Format the error for consistent handling
+    const errorResponse = {
+      type: 'auth_error',
+      message: 'Invalid email or password. Please try again.',
+    };
+
+    // Check for specific error types from the API
+    if (error.response?.data?.error) {
+      errorResponse.message = error.response.data.error;
+    }
+
+    throw errorResponse;
+  }
+}
+
+export async function registerRestaurant(restaurantData: {
+  name: string;
+  email: string;
+  password: string;
+  about?: string;
+  cuisine?: string;
+  priceRange?: string;
+  logo?: string;
+}): Promise<RestaurantUser> {
+  try {
+    // Log the request for debugging
+    console.log('Attempting to register restaurant:', { 
+      name: restaurantData.name, 
+      email: restaurantData.email,
+      hasLogo: !!restaurantData.logo
+    });
+
+    // Create form data for file upload
+    const formData = new FormData();
+    formData.append('name', restaurantData.name);
+    formData.append('email', restaurantData.email);
+    formData.append('password', restaurantData.password);
+    
+    if (restaurantData.about) {
+      formData.append('about', restaurantData.about);
+    }
+    
+    if (restaurantData.cuisine) {
+      formData.append('cuisine', restaurantData.cuisine);
+    }
+    
+    if (restaurantData.priceRange) {
+      formData.append('priceRange', restaurantData.priceRange);
+    }
+    
+    // Handle logo upload if provided
+    if (restaurantData.logo) {
+      // Get file extension
+      const uriParts = restaurantData.logo.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+      
+      formData.append('logo', {
+        uri: restaurantData.logo,
+        name: `logo.${fileType}`,
+        type: `image/${fileType}`
+      } as any);
+    }
+
+    // Make the API call
+    const response = await api.post('/api/restaurant/register', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    // Store the token
+    const { token, restaurant } = response.data;
+    if (token) {
+      await SecureStore.setItemAsync('auth_token', token);
+    } else {
+      throw new Error('No token received from server');
+    }
+
+    console.log('Restaurant registration successful');
+    return restaurant;
+  } catch (error: any) {
+    console.error('Restaurant registration error:', error.response?.data || error.message);
+    
+    // Format the error for consistent handling
+    const errorResponse = {
+      type: 'registration_error',
+      message: 'Registration failed. Please try again.',
+    };
+
+    // Check for specific error types from the API
+    if (error.response?.data?.error) {
+      errorResponse.message = error.response.data.error;
+    }
+
+    throw errorResponse;
+  }
+}
+
+export async function getCurrentRestaurant(): Promise<RestaurantUser | null> {
+  try {
+    const token = await getAuthToken();
+    
+    if (!token) {
+      console.log('getCurrentRestaurant: No token found');
+      return null;
+    }
+
+    console.log('getCurrentRestaurant: Token found, attempting to decode');
+    
+    try {
+      // Decode the token to get the user ID
+      const decodedToken = decodeJWT(token) as { id: number; type: string };
+      
+      console.log('getCurrentRestaurant: Decoded token:', JSON.stringify(decodedToken));
+      
+      if (!decodedToken) {
+        console.error('getCurrentRestaurant: Failed to decode token');
+        return null;
+      }
+      
+      if (decodedToken.type !== 'restaurant') {
+        console.log(`getCurrentRestaurant: Token is for ${decodedToken.type}, not restaurant`);
+        return null;
+      }
+      
+      // Use the restaurant ID from the token to fetch restaurant data
+      console.log(`getCurrentRestaurant: Fetching restaurant data for ID ${decodedToken.id}`);
+      const response = await api.get(`/api/restaurant/${decodedToken.id}`);
+      
+      console.log('getCurrentRestaurant: Successfully fetched restaurant data');
+      
+      // Add isRestaurant flag to ensure proper type identification
+      const restaurantData = {
+        ...response.data,
+        isRestaurant: true
+      };
+      
+      return restaurantData;
+    } catch (error) {
+      console.error('Error fetching restaurant profile:', error);
+      return null;
+    }
+  } catch (error) {
+    console.error('getCurrentRestaurant: Unexpected error:', error);
+    return null;
+  }
+}
 
 // Restaurant functions
 export const getRestaurants = async (params?: Record<string, any>): Promise<Restaurant[]> => {
@@ -714,11 +929,30 @@ export const resetPassword = async (token: string, password: string): Promise<{ 
 };
 
 // Helper function to get auth token
-export const getAuthToken = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync('authToken');
-};
+export async function getAuthToken(): Promise<string | null> {
+  console.log('getAuthToken - Attempting to retrieve token from SecureStore');
+  try {
+    const token = await SecureStore.getItemAsync('auth_token');
+    console.log('getAuthToken - Retrieved token:', token ? 'Token exists' : 'No token');
+    
+    if (token) {
+      // Log token details for debugging
+      try {
+        const decoded = decodeJWT(token);
+        console.log('getAuthToken - Token type:', decoded?.type || 'unknown');
+      } catch (e) {
+        console.error('getAuthToken - Failed to decode token:', e);
+      }
+    }
+    
+    return token;
+  } catch (error) {
+    console.error('getAuthToken - Error retrieving token:', error);
+    return null;
+  }
+}
 
 // Helper function to clear auth token
 export const clearAuthToken = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync('authToken');
+  await SecureStore.deleteItemAsync('auth_token');
 };

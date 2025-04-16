@@ -26,6 +26,7 @@ import { EhgezliButton } from '../components/EhgezliButton';
 import Colors from '../constants/Colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import { loginRestaurant, registerRestaurant } from '../shared/api/client';
 
 const { width, height } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -121,8 +122,11 @@ function LoginScreen() {
   const [showCuisineDropdown, setShowCuisineDropdown] = useState(false);
   const [showPriceRangeDropdown, setShowPriceRangeDropdown] = useState(false);
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
+  const [restaurantLoading, setRestaurantLoading] = useState(false);
+  const [restaurantError, setRestaurantError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   
-  const { login, register, isLoading, error, clearError } = useAuth();
+  const { login, register, isLoading, error, clearError, loginAsRestaurant } = useAuth();
   const router = useRouter();
 
   const onChangeBirthday = (event: any, selectedDate: Date | undefined) => {
@@ -143,44 +147,112 @@ function LoginScreen() {
 
   const handleSubmit = async () => {
     try {
+      setIsAuthenticating(true);
+      
       if (isRestaurantMode) {
+        // Clear any previous errors
+        setRestaurantError(null);
+        
         // Handle restaurant authentication
         if (isRestaurantLoginMode) {
           // Restaurant login
           console.log('Restaurant login with:', email, password);
-          // TODO: Implement restaurant login API call
-          // await restaurantLogin(email, password);
-          // router.replace('/restaurant-dashboard');
+          setRestaurantLoading(true);
+          try {
+            // First clear any existing auth state
+            await loginAsRestaurant(email, password);
+            console.log('Restaurant login successful, navigating to dashboard');
+            // Wait a moment before navigation to ensure auth state is updated
+            setTimeout(() => {
+              router.replace('/restaurant-dashboard' as any);
+              setIsAuthenticating(false); // Reset auth state after navigation
+            }, 500);
+          } catch (err: any) {
+            setRestaurantError(err.message || 'Login failed. Please try again.');
+            setIsAuthenticating(false);
+            return;
+          } finally {
+            setRestaurantLoading(false);
+          }
         } else {
           // Restaurant registration
           console.log('Restaurant registration with:', firstName, email, password, restaurantAbout, restaurantCuisine, priceRange, restaurantLogo);
-          // TODO: Implement restaurant registration API call
-          // await restaurantRegister(firstName, email, password, restaurantAbout, restaurantCuisine, priceRange, restaurantLogo);
-          // router.replace('/restaurant-dashboard');
+          
+          // Validate form
+          if (!firstName || !email || !password) {
+            setRestaurantError('Please fill in all required fields');
+            setIsAuthenticating(false);
+            return;
+          }
+          
+          setRestaurantLoading(true);
+          try {
+            await registerRestaurant({
+              name: firstName,
+              email,
+              password,
+              about: restaurantAbout,
+              cuisine: restaurantCuisine,
+              priceRange,
+              logo: restaurantLogo
+            });
+            console.log('About to navigate to restaurant dashboard after registration');
+            router.replace('/restaurant-dashboard');
+            setIsAuthenticating(false); // Reset auth state after navigation
+          } catch (err: any) {
+            setRestaurantError(err.message || 'Registration failed. Please try again.');
+            setIsAuthenticating(false);
+            return;
+          } finally {
+            setRestaurantLoading(false);
+          }
         }
       } else if (isLoginMode) {
-        await login(email, password);
-        router.replace('/(tabs)');
+        try {
+          console.log('User login with:', email, password);
+          await login(email, password);
+          console.log('User login successful, navigating to tabs');
+          // Wait a moment before navigation to ensure auth state is updated
+          setTimeout(() => {
+            router.replace('/(tabs)' as any);
+            setIsAuthenticating(false); // Reset auth state after navigation
+          }, 500);
+        } catch (err: any) {
+          Alert.alert('Login Failed', err.message || 'Invalid credentials');
+          setIsAuthenticating(false);
+          return;
+        }
       } else {
         // Validate form
         if (!firstName || !lastName || !email || !password || !gender || !birthday || !city || cuisines.length === 0) {
           Alert.alert('Error', 'Please fill in all fields');
+          setIsAuthenticating(false);
           return;
         }
         
         // Register user
-        await register({
-          firstName,
-          lastName,
-          email,
-          password,
-          gender,
-          birthday: birthday?.toISOString() || new Date().toISOString(),
-          city,
-          cuisines: cuisines,
-        });
-        
-        router.replace('/(tabs)');
+        try {
+          const userData = await register({
+            firstName,
+            lastName,
+            email,
+            password,
+            gender,
+            birthday: formatBirthdayForAPI(),
+            city,
+            cuisines,
+          });
+          console.log('User registration successful, navigating to tabs');
+          // Wait a moment before navigation
+          setTimeout(() => {
+            router.replace('/(tabs)' as any);
+            setIsAuthenticating(false); // Reset auth state after navigation
+          }, 500);
+        } catch (err: any) {
+          Alert.alert('Registration Failed', err.message || 'Registration failed. Please try again.');
+          setIsAuthenticating(false);
+          return;
+        }
       }
     } catch (err: any) {
       // Error is already set in the auth context
@@ -191,6 +263,7 @@ function LoginScreen() {
       if (err.type === 'network_error') {
         // Could show a network status indicator
       }
+      setIsAuthenticating(false);
     }
   };
 
@@ -693,6 +766,15 @@ function LoginScreen() {
                 )}
                 
                 {error && <Text style={styles.errorText}>{error}</Text>}
+                {restaurantError && <Text style={styles.errorText}>{restaurantError}</Text>}
+                
+                <EhgezliButton
+                  title={isLoginMode ? 'Login' : isRestaurantMode ? (isRestaurantLoginMode ? 'Login' : 'Register') : 'Register'}
+                  onPress={handleSubmit}
+                  variant="ehgezli"
+                  loading={isLoading || restaurantLoading || isAuthenticating}
+                  style={styles.button}
+                />
                 
                 {isLoginMode && (
                   <TouchableOpacity 
@@ -1203,12 +1285,13 @@ function LoginScreen() {
                 )}
                 
                 {error && <Text style={styles.errorText}>{error}</Text>}
+                {restaurantError && <Text style={styles.errorText}>{restaurantError}</Text>}
                 
                 <EhgezliButton
                   title={isLoginMode ? 'Login' : isRestaurantMode ? (isRestaurantLoginMode ? 'Login' : 'Register') : 'Register'}
                   onPress={handleSubmit}
                   variant="ehgezli"
-                  loading={isLoading}
+                  loading={isLoading || restaurantLoading || isAuthenticating}
                   style={styles.button}
                 />
                 

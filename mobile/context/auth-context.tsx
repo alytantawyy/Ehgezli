@@ -1,11 +1,13 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { getCurrentUser, loginUser, logoutUser, registerUser, User } from '../shared/api/client';
+import { getCurrentUser, loginUser, logoutUser, registerUser, User, getCurrentRestaurant, RestaurantUser, loginRestaurant, getAuthToken, decodeJWT, clearAuthToken } from '../shared/api/client';
 
 interface AuthContextType {
-  user: User | null;
+  user: User | RestaurantUser | null;
   isLoading: boolean;
   error: string | null;
+  isRestaurant: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginAsRestaurant: (email: string, password: string) => Promise<void>;
   register: (userData: { 
     firstName: string; 
     lastName: string; 
@@ -24,19 +26,67 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | RestaurantUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRestaurant, setIsRestaurant] = useState(false);
 
   // Check for existing session on app load
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        const userData = await getCurrentUser();
-        setUser(userData);
+        // Get the auth token first
+        const token = await getAuthToken();
+        
+        if (!token) {
+          console.log('No auth token found');
+          setUser(null);
+          setIsRestaurant(false);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Decode the token to determine user type
+        const decodedToken = decodeJWT(token) as { id: number; type: string } | null;
+        console.log('Auth context - Decoded token:', JSON.stringify(decodedToken));
+        
+        if (!decodedToken) {
+          console.log('Failed to decode token');
+          setUser(null);
+          setIsRestaurant(false);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Check token type
+        if (decodedToken.type === 'restaurant') {
+          console.log('Token is for restaurant user, fetching restaurant data');
+          const restaurantData = await getCurrentRestaurant();
+          if (restaurantData) {
+            setUser(restaurantData);
+            setIsRestaurant(true);
+          } else {
+            // Failed to get restaurant data
+            setUser(null);
+            setIsRestaurant(false);
+          }
+        } else {
+          console.log('Token is for regular user, fetching user data');
+          const userData = await getCurrentUser();
+          if (userData) {
+            setUser(userData);
+            setIsRestaurant(false);
+          } else {
+            // Failed to get user data
+            setUser(null);
+            setIsRestaurant(false);
+          }
+        }
       } catch (err) {
-        // User is not logged in, which is fine
-        console.log('No active session found');
+        // Error during authentication check
+        console.error('Error checking auth status:', err);
+        setUser(null);
+        setIsRestaurant(false);
       } finally {
         setIsLoading(false);
       }
@@ -49,38 +99,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      // This stores the token in SecureStore
       await loginUser(email, password);
-      
-      // Now fetch the user data using the stored token
       const userData = await getCurrentUser();
-      
-      // Set the user state with the fetched data
       setUser(userData);
+      setIsRestaurant(false);
     } catch (err: any) {
-      // Handle the structured error from loginUser
-      if (err.type && err.message) {
-        setError(err.message);
-        
-        // We can add specific handling for different error types if needed
-        switch (err.type) {
-          case 'auth_error':
-            // This is already handled with the default message
-            break;
-          case 'rate_limit':
-            // Could trigger a countdown timer or other UI feedback
-            break;
-          case 'network_error':
-            // Could trigger network status check
-            break;
-          default:
-            // Default handling for other error types
-            break;
-        }
-      } else {
-        // Fallback for unexpected error format
-        setError('An unexpected error occurred. Please try again.');
-      }
+      setError(err.message || 'Failed to login');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginAsRestaurant = async (email: string, password: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await loginRestaurant(email, password);
+      const restaurantData = await getCurrentRestaurant();
+      setUser(restaurantData);
+      setIsRestaurant(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to login as restaurant');
       throw err;
     } finally {
       setIsLoading(false);
@@ -137,8 +177,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     setIsLoading(true);
     try {
-      await logoutUser();
+      // Clear the auth token first
+      await clearAuthToken();
+      // Then update the state
       setUser(null);
+      setIsRestaurant(false);
     } catch (err) {
       setError('Logout failed');
     } finally {
@@ -151,8 +194,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = async () => {
     setIsLoading(true);
     try {
-      const userData = await getCurrentUser();
-      setUser(userData);
+      if (isRestaurant) {
+        const restaurantData = await getCurrentRestaurant();
+        setUser(restaurantData);
+      } else {
+        const userData = await getCurrentUser();
+        setUser(userData);
+      }
     } catch (err) {
       setError('Failed to refresh user data');
     } finally {
@@ -164,7 +212,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     isLoading,
     error,
+    isRestaurant,
     login,
+    loginAsRestaurant,
     register,
     logout,
     clearError,

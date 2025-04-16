@@ -565,6 +565,26 @@ export function registerRoutes(app: Express): Server {
    * - 404: Restaurant not found
    * - 500: Server error
    */
+  app.get("/api/restaurant/me", authenticateJWT, async (req: Request, res: Response) => {
+    try {
+      if (!req.user || req.user.type !== 'restaurant') {
+        return res.status(401).json({ message: "Not authenticated as restaurant" });
+      }
+      
+      // Get complete restaurant information from the database
+      const restaurant = await storage.getRestaurant(req.user.id);
+      if (!restaurant) {
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+      
+      // Return restaurant data
+      res.json(restaurant);
+    } catch (error) {
+      console.error('Error fetching restaurant data:', error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
   app.get("/api/restaurant/:id", async (req: Request, res: Response) => {
     console.log('[Debug] GET /api/restaurant/:id', {
       params: req.params,

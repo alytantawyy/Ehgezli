@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity }
 import { useQuery } from '@tanstack/react-query';
 import { RestaurantCard } from './RestaurantCard';
 import { RestaurantWithAvailability, BranchWithAvailability, TimeSlot, AvailableSlot } from './RestaurantCard';
-import { getRestaurants, getSavedRestaurants, SavedRestaurantItem, getRestaurantsWithAvailability, Restaurant } from '../shared/api/client';
+import { getRestaurants, getSavedRestaurants, SavedRestaurantItem, getRestaurantsWithAvailability, Restaurant, User } from '../shared/api/client';
 import { generateLocalTimeSlots, formatTimeWithAMPM, getBaseTime, generateTimeSlotsFromTime } from '../shared/utils/time-slots';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocation } from '../context/location-context';
@@ -58,8 +58,12 @@ export function RestaurantList({
   const { location } = useLocation();
 
   // Get user's favorite cuisines from auth context
-  const { user } = useAuth();
-  const favoriteCuisines = user?.favoriteCuisines || [];
+  const { user, isRestaurant } = useAuth();
+  
+  // Handle different user types for favorite cuisines
+  const favoriteCuisines = isRestaurant 
+    ? [] // Restaurant users don't have favorite cuisines
+    : (user as User)?.favoriteCuisines || [];
 
   // Centralized function to generate and format time slots consistently
   const generateAndFormatTimeSlots = () => {
@@ -306,7 +310,7 @@ export function RestaurantList({
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
                 tomorrow.setHours(12, 0, 0, 0);
-                
+
                 // If it's past midnight but before noon, use today at noon instead
                 if (currentHour >= 0 && currentHour < 12) {
                   tomorrow.setDate(tomorrow.getDate() - 1); // Use today instead of tomorrow

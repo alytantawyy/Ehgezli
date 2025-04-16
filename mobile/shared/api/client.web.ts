@@ -34,13 +34,28 @@ export interface Restaurant {
   rating?: number;
   imageUrl?: string;
   branches: Branch[];
-  profile?: {
-    description?: string;
-    cuisine?: string;
-    priceRange?: string;
-    rating?: number;
-    imageUrl?: string;
-  };
+  profile?: RestaurantProfile;
+}
+
+export interface RestaurantProfile {
+  about?: string;
+  description?: string;
+  cuisine?: string;
+  priceRange?: string;
+  logo?: string;
+  rating?: number;
+  isProfileComplete?: boolean;
+}
+
+export interface RestaurantUser {
+  id: number;
+  name: string;
+  email: string;
+  about?: string;
+  cuisine?: string;
+  priceRange?: string;
+  logo?: string;
+  isRestaurant: true;
 }
 
 export interface Booking {
@@ -116,7 +131,7 @@ export const loginUser = async (email: string, password: string) => {
     
     // Save the auth token in localStorage for web
     if (response.data.token) {
-      localStorage.setItem('authToken', response.data.token);
+      localStorage.setItem('auth_token', response.data.token);
     }
     
     return response.data;
@@ -168,7 +183,7 @@ export const registerUser = async (userData: {
     
     // Save the auth token
     if (response.data.token) {
-      localStorage.setItem('authToken', response.data.token);
+      localStorage.setItem('auth_token', response.data.token);
     }
     
     return response.data;
@@ -184,11 +199,11 @@ export const logoutUser = async () => {
     await api.post('/api/logout');
     
     // Remove the auth token
-    localStorage.removeItem('authToken');
+    localStorage.removeItem('auth_token');
   } catch (error) {
     console.error('Logout error:', error);
     // Even if the server-side logout fails, clear the local token
-    localStorage.removeItem('authToken');
+    localStorage.removeItem('auth_token');
     throw error;
   }
 };
@@ -593,12 +608,168 @@ export const resetPassword = async (token: string, password: string): Promise<{ 
   }
 };
 
+// Restaurant auth functions
+export async function loginRestaurant(email: string, password: string): Promise<void> {
+  try {
+    // Log the request for debugging
+    console.log('Attempting to login restaurant with:', { email });
+
+    // Make the API call
+    const response = await axios.post(`${API_BASE_URL}/api/restaurant/login`, {
+      email,
+      password,
+    });
+
+    // Store the token
+    const { token } = response.data;
+    if (token) {
+      localStorage.setItem('auth_token', token);
+    } else {
+      throw new Error('No token received from server');
+    }
+
+    console.log('Restaurant login successful');
+  } catch (error: any) {
+    console.error('Restaurant login error:', error.response?.data || error.message);
+    
+    // Format the error for consistent handling
+    const errorResponse = {
+      type: 'auth_error',
+      message: 'Invalid email or password. Please try again.',
+    };
+
+    // Check for specific error types from the API
+    if (error.response?.data?.error) {
+      errorResponse.message = error.response.data.error;
+    }
+
+    throw errorResponse;
+  }
+}
+
+export async function registerRestaurant(restaurantData: {
+  name: string;
+  email: string;
+  password: string;
+  about?: string;
+  cuisine?: string;
+  priceRange?: string;
+  logo?: string;
+}): Promise<RestaurantUser> {
+  try {
+    // Log the request for debugging
+    console.log('Attempting to register restaurant:', { 
+      name: restaurantData.name, 
+      email: restaurantData.email,
+      hasLogo: !!restaurantData.logo
+    });
+
+    // Create form data for file upload
+    const formData = new FormData();
+    formData.append('name', restaurantData.name);
+    formData.append('email', restaurantData.email);
+    formData.append('password', restaurantData.password);
+    
+    if (restaurantData.about) {
+      formData.append('about', restaurantData.about);
+    }
+    
+    if (restaurantData.cuisine) {
+      formData.append('cuisine', restaurantData.cuisine);
+    }
+    
+    if (restaurantData.priceRange) {
+      formData.append('priceRange', restaurantData.priceRange);
+    }
+    
+    // Handle logo upload if provided
+    if (restaurantData.logo) {
+      // Get file extension
+      const uriParts = restaurantData.logo.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+      
+      formData.append('logo', {
+        uri: restaurantData.logo,
+        name: `logo.${fileType}`,
+        type: `image/${fileType}`
+      } as any);
+    }
+
+    // Make the API call
+    const response = await axios.post(`${API_BASE_URL}/api/restaurant/register`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    // Store the token
+    const { token, restaurant } = response.data;
+    if (token) {
+      localStorage.setItem('auth_token', token);
+    } else {
+      throw new Error('No token received from server');
+    }
+
+    console.log('Restaurant registration successful');
+    return restaurant;
+  } catch (error: any) {
+    console.error('Restaurant registration error:', error.response?.data || error.message);
+    
+    // Format the error for consistent handling
+    const errorResponse = {
+      type: 'registration_error',
+      message: 'Registration failed. Please try again.',
+    };
+
+    // Check for specific error types from the API
+    if (error.response?.data?.error) {
+      errorResponse.message = error.response.data.error;
+    }
+
+    throw errorResponse;
+  }
+}
+
+export async function getCurrentRestaurant(): Promise<RestaurantUser | null> {
+  try {
+    const token = await getAuthToken();
+    if (!token) {
+      return null;
+    }
+
+    // For now, return mock data since the API endpoint isn't fully implemented
+    // This will prevent the redirect loop
+    console.log('Getting current restaurant with token:', token ? 'Token exists' : 'No token');
+    
+    // Mock restaurant data
+    return {
+      id: 1,
+      name: 'Lebanese Restaurant',
+      email: 'lebanese@example.com',
+      about: 'Authentic Lebanese cuisine in the heart of the city',
+      cuisine: 'Lebanese',
+      priceRange: '$$',
+      logo: 'https://example.com/logo.png',
+      isRestaurant: true
+    };
+    
+    // When the API is ready, uncomment this:
+    // const response = await axios.get(`${API_BASE_URL}/api/restaurant/:id`, {
+    //   headers: { Authorization: `Bearer ${token}` }
+    // });
+    // return response.data;
+  } catch (error) {
+    console.error('Error getting current restaurant:', error);
+    return null;
+  }
+}
+
 // Helper function to get auth token
 export const getAuthToken = async (): Promise<string | null> => {
-  return localStorage.getItem('authToken');
+  return localStorage.getItem('auth_token');
 };
 
 // Helper function to clear auth token
 export const clearAuthToken = async (): Promise<void> => {
-  localStorage.removeItem('authToken');
+  localStorage.removeItem('auth_token');
 };

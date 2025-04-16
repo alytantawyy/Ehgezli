@@ -272,12 +272,30 @@ export function setupAuth(app: Express) {
   });
 
   // Restaurant login endpoint
-  app.post("/api/restaurant/login", passport.authenticate('restaurant-local', { session: false }), (req, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-    const token = generateToken(req.user);
-    res.json({ token });
+  app.post("/api/restaurant/login", (req, res, next) => {
+    console.log('Restaurant login attempt with:', { email: req.body.email });
+    
+    passport.authenticate('restaurant-local', { session: false }, (err: any, user: any, info: any) => {
+      if (err) {
+        console.error('Passport authentication error:', err);
+        return res.status(500).json({ message: "Authentication error occurred" });
+      }
+      
+      if (!user) {
+        console.log('Restaurant authentication failed:', info?.message || 'Invalid credentials');
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      }
+      
+      try {
+        console.log('Generating token for restaurant:', { id: user.id, type: user.type });
+        const token = generateToken(user);
+        console.log('Token generated successfully');
+        return res.json({ token });
+      } catch (tokenError) {
+        console.error('Token generation error:', tokenError);
+        return res.status(500).json({ message: "Login error occurred" });
+      }
+    })(req, res, next);
   });
 
   // Get current user data endpoint
@@ -319,6 +337,27 @@ export function setupAuth(app: Express) {
       return res.status(401).json({ message: "Not authenticated as restaurant" });
     }
     res.json(req.user);
+  });
+
+  // Get current restaurant data endpoint (with /me path)
+  app.get("/api/restaurant/me", authenticateJWT, async (req, res) => {
+    try {
+      if (!req.user || req.user.type !== 'restaurant') {
+        return res.status(401).json({ message: "Not authenticated as restaurant" });
+      }
+      
+      // Get complete restaurant information from the database
+      const restaurant = await storage.getRestaurant(req.user.id);
+      if (!restaurant) {
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+      
+      // Return restaurant data
+      res.json(restaurant);
+    } catch (error) {
+      console.error('Error fetching restaurant data:', error);
+      res.status(500).json({ message: "Server error" });
+    }
   });
 
   // Password reset request endpoint
