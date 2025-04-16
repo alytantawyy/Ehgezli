@@ -109,6 +109,7 @@ function LoginScreen() {
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
+  const [showGenderDropdown, setShowGenderDropdown] = useState(false);
   
   const { login, register, isLoading, error, clearError } = useAuth();
   const router = useRouter();
@@ -275,12 +276,50 @@ function LoginScreen() {
                     />
                     
                     <Text style={styles.label}>Gender</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={gender}
-                      onChangeText={setGender}
-                      autoCapitalize="words"
-                    />
+                    <View style={styles.cityDropdownContainer}>
+                      <TouchableOpacity 
+                        style={styles.cityDropdown}
+                        onPress={() => setShowGenderDropdown(!showGenderDropdown)}
+                      >
+                        <Text style={styles.dropdownText}>{gender || 'Select Gender'}</Text>
+                        <Text style={styles.dropdownIcon}>▼</Text>
+                      </TouchableOpacity>
+                      
+                      {showGenderDropdown && (
+                        <View style={styles.cityDropdownList}>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, gender === 'Male' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setGender('Male');
+                              setShowGenderDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Male</Text>
+                            {gender === 'Male' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, gender === 'Female' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setGender('Female');
+                              setShowGenderDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Female</Text>
+                            {gender === 'Female' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, gender === 'Other' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setGender('Other');
+                              setShowGenderDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Other</Text>
+                            {gender === 'Other' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
                     
                     <Text style={styles.label}>Birthday</Text>
                     <TouchableOpacity 
@@ -574,12 +613,50 @@ function LoginScreen() {
                     />
                     
                     <Text style={styles.label}>Gender</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={gender}
-                      onChangeText={setGender}
-                      autoCapitalize="words"
-                    />
+                    <View style={styles.cityDropdownContainer}>
+                      <TouchableOpacity 
+                        style={styles.cityDropdown}
+                        onPress={() => setShowGenderDropdown(!showGenderDropdown)}
+                      >
+                        <Text style={styles.dropdownText}>{gender || 'Select Gender'}</Text>
+                        <Text style={styles.dropdownIcon}>▼</Text>
+                      </TouchableOpacity>
+                      
+                      {showGenderDropdown && (
+                        <View style={styles.cityDropdownList}>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, gender === 'Male' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setGender('Male');
+                              setShowGenderDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Male</Text>
+                            {gender === 'Male' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, gender === 'Female' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setGender('Female');
+                              setShowGenderDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Female</Text>
+                            {gender === 'Female' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.cityDropdownItem, gender === 'Other' && styles.selectedCityItem]}
+                            onPress={() => {
+                              setGender('Other');
+                              setShowGenderDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>Other</Text>
+                            {gender === 'Other' && <Text style={styles.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
                     
                     <Text style={styles.label}>Birthday</Text>
                     <TouchableOpacity 
