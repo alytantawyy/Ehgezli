@@ -18,12 +18,14 @@ import {
   Image,
   Keyboard,
   Modal,
+  ActionSheetIOS,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/auth-context';
 import { EhgezliButton } from '../components/EhgezliButton';
 import Colors from '../constants/Colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
 
 const { width, height } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -95,6 +97,8 @@ function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isRestaurantMode, setIsRestaurantMode] = useState(false);
+  const [isRestaurantLoginMode, setIsRestaurantLoginMode] = useState(true); // For restaurant login/register toggle
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [gender, setGender] = useState('');
@@ -110,6 +114,13 @@ function LoginScreen() {
   const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
+  const [restaurantAbout, setRestaurantAbout] = useState('');
+  const [restaurantCuisine, setRestaurantCuisine] = useState('');
+  const [priceRange, setPriceRange] = useState('');
+  const [restaurantLogo, setRestaurantLogo] = useState('');
+  const [showCuisineDropdown, setShowCuisineDropdown] = useState(false);
+  const [showPriceRangeDropdown, setShowPriceRangeDropdown] = useState(false);
+  const [showImagePickerModal, setShowImagePickerModal] = useState(false);
   
   const { login, register, isLoading, error, clearError } = useAuth();
   const router = useRouter();
@@ -132,7 +143,22 @@ function LoginScreen() {
 
   const handleSubmit = async () => {
     try {
-      if (isLoginMode) {
+      if (isRestaurantMode) {
+        // Handle restaurant authentication
+        if (isRestaurantLoginMode) {
+          // Restaurant login
+          console.log('Restaurant login with:', email, password);
+          // TODO: Implement restaurant login API call
+          // await restaurantLogin(email, password);
+          // router.replace('/restaurant-dashboard');
+        } else {
+          // Restaurant registration
+          console.log('Restaurant registration with:', firstName, email, password, restaurantAbout, restaurantCuisine, priceRange, restaurantLogo);
+          // TODO: Implement restaurant registration API call
+          // await restaurantRegister(firstName, email, password, restaurantAbout, restaurantCuisine, priceRange, restaurantLogo);
+          // router.replace('/restaurant-dashboard');
+        }
+      } else if (isLoginMode) {
         await login(email, password);
         router.replace('/(tabs)');
       } else {
@@ -141,24 +167,19 @@ function LoginScreen() {
           Alert.alert('Error', 'Please fill in all fields');
           return;
         }
-        if (password.length < 8) {
-          Alert.alert('Error', 'Password must be at least 8 characters long');
-          return;
-        }
         
-        // Register the user and wait for the registration to complete
-        const result = await register({ 
-          firstName, 
-          lastName, 
-          email, 
-          password, 
-          gender, 
-          birthday: formatBirthdayForAPI(), 
+        // Register user
+        await register({
+          firstName,
+          lastName,
+          email,
+          password,
+          gender,
+          birthday: birthday?.toISOString() || new Date().toISOString(),
           city,
-          cuisines 
+          cuisines: cuisines,
         });
         
-        // Now we can safely navigate to the index page with user data properly set
         router.replace('/(tabs)');
       }
     } catch (err: any) {
@@ -176,6 +197,38 @@ function LoginScreen() {
   const toggleMode = (mode: 'login' | 'register' | 'restaurant') => {
     clearError();
     setIsLoginMode(mode === 'login');
+    setIsRestaurantMode(mode === 'restaurant');
+  };
+
+  const toggleRestaurantLoginRegister = (isLogin: boolean) => {
+    clearError();
+    setIsRestaurantLoginMode(isLogin);
+  };
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setRestaurantLogo(result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    let result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setRestaurantLogo(result.assets[0].uri);
+    }
   };
 
   return (
@@ -193,24 +246,46 @@ function LoginScreen() {
                   <Text style={[styles.tabText, isLoginMode ? styles.activeTabText : null]}>Login</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[styles.tab, !isLoginMode ? styles.activeTab : null]} 
+                  style={[styles.tab, !isLoginMode && !isRestaurantMode ? styles.activeTab : null]} 
                   onPress={() => toggleMode('register')}
                 >
-                  <Text style={[styles.tabText, !isLoginMode ? styles.activeTabText : null]}>Register</Text>
+                  <Text style={[styles.tabText, !isLoginMode && !isRestaurantMode ? styles.activeTabText : null]}>Register</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.tab}>
-                  <Text style={styles.tabText}>Restaurant</Text>
+                <TouchableOpacity 
+                  style={[styles.tab, isRestaurantMode ? styles.activeTab : null]} 
+                  onPress={() => toggleMode('restaurant')}
+                >
+                  <Text style={[styles.tabText, isRestaurantMode ? styles.activeTabText : null]}>Restaurant</Text>
                 </TouchableOpacity>
               </View>
               
+              {isRestaurantMode && (
+                <View style={[styles.tabs, { marginTop: 10, marginBottom: 15, borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: '#eee' }]}>
+                  <TouchableOpacity 
+                    style={[styles.tab, isRestaurantLoginMode ? styles.activeTab : null]}
+                    onPress={() => toggleRestaurantLoginRegister(true)}
+                  >
+                    <Text style={[styles.tabText, isRestaurantLoginMode ? styles.activeTabText : null]}>Login</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.tab, !isRestaurantLoginMode ? styles.activeTab : null]}
+                    onPress={() => toggleRestaurantLoginRegister(false)}
+                  >
+                    <Text style={[styles.tabText, !isRestaurantLoginMode ? styles.activeTabText : null]}>Register</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
               <View style={styles.form}>
                 <Text style={styles.welcomeText}>
-                  {isLoginMode ? 'Welcome Back' : 'Create Account'}
+                  {isLoginMode ? 'Welcome Back' : isRestaurantMode ? 'Restaurant Mode' : 'Create Account'}
                 </Text>
                 <Text style={styles.subtitle}>
                   {isLoginMode 
                     ? 'Login to manage your restaurant reservations' 
-                    : 'Sign up to start booking restaurant reservations'}
+                    : isRestaurantMode 
+                      ? 'Restaurant mode' 
+                      : 'Sign up to start booking restaurant reservations'}
                 </Text>
                 
                 {isLoginMode && (
@@ -234,7 +309,166 @@ function LoginScreen() {
                   </>
                 )}
                 
-                {!isLoginMode && (
+                {isRestaurantMode && (
+                  <View>
+                    {isRestaurantLoginMode ? (
+                      <View>
+                        <Text style={styles.label}>Email</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={email}
+                          onChangeText={setEmail}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                        />
+                        
+                        <Text style={styles.label}>Password</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={password}
+                          onChangeText={setPassword}
+                          secureTextEntry
+                        />
+                      </View>
+                    ) : (
+                      <View>
+                        <Text style={styles.label}>Restaurant Name</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={firstName}
+                          onChangeText={setFirstName}
+                          autoCapitalize="words"
+                        />
+                        
+                        <Text style={styles.label}>Email</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={email}
+                          onChangeText={setEmail}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                        />
+                        
+                        <Text style={styles.label}>Password</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={password}
+                          onChangeText={setPassword}
+                          secureTextEntry
+                        />
+
+                        <Text style={styles.label}>About</Text>
+                        <TextInput
+                          style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                          value={restaurantAbout}
+                          onChangeText={setRestaurantAbout}
+                          multiline
+                          numberOfLines={4}
+                          placeholder="Tell us about your restaurant"
+                        />
+
+                        <Text style={styles.label}>Cuisine</Text>
+                        <View style={styles.cityDropdownContainer}>
+                          <TouchableOpacity 
+                            style={styles.cityDropdown}
+                            onPress={() => setShowCuisineDropdown(!showCuisineDropdown)}
+                          >
+                            <Text style={styles.dropdownText}>{restaurantCuisine || 'Select Cuisine'}</Text>
+                            <Text style={styles.dropdownIcon}>▼</Text>
+                          </TouchableOpacity>
+                          
+                          {showCuisineDropdown && (
+                            <View style={[styles.cityDropdownList, { maxHeight: 200 }]}>
+                              <ScrollView>
+                                {availableCuisines.map((cuisine, index) => (
+                                  <TouchableOpacity 
+                                    key={index} 
+                                    style={[styles.cityDropdownItem, restaurantCuisine === cuisine && styles.selectedCityItem]}
+                                    onPress={() => {
+                                      setRestaurantCuisine(cuisine);
+                                      setShowCuisineDropdown(false);
+                                    }}
+                                  >
+                                    <Text style={styles.dropdownText}>{cuisine}</Text>
+                                    {restaurantCuisine === cuisine && <Text style={styles.checkmark}>✓</Text>}
+                                  </TouchableOpacity>
+                                ))}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+
+                        <Text style={styles.label}>Price Range</Text>
+                        <View style={styles.cityDropdownContainer}>
+                          <TouchableOpacity 
+                            style={styles.cityDropdown}
+                            onPress={() => setShowPriceRangeDropdown(!showPriceRangeDropdown)}
+                          >
+                            <Text style={styles.dropdownText}>{priceRange || 'Select Price Range'}</Text>
+                            <Text style={styles.dropdownIcon}>▼</Text>
+                          </TouchableOpacity>
+                          
+                          {showPriceRangeDropdown && (
+                            <View style={[styles.cityDropdownList, { maxHeight: 200 }]}>
+                              <ScrollView>
+                                {['$', '$$', '$$$', '$$$$'].map((price, index) => (
+                                  <TouchableOpacity 
+                                    key={index} 
+                                    style={[styles.cityDropdownItem, priceRange === price && styles.selectedCityItem]}
+                                    onPress={() => {
+                                      setPriceRange(price);
+                                      setShowPriceRangeDropdown(false);
+                                    }}
+                                  >
+                                    <Text style={styles.dropdownText}>{price}</Text>
+                                    {priceRange === price && <Text style={styles.checkmark}>✓</Text>}
+                                  </TouchableOpacity>
+                                ))}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+
+                        <Text style={styles.label}>Logo</Text>
+                        <TouchableOpacity 
+                          style={[styles.input as any, { height: 100, justifyContent: 'center', alignItems: 'center' }]}
+                          onPress={() => {
+                            if (Platform.OS === 'ios') {
+                              ActionSheetIOS.showActionSheetWithOptions(
+                                {
+                                  options: ['Cancel', 'Take Photo', 'Choose from Library'],
+                                  cancelButtonIndex: 0,
+                                },
+                                (buttonIndex) => {
+                                  if (buttonIndex === 1) {
+                                    takePhoto();
+                                  } else if (buttonIndex === 2) {
+                                    pickImage();
+                                  }
+                                }
+                              );
+                            } else {
+                              // For Android, show the modal
+                              setShowImagePickerModal(true);
+                            }
+                          }}
+                        >
+                          {restaurantLogo ? (
+                            <Image source={{ uri: restaurantLogo }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+                          ) : (
+                            <View style={{ alignItems: 'center' }}>
+                              <Text style={{ color: '#999', marginBottom: 5 }}>Tap to add restaurant logo</Text>
+                              <Text style={{ color: '#999', fontSize: 12 }}>{Platform.OS === 'ios' ? 'Upload or take a photo' : 'Choose from gallery or camera'}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    
+                  </View>
+                )}
+                
+                {!isLoginMode && !isRestaurantMode && (
                   <View>
                     <View style={styles.nameRow}>
                       <View style={styles.nameField}>
@@ -459,14 +693,6 @@ function LoginScreen() {
                 )}
                 
                 {error && <Text style={styles.errorText}>{error}</Text>}
-                
-                <EhgezliButton
-                  title={isLoginMode ? 'Login' : 'Register'}
-                  onPress={handleSubmit}
-                  variant="ehgezli"
-                  loading={isLoading}
-                  style={styles.button}
-                />
                 
                 {isLoginMode && (
                   <TouchableOpacity 
@@ -530,24 +756,46 @@ function LoginScreen() {
                   <Text style={[styles.tabText, isLoginMode ? styles.activeTabText : null]}>Login</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[styles.tab, !isLoginMode ? styles.activeTab : null]} 
+                  style={[styles.tab, !isLoginMode && !isRestaurantMode ? styles.activeTab : null]} 
                   onPress={() => toggleMode('register')}
                 >
-                  <Text style={[styles.tabText, !isLoginMode ? styles.activeTabText : null]}>Register</Text>
+                  <Text style={[styles.tabText, !isLoginMode && !isRestaurantMode ? styles.activeTabText : null]}>Register</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.tab}>
-                  <Text style={styles.tabText}>Restaurant</Text>
+                <TouchableOpacity 
+                  style={[styles.tab, isRestaurantMode ? styles.activeTab : null]} 
+                  onPress={() => toggleMode('restaurant')}
+                >
+                  <Text style={[styles.tabText, isRestaurantMode ? styles.activeTabText : null]}>Restaurant</Text>
                 </TouchableOpacity>
               </View>
               
+              {isRestaurantMode && (
+                <View style={[styles.tabs, { marginTop: 10, marginBottom: 15, borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: '#eee' }]}>
+                  <TouchableOpacity 
+                    style={[styles.tab, isRestaurantLoginMode ? styles.activeTab : null]}
+                    onPress={() => toggleRestaurantLoginRegister(true)}
+                  >
+                    <Text style={[styles.tabText, isRestaurantLoginMode ? styles.activeTabText : null]}>Login</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.tab, !isRestaurantLoginMode ? styles.activeTab : null]}
+                    onPress={() => toggleRestaurantLoginRegister(false)}
+                  >
+                    <Text style={[styles.tabText, !isRestaurantLoginMode ? styles.activeTabText : null]}>Register</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
               <View style={styles.form}>
                 <Text style={styles.welcomeText}>
-                  {isLoginMode ? 'Welcome Back' : 'Create Account'}
+                  {isLoginMode ? 'Welcome Back' : isRestaurantMode ? 'Restaurant Mode' : 'Create Account'}
                 </Text>
                 <Text style={styles.subtitle}>
                   {isLoginMode 
                     ? 'Login to manage your restaurant reservations' 
-                    : 'Sign up to start booking restaurant reservations'}
+                    : isRestaurantMode 
+                      ? 'Restaurant mode' 
+                      : 'Sign up to start booking restaurant reservations'}
                 </Text>
                 
                 {isLoginMode && (
@@ -571,7 +819,166 @@ function LoginScreen() {
                   </>
                 )}
                 
-                {!isLoginMode && (
+                {isRestaurantMode && (
+                  <View>
+                    {isRestaurantLoginMode ? (
+                      <View>
+                        <Text style={styles.label}>Email</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={email}
+                          onChangeText={setEmail}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                        />
+                        
+                        <Text style={styles.label}>Password</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={password}
+                          onChangeText={setPassword}
+                          secureTextEntry
+                        />
+                      </View>
+                    ) : (
+                      <View>
+                        <Text style={styles.label}>Restaurant Name</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={firstName}
+                          onChangeText={setFirstName}
+                          autoCapitalize="words"
+                        />
+                        
+                        <Text style={styles.label}>Email</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={email}
+                          onChangeText={setEmail}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                        />
+                        
+                        <Text style={styles.label}>Password</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={password}
+                          onChangeText={setPassword}
+                          secureTextEntry
+                        />
+
+                        <Text style={styles.label}>About</Text>
+                        <TextInput
+                          style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                          value={restaurantAbout}
+                          onChangeText={setRestaurantAbout}
+                          multiline
+                          numberOfLines={4}
+                          placeholder="Tell us about your restaurant"
+                        />
+
+                        <Text style={styles.label}>Cuisine</Text>
+                        <View style={styles.cityDropdownContainer}>
+                          <TouchableOpacity 
+                            style={styles.cityDropdown}
+                            onPress={() => setShowCuisineDropdown(!showCuisineDropdown)}
+                          >
+                            <Text style={styles.dropdownText}>{restaurantCuisine || 'Select Cuisine'}</Text>
+                            <Text style={styles.dropdownIcon}>▼</Text>
+                          </TouchableOpacity>
+                          
+                          {showCuisineDropdown && (
+                            <View style={[styles.cityDropdownList, { maxHeight: 200 }]}>
+                              <ScrollView>
+                                {availableCuisines.map((cuisine, index) => (
+                                  <TouchableOpacity 
+                                    key={index} 
+                                    style={[styles.cityDropdownItem, restaurantCuisine === cuisine && styles.selectedCityItem]}
+                                    onPress={() => {
+                                      setRestaurantCuisine(cuisine);
+                                      setShowCuisineDropdown(false);
+                                    }}
+                                  >
+                                    <Text style={styles.dropdownText}>{cuisine}</Text>
+                                    {restaurantCuisine === cuisine && <Text style={styles.checkmark}>✓</Text>}
+                                  </TouchableOpacity>
+                                ))}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+
+                        <Text style={styles.label}>Price Range</Text>
+                        <View style={styles.cityDropdownContainer}>
+                          <TouchableOpacity 
+                            style={styles.cityDropdown}
+                            onPress={() => setShowPriceRangeDropdown(!showPriceRangeDropdown)}
+                          >
+                            <Text style={styles.dropdownText}>{priceRange || 'Select Price Range'}</Text>
+                            <Text style={styles.dropdownIcon}>▼</Text>
+                          </TouchableOpacity>
+                          
+                          {showPriceRangeDropdown && (
+                            <View style={[styles.cityDropdownList, { maxHeight: 200 }]}>
+                              <ScrollView>
+                                {['$', '$$', '$$$', '$$$$'].map((price, index) => (
+                                  <TouchableOpacity 
+                                    key={index} 
+                                    style={[styles.cityDropdownItem, priceRange === price && styles.selectedCityItem]}
+                                    onPress={() => {
+                                      setPriceRange(price);
+                                      setShowPriceRangeDropdown(false);
+                                    }}
+                                  >
+                                    <Text style={styles.dropdownText}>{price}</Text>
+                                    {priceRange === price && <Text style={styles.checkmark}>✓</Text>}
+                                  </TouchableOpacity>
+                                ))}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+
+                        <Text style={styles.label}>Logo</Text>
+                        <TouchableOpacity 
+                          style={[styles.input as any, { height: 100, justifyContent: 'center', alignItems: 'center' }]}
+                          onPress={() => {
+                            if (Platform.OS === 'ios') {
+                              ActionSheetIOS.showActionSheetWithOptions(
+                                {
+                                  options: ['Cancel', 'Take Photo', 'Choose from Library'],
+                                  cancelButtonIndex: 0,
+                                },
+                                (buttonIndex) => {
+                                  if (buttonIndex === 1) {
+                                    takePhoto();
+                                  } else if (buttonIndex === 2) {
+                                    pickImage();
+                                  }
+                                }
+                              );
+                            } else {
+                              // For Android, show the modal
+                              setShowImagePickerModal(true);
+                            }
+                          }}
+                        >
+                          {restaurantLogo ? (
+                            <Image source={{ uri: restaurantLogo }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+                          ) : (
+                            <View style={{ alignItems: 'center' }}>
+                              <Text style={{ color: '#999', marginBottom: 5 }}>Tap to add restaurant logo</Text>
+                              <Text style={{ color: '#999', fontSize: 12 }}>{Platform.OS === 'ios' ? 'Upload or take a photo' : 'Choose from gallery or camera'}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    
+                  </View>
+                )}
+                
+                {!isLoginMode && !isRestaurantMode && (
                   <View>
                     <View style={styles.nameRow}>
                       <View style={styles.nameField}>
@@ -798,7 +1205,7 @@ function LoginScreen() {
                 {error && <Text style={styles.errorText}>{error}</Text>}
                 
                 <EhgezliButton
-                  title={isLoginMode ? 'Login' : 'Register'}
+                  title={isLoginMode ? 'Login' : isRestaurantMode ? (isRestaurantLoginMode ? 'Login' : 'Register') : 'Register'}
                   onPress={handleSubmit}
                   variant="ehgezli"
                   loading={isLoading}
@@ -820,6 +1227,70 @@ function LoginScreen() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+      )}
+      
+      {/* Android Image Picker Modal */}
+      {Platform.OS === 'android' && (
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showImagePickerModal}
+          onRequestClose={() => setShowImagePickerModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { padding: 20 }]}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>Select Image</Text>
+              
+              <TouchableOpacity 
+                style={{
+                  padding: 15,
+                  backgroundColor: '#fff',
+                  borderRadius: 8,
+                  marginBottom: 10,
+                  borderWidth: 1,
+                  borderColor: '#eee',
+                }}
+                onPress={() => {
+                  takePhoto();
+                  setShowImagePickerModal(false);
+                }}
+              >
+                <Text style={{ fontSize: 16, textAlign: 'center' }}>Take Photo</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={{
+                  padding: 15,
+                  backgroundColor: '#fff',
+                  borderRadius: 8,
+                  marginBottom: 10,
+                  borderWidth: 1,
+                  borderColor: '#eee',
+                }}
+                onPress={() => {
+                  pickImage();
+                  setShowImagePickerModal(false);
+                }}
+              >
+                <Text style={{ fontSize: 16, textAlign: 'center' }}>Choose from Gallery</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={{
+                  padding: 15,
+                  backgroundColor: '#f8f8f8',
+                  borderRadius: 8,
+                  marginBottom: 10,
+                  borderWidth: 1,
+                  borderColor: '#eee',
+                }}
+                onPress={() => setShowImagePickerModal(false)}
+              >
+                <Text style={{ fontSize: 16, textAlign: 'center', color: '#999' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       )}
     </View>
   );
