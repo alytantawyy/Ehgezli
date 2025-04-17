@@ -298,67 +298,67 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  // Get current user data endpoint
-  app.get("/api/user", authenticateJWT, async (req, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-      
-      // Get complete user information from the database
-      if (req.user.type === 'user') {
-        const user = await storage.getUserById(req.user.id);
-        if (!user) {
-          return res.status(404).json({ message: "User not found" });
+    /**
+   * Register New User
+   * POST /api/register
+   * 
+   * Creates a new user account with the provided information and logs them in.
+   * 
+   * Request body:
+   * - email: User's email address
+   * - password: User's chosen password
+   * - firstName: User's first name
+   * - lastName: User's last name
+   * - gender: User's gender
+   * - birthday: User's date of birth
+   * - city: User's city
+   * - favoriteCuisines: Array of user's preferred cuisine types
+   * 
+   * Returns:
+   * - 200: User created successfully (includes user data)
+   * - 400: Email already registered
+   * - 500: Server error
+   */
+    app.post("/api/register", async (req: Request, res: Response) => {
+      try {
+        // Get user information from request
+        const { email, password, firstName, lastName, gender, birthday, 
+                city, favoriteCuisines } = req.body;
+        
+        // Check if email is already registered
+        const existingUser = await storage.getUserByEmail(email);
+        if (existingUser) {
+          return res.status(400).json({ message: "Email already registered" });
         }
-        // Don't send password to the client
-        //delete user.password;
-        res.json(user);
-      } else if (req.user.type === 'restaurant') {
-        const restaurant = await storage.getRestaurant(req.user.id);
-        if (!restaurant) {
-          return res.status(404).json({ message: "Restaurant not found" });
-        }
-        // Don't send password to the client
-        //delete restaurant.password;
-        res.json(restaurant);
-      } else {
-        return res.status(400).json({ message: "Invalid user type" });
+  
+        // Securely hash the password
+        const hashedPassword = await hashPassword(password);
+        
+        // Create new user in database
+        const user = await storage.createUser({
+          email,
+          password: hashedPassword,
+          firstName,
+          lastName,
+          gender,
+          birthday,
+          city,
+          favoriteCuisines: Array.isArray(favoriteCuisines) ? favoriteCuisines : []
+        });
+  
+        // Generate JWT token for the new user
+        const token = generateToken({ id: user.id, type: 'user' });
+        
+        // Send back the user data and token
+        res.status(200).json({ ...user, token });
+      } catch (error) {
+        console.error("Registration error:", error);
+        res.status(500).json({ message: "Registration failed" });
       }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      res.status(500).json({ message: "Server error" });
-    }
-  });
+    });
 
-  // Get current restaurant data endpoint
-  app.get("/api/restaurant", authenticateJWT, (req, res) => {
-    if (!req.user || req.user.type !== 'restaurant') {
-      return res.status(401).json({ message: "Not authenticated as restaurant" });
-    }
-    res.json(req.user);
-  });
 
-  // Get current restaurant data endpoint (with /me path)
-  app.get("/api/restaurant/me", authenticateJWT, async (req, res) => {
-    try {
-      if (!req.user || req.user.type !== 'restaurant') {
-        return res.status(401).json({ message: "Not authenticated as restaurant" });
-      }
-      
-      // Get complete restaurant information from the database
-      const restaurant = await storage.getRestaurant(req.user.id);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      
-      // Return restaurant data
-      res.json(restaurant);
-    } catch (error) {
-      console.error('Error fetching restaurant data:', error);
-      res.status(500).json({ message: "Server error" });
-    }
-  });
+
 
   // Password reset request endpoint
   app.post("/api/forgot-password", async (req, res) => {

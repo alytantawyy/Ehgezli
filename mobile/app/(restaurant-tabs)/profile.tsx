@@ -276,13 +276,19 @@ export default function RestaurantProfileScreen() {
                 <View style={styles.fieldContainer}>
                   <Text style={styles.fieldLabel}>Branches</Text>
                   <View style={styles.branchList}>
-                    {restaurant.branches.map((branch: { id: any; address: string | number | bigint | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<React.AwaitedReactNode> | null | undefined; city: string | number | bigint | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<React.AwaitedReactNode> | null | undefined; openingTime: string | number | bigint | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<React.AwaitedReactNode> | null | undefined; closingTime: string | number | bigint | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<React.AwaitedReactNode> | null | undefined; }, index: any) => (
+                    {restaurant.branches.map((branch: { 
+                      id: any; 
+                      address: string; 
+                      city: string; 
+                      openingTime?: string; 
+                      closingTime?: string; 
+                    }, index: any) => (
                       <View key={branch.id || index} style={styles.branchItem}>
-                        <Text style={styles.branchName}>{branch.address}</Text>
-                        <Text style={styles.branchDetail}>{branch.city}</Text>
+                        <Text style={styles.branchName}>{String(branch.address)}</Text>
+                        <Text style={styles.branchDetail}>{String(branch.city)}</Text>
                         {branch.openingTime && branch.closingTime && (
                           <Text style={styles.branchHours}>
-                            {branch.openingTime} - {branch.closingTime}
+                            {String(branch.openingTime)} - {String(branch.closingTime)}
                           </Text>
                         )}
                       </View>
