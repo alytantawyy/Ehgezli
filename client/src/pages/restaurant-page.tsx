@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Restaurant } from "@shared/schema";
+import { Restaurant } from "server/db/schema";
 import { useRoute, useLocation } from "wouter";
 import { BookingForm } from "@/components/booking-form";
 import { Button } from "@/components/ui/button";

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Restaurant, RestaurantBranch, AvailableSlot } from "@shared/schema";
+import { Restaurant, RestaurantBranch, AvailableSlot } from "server/db/schema";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarIcon, Users } from "lucide-react";

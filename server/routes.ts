@@ -532,41 +532,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-
-  app.get("/api/restaurant/:id", async (req: Request, res: Response) => {
-    console.log('[Debug] GET /api/restaurant/:id', {
-      params: req.params,
-      headers: req.headers
-    });
-    
-    try {
-      const { id } = req.params;
-      
-      // Validate that id is a number
-      if (isNaN(parseInt(id))) {
-        console.log('[Debug] Invalid restaurant ID:', id);
-        return res.status(400).json({ message: "Invalid restaurant ID" });
-      }
-      
-      const restaurant = await storage.getRestaurant(parseInt(id));
-      
-      console.log('[Debug] Restaurant data:', restaurant);
-      
-      if (!restaurant) {
-        console.log('[Debug] Restaurant not found');
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      
-      // Set content type header explicitly
-      res.setHeader('Content-Type', 'application/json');
-      console.log('[Debug] Sending response with headers:', res.getHeaders());
-      res.json(restaurant);
-    } catch (error) {
-      console.error("[Debug] Error getting restaurant:", error);
-      res.status(500).json({ message: "Error retrieving restaurant" });
-    }
-  });
-
   /**
    * Get Branch Availability
    * GET /api/restaurant/:restaurantId/branch/:branchId/availability

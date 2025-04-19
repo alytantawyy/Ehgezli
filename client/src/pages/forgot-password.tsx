@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { passwordResetRequestSchema } from "@shared/schema";
+import { passwordResetRequestSchema } from "server/db/schema";
 import { Button } from "@/components/ui/button";
 import {
   Card,

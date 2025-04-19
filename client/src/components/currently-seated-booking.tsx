@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { formatElapsedTime } from "@/lib/utils/time-utils";
-import { BookingWithDetails } from "@shared/schema";
+import { BookingWithDetails } from "server/db/schema";
 
 interface CurrentlySeatedBookingProps {
   booking: BookingWithDetails;

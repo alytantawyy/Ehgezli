@@ -1,6 +1,6 @@
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Restaurant, BookingWithDetails as SchemaBookingWithDetails, RestaurantBranch } from "@shared/schema";
+import { Restaurant, BookingWithDetails as SchemaBookingWithDetails, RestaurantBranch } from "server/db/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {

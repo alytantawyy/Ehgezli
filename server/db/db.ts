@@ -2,7 +2,7 @@
 import { Pool, neonConfig } from '@neondatabase/serverless';  // Neon is our PostgreSQL database provider
 import { drizzle } from 'drizzle-orm/neon-serverless';       // Drizzle is our SQL toolkit/ORM
 import ws from "ws";                                         // WebSocket package for real-time database connections
-import * as schema from "@shared/schema";                    // Our database schema definitions
+import * as schema from "server/db/schema";                    // Our database schema definitions
 
 // Configure WebSocket settings for Neon database connection
 // WebSockets allow for real-time, persistent connections to the database

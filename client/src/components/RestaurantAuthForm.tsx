@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { insertRestaurantAuthSchema } from "@shared/schema";
+import { insertRestaurantAuthSchema } from "server/db/schema";
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { Button } from "@/components/ui/button";
 import {

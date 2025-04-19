@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { users, restaurantAuth, restaurantProfiles, restaurantBranches, bookings, passwordResetTokens, restaurantPasswordResetTokens, savedRestaurants } from '../shared/schema';
+import { users, restaurantUsers, restaurantProfiles, restaurantBranches, bookings, passwordResetTokens, restaurantPasswordResetTokens, savedRestaurants } from '../schema';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { sql } from 'drizzle-orm';
@@ -68,7 +68,7 @@ async function seed() {
   await db.delete(bookings);
   await db.delete(restaurantBranches);
   await db.delete(restaurantProfiles);
-  await db.delete(restaurantAuth);
+  await db.delete(restaurantUsers);
   await db.delete(users);
 
   // Create test users (10 users)
@@ -252,20 +252,20 @@ async function seed() {
     console.error('Error fetching users:', error);
   }
 
-  // Create test restaurants with auth and profiles (8 restaurants)
+  // Create test restaurants with user and profiles (8 restaurants)
   const restaurantData = [
     // Original restaurants
     {
-      auth: {
+      user: {
         email: 'italiano@example.com',
         password: 'password123',
-        name: 'Italiano Authentic',
+        name: 'Italiano userentic',
         verified: true,
         createdAt: new Date(),
         updatedAt: new Date()
       },
       profile: {
-        about: 'Experience authentic Italian cuisine in the heart of Alexandria.',
+        about: 'Experience userentic Italian cuisine in the heart of Alexandria.',
         description: 'Our chefs bring the flavors of Italy to your table with fresh ingredients and traditional recipes.',
         cuisine: 'Italian',
         priceRange: '$$$',
@@ -296,7 +296,7 @@ async function seed() {
       ]
     },
     {
-      auth: {
+      user: {
         email: 'sakura@example.com',
         password: 'password123',
         name: 'Sakura Japanese',
@@ -306,7 +306,7 @@ async function seed() {
       },
       profile: {
         about: 'Traditional Japanese cuisine with a modern twist.',
-        description: 'Sakura offers an authentic Japanese dining experience with sushi, sashimi, and teppanyaki prepared by master chefs.',
+        description: 'Sakura offers an userentic Japanese dining experience with sushi, sashimi, and teppanyaki prepared by master chefs.',
         cuisine: 'Japanese',
         priceRange: '$$$$',
         logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
@@ -326,7 +326,7 @@ async function seed() {
       ]
     },
     {
-      auth: {
+      user: {
         email: 'lebanese@example.com',
         password: 'password123',
         name: 'Lebanese House',
@@ -335,7 +335,7 @@ async function seed() {
         updatedAt: new Date()
       },
       profile: {
-        about: 'Authentic Lebanese cuisine and mezze.',
+        about: 'userentic Lebanese cuisine and mezze.',
         description: 'Lebanese House serves traditional mezze, grilled meats, and freshly baked bread in a warm, welcoming atmosphere.',
         cuisine: 'Middle Eastern',
         priceRange: '$$',
@@ -367,7 +367,7 @@ async function seed() {
     },
     // Additional restaurants
     {
-      auth: {
+      user: {
         email: 'spice@example.com',
         password: 'password123',
         name: 'Spice of India',
@@ -376,7 +376,7 @@ async function seed() {
         updatedAt: new Date()
       },
       profile: {
-        about: 'Authentic Indian flavors and spices.',
+        about: 'userentic Indian flavors and spices.',
         description: 'Experience the rich and diverse flavors of India with our carefully crafted dishes using traditional spices and cooking methods.',
         cuisine: 'Indian',
         priceRange: '$$',
@@ -397,7 +397,7 @@ async function seed() {
       ]
     },
     {
-      auth: {
+      user: {
         email: 'dragon@example.com',
         password: 'password123',
         name: 'Golden Dragon',
@@ -406,7 +406,7 @@ async function seed() {
         updatedAt: new Date()
       },
       profile: {
-        about: 'Authentic Chinese cuisine in an elegant setting.',
+        about: 'userentic Chinese cuisine in an elegant setting.',
         description: 'Golden Dragon offers a wide range of traditional Chinese dishes from different regions of China, prepared by expert chefs.',
         cuisine: 'Chinese',
         priceRange: '$$$',
@@ -437,7 +437,7 @@ async function seed() {
       ]
     },
     {
-      auth: {
+      user: {
         email: 'nile@example.com',
         password: 'password123',
         name: 'Nile View',
@@ -447,7 +447,7 @@ async function seed() {
       },
       profile: {
         about: 'Traditional Egyptian cuisine with a spectacular view of the Nile.',
-        description: 'Enjoy authentic Egyptian dishes while taking in breathtaking views of the Nile River. Our menu features classic recipes passed down through generations.',
+        description: 'Enjoy userentic Egyptian dishes while taking in breathtaking views of the Nile River. Our menu features classic recipes passed down through generations.',
         cuisine: 'Egyptian',
         priceRange: '$$$',
         logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
@@ -477,7 +477,7 @@ async function seed() {
       ]
     },
     {
-      auth: {
+      user: {
         email: 'seafood@example.com',
         password: 'password123',
         name: 'Red Sea Treasures',
@@ -517,7 +517,7 @@ async function seed() {
       ]
     },
     {
-      auth: {
+      user: {
         email: 'bistro@example.com',
         password: 'password123',
         name: 'Parisian Bistro',
@@ -527,7 +527,7 @@ async function seed() {
       },
       profile: {
         about: 'A taste of Paris in the heart of Cairo.',
-        description: 'Our bistro brings authentic French cuisine to Cairo, with a menu featuring classic dishes prepared with a modern twist by our French-trained chefs.',
+        description: 'Our bistro brings userentic French cuisine to Cairo, with a menu featuring classic dishes prepared with a modern twist by our French-trained chefs.',
         cuisine: 'French',
         priceRange: '$$$',
         logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
@@ -550,19 +550,19 @@ async function seed() {
 
   const restaurants = await Promise.all(
     restaurantData.map(async (restaurant) => {
-      // Create restaurant auth
-      const [authEntry] = await db.insert(restaurantAuth).values({
-        email: restaurant.auth.email,
-        password: await hashPassword(restaurant.auth.password),
-        name: restaurant.auth.name,
-        verified: restaurant.auth.verified,
-        createdAt: restaurant.auth.createdAt,
-        updatedAt: restaurant.auth.updatedAt
+      // Create restaurant user
+      const [userEntry] = await db.insert(restaurantUsers).values({
+        email: restaurant.user.email,
+        password: await hashPassword(restaurant.user.password),
+        name: restaurant.user.name,
+        verified: restaurant.user.verified,
+        createdAt: restaurant.user.createdAt,
+        updatedAt: restaurant.user.updatedAt
       }).returning();
 
       // Create restaurant profile
       const [profileEntry] = await db.insert(restaurantProfiles).values({
-        restaurantId: authEntry.id,
+        restaurantId: userEntry.id,
         about: restaurant.profile.about,
         description: restaurant.profile.description,
         cuisine: restaurant.profile.cuisine,
@@ -575,15 +575,15 @@ async function seed() {
       const branchEntries = await Promise.all(
         restaurant.branches.map(branch =>
           db.insert(restaurantBranches).values({
-            restaurantId: authEntry.id,
+            restaurantId: userEntry.id,
             ...branch
           }).returning()
         )
       );
 
       return {
-        id: authEntry.id,
-        auth: authEntry,
+        id: userEntry.id,
+        user: userEntry,
         profile: profileEntry,
         branches: branchEntries.map(b => b[0])
       };
@@ -638,7 +638,7 @@ async function seed() {
       allBranches.push({
         id: branch.id,
         restaurantId: restaurant.id,
-        restaurantName: restaurant.auth.name || 'Unknown Restaurant'
+        restaurantName: restaurant.user.name || 'Unknown Restaurant'
       });
     }
   }

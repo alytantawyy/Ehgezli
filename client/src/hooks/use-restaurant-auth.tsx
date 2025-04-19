@@ -3,7 +3,7 @@ import {
   useQuery,
   useMutation,
 } from "@tanstack/react-query";
-import { RestaurantAuth, InsertRestaurantAuth, Restaurant } from "@shared/schema";
+import { RestaurantAuth, InsertRestaurantAuth, Restaurant } from "server/db/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 

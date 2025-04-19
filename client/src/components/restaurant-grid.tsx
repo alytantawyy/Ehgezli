@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { RestaurantWithAvailability, AvailableSlot, BranchWithAvailability } from "@shared/schema";
+import { RestaurantWithAvailability, AvailableSlot, BranchWithAvailability } from "server/db/schema";
 import { RestaurantCard } from "./restaurant-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";

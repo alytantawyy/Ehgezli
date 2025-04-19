@@ -1,6 +1,6 @@
 // Helper functions for time and date calculations
 import { addHours, isSameDay, isWithinInterval } from "date-fns";
-import { BookingWithDetails } from "@shared/schema";
+import { BookingWithDetails } from "server/db/schema";
 
 export const getCurrentTimeSlot = () => {
   const now = new Date();

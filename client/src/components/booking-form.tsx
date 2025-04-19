@@ -8,7 +8,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Restaurant } from "@shared/schema";
+import { Restaurant } from "server/db/schema";
 
 // Import UI components from our design system
 import { Button } from "@/components/ui/button";

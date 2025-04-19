@@ -7,12 +7,12 @@ import { promisify } from "util";  // Convert callback-based functions to Promis
 import { storage } from "./storage";  // Database operations
 import { 
   User as SelectUser, 
-  RestaurantAuth as SelectRestaurantAuth, 
-  passwordResetRequestSchema, 
-  passwordResetSchema, 
+  RestaurantUser as SelectRestaurantUser, 
+  userPasswordResetRequestSchema, 
+  userPasswordResetSchema, 
   restaurantPasswordResetRequestSchema, 
   restaurantPasswordResetSchema 
-} from "@shared/schema";  // Type definitions and validation schemas
+} from "server/db/schema";  // Type definitions and validation schemas
 import { sendPasswordResetEmail } from "./email";  // Email functionality
 import jwt from 'jsonwebtoken';  // JSON Web Token library for token generation and verification
 import bcrypt from 'bcrypt';  // Bcrypt library for password hashing and comparison
@@ -21,7 +21,7 @@ import bcrypt from 'bcrypt';  // Bcrypt library for password hashing and compari
 // This tells TypeScript that req.user can be either a regular user or a restaurant
 declare global {
   namespace Express {
-    interface User extends Partial<SelectUser>, Partial<SelectRestaurantAuth> {
+    interface User extends Partial<SelectUser>, Partial<SelectRestaurantUser> {
       type: 'user' | 'restaurant';  // Discriminator field to distinguish between types
     }
   }
@@ -151,7 +151,7 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
 
         // Handle restaurant users
         if (decoded.type === 'restaurant') {
-          const auth = await storage.getRestaurantAuth(decoded.id);
+          const auth = await storage.getRestaurantUser(decoded.id);
           if (!auth) {
             throw new Error('Restaurant not found');
           }
@@ -201,7 +201,7 @@ export function setupAuth(app: Express) {
   }, async (email, password, done) => {
     try {
       // Find restaurant by email
-      const restaurant = await storage.getRestaurantAuthByEmail(email);
+      const restaurant = await storage.getRestaurantUserByEmail(email);
       if (!restaurant) {
         return done(null, false, { message: 'Restaurant not found' });
       }
@@ -404,7 +404,7 @@ export function setupAuth(app: Express) {
       console.log('Email validated:', email);
       
       // Find restaurant by email
-      const restaurant = await storage.getRestaurantAuthByEmail(email);
+      const restaurant = await storage.getRestaurantUserByEmail(email);
       console.log('Restaurant found:', restaurant ? `ID: ${restaurant.id}` : 'Not found');
       
       if (restaurant) {

@@ -6,7 +6,7 @@ import {
   type Restaurant, 
   type RestaurantBranch,
   type InsertRestaurantBranch 
-} from "@shared/schema";
+} from "server/db/schema";
 import { useRestaurantAuth } from "@/hooks/use-restaurant-auth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
