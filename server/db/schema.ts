@@ -140,7 +140,7 @@ export const bookings = pgTable("bookings", {
   userId: integer("user_id").notNull(),              // Who made the booking
   timeSlotId: integer("time_slot_id").notNull().references(() => timeSlots.id),    // Which time slot
   partySize: integer("party_size").notNull(),        // How many people
-  status: text("status", {enum: ["pending", "confirmed", "arrived", "cancelled"]}).notNull(),
+  status: text("status", {enum: ["pending", "confirmed", "arrived", "cancelled", "completed"]}).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -353,6 +353,11 @@ export type InsertRestaurantBranch = typeof restaurantBranches.$inferInsert;
 export type InsertBooking = typeof bookings.$inferInsert;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertRestaurantProfile = typeof restaurantProfiles.$inferInsert;
+export type BookingSettings = typeof bookingSettings.$inferSelect;
+export type InsertBookingSettings = typeof bookingSettings.$inferInsert;
+export type BookingOverride = typeof bookingOverrides.$inferSelect;
+export type InsertBookingOverride = typeof bookingOverrides.$inferInsert; 
+
 
 // Restaurant type combining auth and profile
 export type Restaurant = RestaurantUser & {
@@ -401,3 +406,14 @@ export type BookingWithDetails = {
     restaurantName: string;
   };
 };
+
+export interface RestaurantSearchFilter {
+  city?: string;
+  cuisine?: string;
+  priceRange?: string;
+  date?: string;       // YYYY-MM-DD
+  time?: string;       // HH:mm (24-hour)
+  partySize?: number;
+  userLatitude?: number;
+  userLongitude?: number;
+}

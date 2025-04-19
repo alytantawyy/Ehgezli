@@ -8,9 +8,9 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from 'cors';
 
 // Import our custom functions from other files
-import { registerRoutes } from "./routes";        // Function to set up all API routes
-import { setupVite, serveStatic, log } from "./vite";  // Development and static file serving utilities
-import { setupEmailTransporter } from "./email";  // Email service setup
+import { registerRoutes } from "@server/routes";        // Function to set up all API routes
+import { setupVite, serveStatic, log } from "@server/vite";  // Development and static file serving utilities
+import { setupEmailTransporter } from "@server/services/emailService";  // Email service setup
 
 // Create a new Express application
 const app = express();

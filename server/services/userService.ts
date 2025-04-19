@@ -1,5 +1,18 @@
+/*
+ * User Service Functions:
+ * - getUser
+ * - getUserByEmail
+ * - getUserById
+ * - createUser
+ * - updateUserProfile
+ * - getUserLocation
+ * - updateUserLocation
+ * - deleteUser
+ * - getUserByResetToken
+ */
+
 import { db } from "@server/db/db";
-import { users} from "@server/db/schema";
+import { userPasswordResetTokens, users} from "@server/db/schema";
 import { eq } from "drizzle-orm";
 import { InsertUser, User } from "@server/db/schema";
 
@@ -22,16 +35,6 @@ export const getUserByEmail = async (email: string): Promise<User | undefined> =
   const [user] = await db.select().from(users).where(eq(users.email, email));
   if (!user) {
     throw new Error(`User with email ${email} not found`);
-  }
-  return user;
-};
-
-//--- Get User by ID ---
-
-export const getUserById = async (id: number): Promise<User | undefined> => {
-  const [user] = await db.select().from(users).where(eq(users.id, id));
-  if (!user) {
-    throw new Error(`User with id ${id} not found`);
   }
   return user;
 };
@@ -66,6 +69,37 @@ export const updateUserProfile = async (
   }
 };
 
+//--- Get User Location ---
+
+export const getUserLocation = async (userId: number): Promise<{
+  lastLatitude: number;
+  lastLongitude: number;
+  locationUpdatedAt: Date;
+  locationPermissionGranted: boolean;
+} | undefined> => {
+    const [location] = await db
+    .select({
+      lastLatitude: users.lastLatitude,
+      lastLongitude: users.lastLongitude,
+      locationUpdatedAt: users.locationUpdatedAt,
+      locationPermissionGranted: users.locationPermissionGranted,
+    })
+    .from(users)
+    .where(eq(users.id, userId));
+  
+  if (!location) {
+    return undefined;
+  }
+  return {
+    lastLatitude: location.lastLatitude ?? 0,
+    lastLongitude: location.lastLongitude ?? 0,
+    locationUpdatedAt: location.locationUpdatedAt ?? new Date(),
+    locationPermissionGranted: location.locationPermissionGranted ?? false
+  };
+};
+
+//--- Update User Location ---
+
 export const updateUserLocation = async (
     userId: number, 
     locationData: {
@@ -88,4 +122,24 @@ export const updateUserLocation = async (
     }
   };
 
+  //--- Delete User ---
 
+  export const deleteUser = async (userId: number): Promise<void> => {
+    await db.delete(users).where(eq(users.id, userId));
+    if (!await db.select().from(users).where(eq(users.id, userId))) {
+      throw new Error(`User with id ${userId} not found`);
+    }
+  };
+
+  //--Get User By Reset Token--
+
+  export const getUserByResetToken = async (token: string): Promise<User | undefined> => {
+    const [user] = await db
+      .select()
+      .from(users)
+      .innerJoin(userPasswordResetTokens, eq(userPasswordResetTokens.userId, users.id))
+      .where(eq(userPasswordResetTokens.token, token));
+    return user?.users;
+  };
+    
+    

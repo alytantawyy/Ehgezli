@@ -1,3 +1,12 @@
+/*
+ * Restaurant User Service Functions:
+ * - getRestaurantUser
+ * - getRestaurantUserByEmail
+ * - createRestaurantUser
+ * - updateRestaurantUser
+ * - deleteRestaurantUser
+ */
+
 import { db } from "@server/db/db";
 import { restaurantUsers} from "@server/db/schema";
 import { eq } from "drizzle-orm";
@@ -34,4 +43,22 @@ export const createRestaurantUser = async (restaurantUser: InsertRestaurantUser)
   }
   return createdRestaurantUser;
 };
-  
+
+//--- Update Restaurant User ---
+
+export const updateRestaurantUser = async (userId: number, restaurantUser: InsertRestaurantUser): Promise<RestaurantUser> => {
+  const [updatedRestaurantUser] = await db.update(restaurantUsers).set(restaurantUser).where(eq(restaurantUsers.id, userId)).returning();
+  if (!updatedRestaurantUser) {
+    throw new Error(`Failed to update restaurant user with id ${userId}`);
+  }
+  return updatedRestaurantUser;
+};
+
+//--- Delete Restaurant User ---
+
+export const deleteRestaurantUser = async (userId: number): Promise<void> => {
+  await db.delete(restaurantUsers).where(eq(restaurantUsers.id, userId));
+  if (!await db.select().from(restaurantUsers).where(eq(restaurantUsers.id, userId))) {
+    throw new Error(`Restaurant user with id ${userId} not found`);
+  }
+};
