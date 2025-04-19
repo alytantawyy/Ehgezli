@@ -4,7 +4,7 @@
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
-    "target": "es2015",
+    "target": "es2017",
     "noEmit": true,
     "module": "ESNext",
     "strict": true,

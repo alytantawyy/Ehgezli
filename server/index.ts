@@ -4,46 +4,33 @@ import "dotenv/config";
 // Import required packages and types
 // express: Web framework for Node.js
 // Request, Response, NextFunction: Types for Express request handling
-import express, { type Request, Response, NextFunction } from "express";
-import cors from 'cors';
+import express from "express";
 
 // Import our custom functions from other files
-import { registerRoutes } from "@server/routes";        // Function to set up all API routes
 import { setupVite, serveStatic, log } from "@server/vite";  // Development and static file serving utilities
 import { setupEmailTransporter } from "@server/services/emailService";  // Email service setup
-
+import { createServer } from "http";
+import { setupWebSocket } from "@server/websocket";
+import { corsMiddleware, jsonMiddleware, urlencodedMiddleware } from "./middleware/global";
+import { loggingMiddleware } from "./middleware/logging";
+import { errorHandler } from "./middleware/errorHandling";
+import { registerRoutes } from "./routes";
 // Create a new Express application
 const app = express();
 
-// Configure CORS to allow requests from mobile app
-app.use(cors({
-  origin: [
-    'http://localhost:8081', 
-    'http://localhost:19006', 
-    'http://localhost:19000', 
-    'http://localhost:19001', 
-    'http://localhost:19002', 
-    'exp://localhost:8081',
-    'http://localhost:3000',
-    'http://localhost:8080',
-    'http://10.2.64.32:8081',
-    'exp://10.2.64.32:8081',
-    'exp://10.2.64.32:19000',
-    'exp://10.2.64.32:19001',
-    'exp://10.2.64.32:19002'
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+export const httpServer = createServer(app);
 
-// Middleware to parse JSON bodies
-// This allows us to read JSON data sent in POST requests
-app.use(express.json());
+// Setup WebSocket
+setupWebSocket(httpServer);
 
-// Middleware to parse URL-encoded bodies (form data)
-// extended: false means use the simple algorithm for parsing
-app.use(express.urlencoded({ extended: false }));
+// Middleware
+
+app.use(corsMiddleware);
+app.use(jsonMiddleware);
+app.use(urlencodedMiddleware);
+app.use(loggingMiddleware);
+
+registerRoutes(app);
 
 // Initialize the email service for sending notifications
 // Using .catch() to handle any errors during setup
@@ -51,87 +38,31 @@ setupEmailTransporter().catch((err) => {
   console.error("Failed to initialize email service:", err);
 });
 
-// Logging middleware - tracks request duration and response data
-app.use((req, res, next) => {
-  // Record the start time of the request
-  const start = Date.now();
-  const path = req.path;
-  
-  // Variable to store the JSON response for logging
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  // Override the default res.json method to capture the response
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    // Store the response body for logging
-    capturedJsonResponse = bodyJson;
-    // Call the original json method with the same context and arguments
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  // When the response is finished, calculate duration and log details
-  res.on("finish", () => {
-    // Calculate how long the request took
-    const duration = Date.now() - start;
-    
-    // Only log API requests (paths starting with /api)
-    if (path.startsWith("/api")) {
-      // Create the log message with method, path, status code, and duration
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      
-      // Add the response body to the log if it exists
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      // Truncate long log lines for readability
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      // Output the log line
-      log(logLine);
-    }
-  });
-
-  // Continue to the next middleware
-  next();
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", uptime: process.uptime() });
 });
 
-// Immediately Invoked Function Expression (IIFE) to use async/await
+
+// Error handling middleware
+app.use(errorHandler);
+
+// Development vs Production setup
+// In development: Set up Vite for hot reloading
+// In production: Serve static files
 (async () => {
-  // Set up all routes and get the HTTP server instance
-  const server = registerRoutes(app);
-
-  // Error handling middleware
-  // This catches any errors thrown in route handlers
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    // Get the status code from the error or default to 500
-    const status = err.status || err.statusCode || 500;
-    // Get the error message or use a default
-    const message = err.message || "Internal Server Error";
-
-    // Send the error response to the client
-    res.status(status).json({ message });
-    // Re-throw the error for logging purposes
-    throw err;
-  });
-
-  // Development vs Production setup
-  // In development: Set up Vite for hot reloading
-  // In production: Serve static files
   if (app.get("env") === "development") {
-    await setupVite(app, server);
+    await setupVite(app, httpServer);
   } else {
     serveStatic(app);
   }
 
-  // Start the server
-  // Get port from environment variable or use 5000 as default
   const PORT = parseInt(process.env.PORT || "5000", 10);
-  
-  // Listen on all network interfaces (0.0.0.0)
-  server.listen(PORT, "0.0.0.0", () => {
-    log(`serving on port ${PORT}`);
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    log(`🚀 Serving on http://localhost:${PORT}`);
   });
 })();
+
+
+export default app;
+
+

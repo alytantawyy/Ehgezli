@@ -10,7 +10,7 @@
 
 import { db } from "@server/db/db";
 import { restaurantProfiles, InsertRestaurantProfile, RestaurantProfile, restaurantBranches, restaurantUsers, RestaurantUser, restaurantPasswordResetTokens, Restaurant, RestaurantSearchFilter, timeSlots } from "@server/db/schema";
-import { getDistance } from "@server/utils/distance";
+import { getDistance } from "@server/utils/location";
 import { eq, and, or, ilike } from "drizzle-orm";
 
 // ==================== Restaurant Service ====================
