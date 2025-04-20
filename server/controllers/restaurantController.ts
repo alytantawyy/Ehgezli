@@ -1,6 +1,13 @@
-import { createRestaurant, createRestaurantProfile, deleteRestaurantProfile, getDetailedRestaurant, getRestaurantProfile, searchRestaurants, updateRestaurantProfile } from "@server/services/restaurantService";
+import { createRestaurant, createRestaurantProfile, deleteRestaurant, deleteRestaurantProfile, getDetailedRestaurant, getRestaurantProfile, getRestaurants, searchRestaurants, updateRestaurant, updateRestaurantProfile } from "@server/services/restaurantService";
 import { createRestaurantUser, deleteRestaurantUser, getRestaurantUser, updateRestaurantUser } from "@server/services/restaurantUserService";
 import { Request, Response } from "express";
+
+//--Get All Restaurants --
+
+export const getRestaurantsController = async (req: Request, res: Response) => {
+  const restaurants = await getRestaurants();
+  res.json(restaurants);
+};
 
 //-- Get Restaurant Profile --
 
@@ -13,32 +20,32 @@ export const getRestaurantProfileController = async (req: Request, res: Response
   res.json(restaurantProfile);
 };
 
-//-- Create Restaurant Profile --
+//-- Create Restaurant --
 
 export const createRestaurantController = async (req: Request, res: Response) => {
   const { email, password, name, about, description, cuisine, priceRange, logo } = req.body;
-  const restaurantProfile = await createRestaurant({ email, password, name, about, description, cuisine, priceRange, logo });
-  res.json(restaurantProfile);
+  const restaurant = await createRestaurant({ email, password, name, about, description, cuisine, priceRange, logo });
+  res.json(restaurant);
 };
 
-//-- Update Restaurant Profile --
+//-- Update Restaurant --
 
-export const updateRestaurantProfileController = async (req: Request, res: Response) => {
+export const updateRestaurantController = async (req: Request, res: Response) => {
   const restaurantId = req.params.restaurantId;
   if (!restaurantId) return res.status(400).json({ message: "Restaurant ID is required" });
   
-  await updateRestaurantProfile(Number(restaurantId), req.body);
-  res.json({ message: "Restaurant profile updated successfully" });
+  await updateRestaurant(Number(restaurantId), req.body);
+  res.json({ message: "Restaurant updated successfully" });
 };
 
-//-- Delete Restaurant Profile --
+//-- Delete Restaurant --
 
-export const deleteRestaurantProfileController = async (req: Request, res: Response) => {
+export const deleteRestaurantController = async (req: Request, res: Response) => {
   const restaurantId = req.params.restaurantId;
   if (!restaurantId) return res.status(400).json({ message: "Restaurant ID is required" });
   
-  await deleteRestaurantProfile(Number(restaurantId));
-  res.json({ message: "Restaurant profile deleted successfully" });
+  await deleteRestaurant(Number(restaurantId));
+  res.json({ message: "Restaurant deleted successfully" });
 };
 
 //-- Get Detailed Restaurant --

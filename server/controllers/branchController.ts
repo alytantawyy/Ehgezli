@@ -1,6 +1,13 @@
 
 import { Request, Response } from "express";
-import { createRestaurantBranch, deleteRestaurantBranch, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, updateRestaurantBranch } from "@server/services/branchService";
+import { createRestaurantBranch, deleteRestaurantBranch, getAllRestaurantBranches, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, updateRestaurantBranch } from "@server/services/branchService";
+
+//--Get All Branches--
+
+export const getAllRestaurantBranchesController = async (req: Request, res: Response) => {
+  const branches = await getAllRestaurantBranches();
+  res.json(branches);
+};
 
 //--- Get Restaurant Branches ---
 

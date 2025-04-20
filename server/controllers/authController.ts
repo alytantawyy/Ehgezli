@@ -1,5 +1,5 @@
 
-import { createPasswordResetToken, createRestaurantPasswordResetToken, markPasswordResetTokenAsUsed, markRestaurantPasswordResetTokenAsUsed, updateRestaurantPassword, updateUserPassword, validatePasswordResetToken, validateRestaurantPasswordResetToken, verifyRestaurantLogin, verifyUserLogin } from "@server/services/authService";
+import { createPasswordResetToken, createRestaurantPasswordResetToken, generateToken, hashPassword, markPasswordResetTokenAsUsed, markRestaurantPasswordResetTokenAsUsed, updateRestaurantPassword, updateUserPassword, validatePasswordResetToken, validateRestaurantPasswordResetToken, verifyRestaurantLogin, verifyUserLogin } from "@server/services/authService";
 import { Request, Response } from "express";
 
 //--- Create Password Reset Token ---
@@ -35,14 +35,14 @@ export const markPasswordResetTokenAsUsedController = async (req: Request, res: 
 //--- Update User Password ---
 
 export const updateUserPasswordController = async (req: Request, res: Response) => {
-  const userId = req.params.userId;
-  const password = req.body.password;
+    const userId = req.params.userId;
+    const hashedPassword = await hashPassword(req.body.password);
   
-  if (!userId || !password) return res.status(400).json({ message: "User ID and password are required" });
+    if (!userId || !hashedPassword) return res.status(400).json({ message: "User ID and password are required" });
   
-  await updateUserPassword(Number(userId), password);
-  res.json({ message: "Password updated successfully" });
-};
+    await updateUserPassword(Number(userId), hashedPassword);
+    res.json({ message: "Password updated successfully" });
+  };
 
 //--- Create Restaurant Password Reset Token ---
 
@@ -78,23 +78,27 @@ export const markRestaurantPasswordResetTokenAsUsedController = async (req: Requ
 
 export const updateRestaurantPasswordController = async (req: Request, res: Response) => {
   const restaurantId = req.params.restaurantId;
-  const password = req.body.password;
+  const hashedPassword = await hashPassword(req.body.password);
   
-  if (!restaurantId || !password) return res.status(400).json({ message: "Restaurant ID and password are required" });
+  if (!restaurantId || !hashedPassword) return res.status(400).json({ message: "Restaurant ID and password are required" });
   
-  await updateRestaurantPassword(Number(restaurantId), password);
+  await updateRestaurantPassword(Number(restaurantId), hashedPassword);
   res.json({ message: "Password updated successfully" });
 };
 
 //--- Verify User Login ---
 
 export const verifyUserLoginController = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ message: "Email and password are required" });
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: "Email and password are required" });
   
-  const user = await verifyUserLogin(email, password);
-  res.json(user);
-};
+    const user = await verifyUserLogin(email, password);
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+    const token = generateToken(user, 'user');
+    res.json({ user, token });
+  };
 
 //--- Verify Restaurant Login ---
 
@@ -103,7 +107,11 @@ export const verifyRestaurantLoginController = async (req: Request, res: Respons
   if (!email || !password) return res.status(400).json({ message: "Email and password are required" });
   
   const restaurant = await verifyRestaurantLogin(email, password);
-  res.json(restaurant);
+  if (!restaurant) {
+    return res.status(401).json({ message: "Invalid email or password" });
+  }
+  const token = generateToken(restaurant, 'restaurant');
+  res.json({ restaurant, token });
 };
 
 

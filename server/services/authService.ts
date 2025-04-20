@@ -164,11 +164,15 @@ export const hashPassword = async (password: string): Promise<string> => {
 
 //--generate token--
 export function generateToken(user: User | RestaurantUser, type: 'user' | 'restaurant'): string {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error("JWT_SECRET is not defined in environment variables");
+    }
     const payload = {
       id: user.id,
       type
     };
-    return jwt.sign(payload, process.env.JWT_SECRET || 'secret', { expiresIn: '1h' });
+    return jwt.sign(payload, secret);
   }
 
 //--verify token--

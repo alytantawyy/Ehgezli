@@ -1,9 +1,8 @@
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { users, restaurantUsers, restaurantProfiles, restaurantBranches, bookings, passwordResetTokens, restaurantPasswordResetTokens, savedRestaurants } from '../schema';
+import { users, restaurantUsers, restaurantProfiles, restaurantBranches, bookings, userPasswordResetTokens, restaurantPasswordResetTokens, timeSlots, savedBranches, bookingSettings, bookingOverrides } from '../schema';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
-import { sql } from 'drizzle-orm';
 
 // Load environment variables
 dotenv.config();
@@ -21,40 +20,24 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, saltRounds);
 }
 
-// Helper function to generate a random date within a range
-function randomDate(start: Date, end: Date) {
-  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
-}
-
-// Helper function to pick random items from an array
-function pickRandom<T>(arr: T[], count: number): T[] {
-  const result: T[] = [];
-  const copy = [...arr];
-  for (let i = 0; i < count && copy.length > 0; i++) {
-    const index = Math.floor(Math.random() * copy.length);
-    result.push(copy[index]);
-    copy.splice(index, 1);
-  }
-  return result;
-}
 
 // Tampa coordinates for different locations
 const tampaLocations = [
-  { latitude: '27.9506', longitude: '-82.4572' }, // Downtown Tampa
-  { latitude: '27.9658', longitude: '-82.5307' }, // Westshore
-  { latitude: '27.9777', longitude: '-82.3334' }, // East Tampa
-  { latitude: '28.0192', longitude: '-82.4301' }, // USF Area
-  { latitude: '27.9478', longitude: '-82.4584' }, // Channel District
-  { latitude: '27.9654', longitude: '-82.4301' }, // Ybor City
-  { latitude: '27.9420', longitude: '-82.4609' }, // Hyde Park
-  { latitude: '28.0550', longitude: '-82.4143' }, // Temple Terrace
-  { latitude: '27.9160', longitude: '-82.4593' }, // Davis Islands
-  { latitude: '27.9238', longitude: '-82.4637' }, // Harbour Island
-  { latitude: '27.9959', longitude: '-82.3452' }, // Tampa Palms
-  { latitude: '27.9759', longitude: '-82.5371' }, // International Plaza
-  { latitude: '28.0836', longitude: '-82.4500' }, // New Tampa
-  { latitude: '27.9058', longitude: '-82.5137' }, // South Tampa
-  { latitude: '27.9253', longitude: '-82.3300' }, // Brandon
+  { latitude: 27.9506, longitude: -82.4572 }, // Downtown Tampa
+  { latitude: 27.9658, longitude: -82.5307 }, // Westshore
+  { latitude: 27.9777, longitude: -82.3334 }, // East Tampa
+  { latitude: 28.0192, longitude: -82.4301 }, // USF Area
+  { latitude: 27.9478, longitude: -82.4584 }, // Channel District
+  { latitude: 27.9654, longitude: -82.4301 }, // Ybor City
+  { latitude: 27.9420, longitude: -82.4609 }, // Hyde Park
+  { latitude: 28.0550, longitude: -82.4143 }, // Temple Terrace
+  { latitude: 27.9160, longitude: -82.4593 }, // Davis Islands
+  { latitude: 27.9238, longitude: -82.4637 }, // Harbour Island
+  { latitude: 27.9959, longitude: -82.3452 }, // Tampa Palms
+  { latitude: 27.9759, longitude: -82.5371 }, // International Plaza
+  { latitude: 28.0836, longitude: -82.4500 }, // New Tampa
+  { latitude: 27.9058, longitude: -82.5137 }, // South Tampa
+  { latitude: 27.9253, longitude: -82.3300 }, // Brandon
 ];
 
 async function seed() {
@@ -62,8 +45,11 @@ async function seed() {
 
   // Clear existing data in correct order (respecting foreign keys)
   console.log('Clearing existing data...');
-  await db.delete(savedRestaurants);
-  await db.delete(passwordResetTokens);
+  await db.delete(savedBranches);
+  await db.delete(bookingOverrides);
+  await db.delete(bookingSettings);
+  await db.delete(timeSlots);
+  await db.delete(userPasswordResetTokens);
   await db.delete(restaurantPasswordResetTokens);
   await db.delete(bookings);
   await db.delete(restaurantBranches);
@@ -82,6 +68,7 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1990-01-01'),
       city: 'Alexandria',
+      nationality: 'Egyptian',
       favoriteCuisines: ['Italian', 'Japanese'],
       lastLatitude: tampaLocations[0].latitude,
       lastLongitude: tampaLocations[0].longitude,
@@ -96,6 +83,7 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1992-05-15'),
       city: 'Cairo',
+      nationality: 'Egyptian',
       favoriteCuisines: ['Middle Eastern', 'Mediterranean'],
       lastLatitude: tampaLocations[1].latitude,
       lastLongitude: tampaLocations[1].longitude,
@@ -110,6 +98,7 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1988-10-20'),
       city: 'Alexandria',
+      nationality: 'Egyptian',
       favoriteCuisines: ['Egyptian', 'Middle Eastern', 'Mediterranean'],
       lastLatitude: tampaLocations[2].latitude,
       lastLongitude: tampaLocations[2].longitude,
@@ -124,6 +113,7 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1995-03-08'),
       city: 'Cairo',
+      nationality: 'Egyptian',
       favoriteCuisines: ['Indian', 'Chinese'],
       lastLatitude: tampaLocations[3].latitude,
       lastLongitude: tampaLocations[3].longitude,
@@ -138,6 +128,7 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1985-12-15'),
       city: 'Alexandria',
+      nationality: 'Egyptian',
       favoriteCuisines: ['French', 'Italian'],
       lastLatitude: tampaLocations[4].latitude,
       lastLongitude: tampaLocations[4].longitude,
@@ -152,6 +143,7 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1993-07-22'),
       city: 'Cairo',
+      nationality: 'Egyptian',
       favoriteCuisines: ['Japanese', 'Thai'],
       lastLatitude: tampaLocations[5].latitude,
       lastLongitude: tampaLocations[5].longitude,
@@ -166,6 +158,7 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1991-09-05'),
       city: 'Alexandria',
+      nationality: 'Egyptian',
       favoriteCuisines: ['Mexican', 'American'],
       lastLatitude: tampaLocations[6].latitude,
       lastLongitude: tampaLocations[6].longitude,
@@ -180,6 +173,7 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1994-02-18'),
       city: 'Cairo',
+      nationality: 'Egyptian',
       favoriteCuisines: ['Lebanese', 'Greek'],
       lastLatitude: tampaLocations[7].latitude,
       lastLongitude: tampaLocations[7].longitude,
@@ -194,6 +188,7 @@ async function seed() {
       gender: 'male',
       birthday: new Date('1989-11-30'),
       city: 'Alexandria',
+      nationality: 'Egyptian',
       favoriteCuisines: ['Chinese', 'Indian'],
       lastLatitude: tampaLocations[8].latitude,
       lastLongitude: tampaLocations[8].longitude,
@@ -208,6 +203,7 @@ async function seed() {
       gender: 'female',
       birthday: new Date('1996-04-12'),
       city: 'Cairo',
+      nationality: 'Egyptian',
       favoriteCuisines: ['Italian', 'French'],
       lastLatitude: tampaLocations[9].latitude,
       lastLongitude: tampaLocations[9].longitude,
@@ -226,6 +222,7 @@ async function seed() {
         gender: user.gender,
         birthday: user.birthday,
         city: user.city,
+        nationality: user.nationality,
         favoriteCuisines: user.favoriteCuisines,
         lastLatitude: user.lastLatitude,
         lastLongitude: user.lastLongitude,
@@ -598,29 +595,6 @@ async function seed() {
     console.log('First branch structure:', JSON.stringify(restaurants[0].branches[0], null, 2));
   }
 
-  // Create test bookings
-  const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-  const nextWeek = new Date(now);
-  nextWeek.setDate(now.getDate() + 7);
-  const nextMonth = new Date(now);
-  nextMonth.setMonth(now.getMonth() + 1);
-  const lastWeek = new Date(now);
-  lastWeek.setDate(now.getDate() - 7);
-  const lastMonth = new Date(now);
-  lastMonth.setMonth(now.getMonth() - 1);
-
-  // Helper to create a booking time
-  const createBookingTime = (baseDate: Date, hours: number, minutes = 0) => {
-    const date = new Date(baseDate);
-    date.setHours(hours, minutes, 0, 0);
-    return date;
-  };
-
-  // Create a variety of bookings
-  const bookingPromises: Promise<any>[] = [];
-
   // Create a flat array of all branches for easier random selection
   const allBranches: Array<{id: number, restaurantId: number, restaurantName: string}> = [];
   
@@ -645,6 +619,136 @@ async function seed() {
 
   console.log(`Found ${allBranches.length} valid branches for bookings`);
   
+  // First create booking settings for each branch
+  console.log('Creating booking settings for branches...');
+  const bookingSettingsPromises: Promise<any>[] = [];
+  
+  for (const branch of allBranches) {
+    // Create booking settings with random opening/closing times
+    const openHour = 10 + Math.floor(Math.random() * 3); // 10 AM to 12 PM
+    const closeHour = 20 + Math.floor(Math.random() * 4); // 8 PM to 11 PM
+    
+    const openTime = `${openHour.toString().padStart(2, '0')}:00`;
+    const closeTime = `${closeHour.toString().padStart(2, '0')}:00`;
+    
+    bookingSettingsPromises.push(
+      db.insert(bookingSettings).values({
+        branchId: branch.id,
+        openTime: openTime,
+        closeTime: closeTime,
+        interval: 45 + Math.floor(Math.random() * 56), // 45-100 minute slots
+        maxSeatsPerSlot: 20 + Math.floor(Math.random() * 20), // 20-40 seats
+        maxTablesPerSlot: 5 + Math.floor(Math.random() * 10) // 5-15 tables
+      }).returning()
+    );
+  }
+  
+  // Wait for all booking settings to be created
+  const branchSettingsData = await Promise.all(bookingSettingsPromises);
+  console.log('Booking settings created successfully');
+  
+  // Now create time slots based on booking settings
+  console.log('Creating time slots for branches...');
+  const timeSlotsByBranch: Record<number, any[]> = {};
+  
+  // Create time slots for the past month, today, and next month
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 1); // Start yesterday
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + 14); // End 14 days from now
+  
+  // Flatten the settings array
+  const allSettings = branchSettingsData.flat();
+  
+  // Process settings in batches to avoid overwhelming the database
+  const BATCH_SIZE = 3; // Process 3 branches at a time
+  
+  for (let i = 0; i < allSettings.length; i += BATCH_SIZE) {
+    const batchSettings = allSettings.slice(i, i + BATCH_SIZE);
+    console.log(`Processing batch ${i / BATCH_SIZE + 1} of ${Math.ceil(allSettings.length / BATCH_SIZE)} (${batchSettings.length} branches)`);
+    
+    const batchPromises: Promise<any>[] = [];
+    
+    for (const setting of batchSettings) {
+      const branchId = setting.branchId;
+      timeSlotsByBranch[branchId] = [];
+      
+      // Parse opening and closing times
+      const [openHour] = setting.openTime.split(':').map(Number);
+      const [closeHour] = setting.closeTime.split(':').map(Number);
+      const intervalMinutes = setting.interval;
+      
+      // Limit the number of days to create slots for (to reduce database load)
+      // For testing, we'll create fewer slots - just enough for the bookings
+      const daysToCreate = 10; // Create slots for 10 days instead of full 2 months
+      const skipDays = Math.floor(Math.random() * 3); // Randomly skip some days for variety
+      
+      let dayCount = 0;
+      for (let date = new Date(startDate); date <= endDate && dayCount < daysToCreate; date.setDate(date.getDate() + skipDays + 1)) {
+        dayCount++;
+        
+        // Skip creating slots for past dates that are more than a week old (except for a few for testing)
+        const isPastDate = date < new Date();
+        const isMoreThanWeekOld = new Date().getTime() - date.getTime() > 7 * 24 * 60 * 60 * 1000;
+        
+        if (isPastDate && isMoreThanWeekOld && Math.random() > 0.2) { // Only create ~20% of old slots
+          continue;
+        }
+        
+        // Create slots from opening to closing time
+        // Limit the number of slots per day to reduce database load
+        const slotsPerDay = 4; // Create 4 slots per day instead of every hour
+        const hourStep = Math.max(1, Math.floor((closeHour - openHour) / slotsPerDay));
+        
+        for (let hour = openHour; hour < closeHour; hour += hourStep) {
+          // For each hour, create slots based on the interval
+          // Only create one slot per hour to reduce database load
+          const slotDate = new Date(date);
+          const startTime = new Date(slotDate);
+          startTime.setHours(hour, 0, 0, 0);
+          
+          const endTime = new Date(slotDate);
+          endTime.setHours(hour + 1, 0, 0, 0);
+          
+          // Skip creating slots that are in the past and already passed today
+          if (startTime < new Date() && date.getDate() === new Date().getDate()) {
+            continue;
+          }
+          
+          batchPromises.push(
+            db.insert(timeSlots).values({
+              branchId: branchId,
+              date: slotDate,
+              startTime: startTime,
+              endTime: endTime,
+              maxSeats: setting.maxSeatsPerSlot,
+              maxTables: setting.maxTablesPerSlot,
+              isClosed: false
+            }).returning().then(slots => {
+              if (slots && slots.length > 0) {
+                if (!timeSlotsByBranch[branchId]) {
+                  timeSlotsByBranch[branchId] = [];
+                }
+                timeSlotsByBranch[branchId].push(slots[0]);
+              }
+              return slots;
+            })
+          );
+        }
+      }
+    }
+    
+    // Wait for this batch to complete before moving to the next
+    console.log(`Inserting ${batchPromises.length} time slots for batch ${i / BATCH_SIZE + 1}...`);
+    await Promise.all(batchPromises);
+    console.log(`Completed batch ${i / BATCH_SIZE + 1}`);
+  }
+  
+  console.log('Time slots created successfully');
+  
+  // Create a variety of bookings
+  const bookingPromises: Promise<any>[] = [];
+  
   if (allBranches.length > 0) {
     // For each user, create different types of bookings
     for (const user of users_data) {
@@ -655,43 +759,50 @@ async function seed() {
           const branchIndex = Math.floor(Math.random() * allBranches.length);
           const randomBranch = allBranches[branchIndex];
           
-          const bookingDate = randomDate(lastMonth, lastWeek);
-          const arrivedDate = new Date(bookingDate);
-          arrivedDate.setMinutes(arrivedDate.getMinutes() + 10);
+          // Get a random time slot for this branch from the past
+          const pastTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(
+            slot => new Date(slot.date) < new Date()
+          ) || [];
           
-          bookingPromises.push(
-            db.insert(bookings).values({
-              date: bookingDate,
-              userId: user.id,
-              branchId: randomBranch.id,
-              partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-              confirmed: true,
-              arrived: true,
-              completed: true,
-              arrivedAt: arrivedDate
-            })
-          );
+          if (pastTimeSlots.length > 0) {
+            const randomTimeSlot = pastTimeSlots[Math.floor(Math.random() * pastTimeSlots.length)];
+            
+            bookingPromises.push(
+              db.insert(bookings).values({
+                userId: user.id,
+                timeSlotId: randomTimeSlot.id,
+                partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                status: 'completed'
+              })
+            );
+          }
         }
 
-        // 2. Currently seated bookings (0-1 per user)
+        // 2. Currently arrived bookings (0-1 per user)
         if (Math.random() > 0.7) { // 30% chance
           const branchIndex = Math.floor(Math.random() * allBranches.length);
           const randomBranch = allBranches[branchIndex];
           
-          const bookingDate = createBookingTime(now, now.getHours() - 1);
+          // Get a time slot for today
+          const todayTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(slot => {
+            const slotDate = new Date(slot.date);
+            return slotDate.getDate() === new Date().getDate() && 
+                   slotDate.getMonth() === new Date().getMonth() && 
+                   slotDate.getFullYear() === new Date().getFullYear();
+          }) || [];
           
-          bookingPromises.push(
-            db.insert(bookings).values({
-              date: bookingDate,
-              userId: user.id,
-              branchId: randomBranch.id,
-              partySize: Math.floor(Math.random() * 4) + 2, // 2-6 people
-              confirmed: true,
-              arrived: true,
-              completed: false,
-              arrivedAt: now
-            })
-          );
+          if (todayTimeSlots.length > 0) {
+            const randomTimeSlot = todayTimeSlots[Math.floor(Math.random() * todayTimeSlots.length)];
+            
+            bookingPromises.push(
+              db.insert(bookings).values({
+                userId: user.id,
+                timeSlotId: randomTimeSlot.id,
+                partySize: Math.floor(Math.random() * 4) + 2, // 2-6 people
+                status: 'arrived'
+              })
+            );
+          }
         }
 
         // 3. Upcoming confirmed bookings (1-2 per user)
@@ -700,22 +811,36 @@ async function seed() {
           const branchIndex = Math.floor(Math.random() * allBranches.length);
           const randomBranch = allBranches[branchIndex];
           
-          const hours = now.getHours() + Math.floor(Math.random() * 5) + 1; // 1-6 hours from now
-          const bookingDate = i === 0 ? 
-            createBookingTime(now, hours) : 
-            createBookingTime(tomorrow, 12 + Math.floor(Math.random() * 8));
+          // Get a time slot for today or tomorrow
+          const upcomingTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(slot => {
+            const slotDate = new Date(slot.date);
+            const today = new Date();
+            const tomorrow = new Date();
+            tomorrow.setDate(today.getDate() + 1);
+            
+            return (
+              (slotDate.getDate() === today.getDate() && 
+               slotDate.getMonth() === today.getMonth() && 
+               slotDate.getFullYear() === today.getFullYear() &&
+               new Date(slot.startTime) > new Date()) || 
+              (slotDate.getDate() === tomorrow.getDate() && 
+               slotDate.getMonth() === tomorrow.getMonth() && 
+               slotDate.getFullYear() === tomorrow.getFullYear())
+            );
+          }) || [];
           
-          bookingPromises.push(
-            db.insert(bookings).values({
-              date: bookingDate,
-              userId: user.id,
-              branchId: randomBranch.id,
-              partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-              confirmed: true,
-              arrived: false,
-              completed: false
-            })
-          );
+          if (upcomingTimeSlots.length > 0) {
+            const randomTimeSlot = upcomingTimeSlots[Math.floor(Math.random() * upcomingTimeSlots.length)];
+            
+            bookingPromises.push(
+              db.insert(bookings).values({
+                userId: user.id,
+                timeSlotId: randomTimeSlot.id,
+                partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                status: 'confirmed'
+              })
+            );
+          }
         }
 
         // 4. Future confirmed bookings (1-2 per user)
@@ -724,20 +849,30 @@ async function seed() {
           const branchIndex = Math.floor(Math.random() * allBranches.length);
           const randomBranch = allBranches[branchIndex];
           
-          const futureDate = randomDate(tomorrow, nextMonth);
-          const hour = 12 + Math.floor(Math.random() * 10); // Between 12 PM and 10 PM
+          // Get a time slot for the future (beyond tomorrow)
+          const futureTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(slot => {
+            const slotDate = new Date(slot.date);
+            const dayAfterTomorrow = new Date();
+            dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+            
+            const nextMonthDate = new Date();
+            nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+            
+            return slotDate >= dayAfterTomorrow && slotDate <= nextMonthDate;
+          }) || [];
           
-          bookingPromises.push(
-            db.insert(bookings).values({
-              date: createBookingTime(futureDate, hour),
-              userId: user.id,
-              branchId: randomBranch.id,
-              partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-              confirmed: true,
-              arrived: false,
-              completed: false
-            })
-          );
+          if (futureTimeSlots.length > 0) {
+            const randomTimeSlot = futureTimeSlots[Math.floor(Math.random() * futureTimeSlots.length)];
+            
+            bookingPromises.push(
+              db.insert(bookings).values({
+                userId: user.id,
+                timeSlotId: randomTimeSlot.id,
+                partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                status: 'confirmed'
+              })
+            );
+          }
         }
 
         // 5. Cancelled bookings (0-2 per user)
@@ -746,23 +881,36 @@ async function seed() {
           const branchIndex = Math.floor(Math.random() * allBranches.length);
           const randomBranch = allBranches[branchIndex];
           
-          const isFuture = Math.random() > 0.5;
-          const bookingDate = isFuture ? 
-            randomDate(tomorrow, nextWeek) : 
-            randomDate(lastWeek, now);
-          const hour = 12 + Math.floor(Math.random() * 10); // Between 12 PM and 10 PM
+          // Get a time slot for today or tomorrow
+          const upcomingTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(slot => {
+            const slotDate = new Date(slot.date);
+            const today = new Date();
+            const tomorrow = new Date();
+            tomorrow.setDate(today.getDate() + 1);
+            
+            return (
+              (slotDate.getDate() === today.getDate() && 
+               slotDate.getMonth() === today.getMonth() && 
+               slotDate.getFullYear() === today.getFullYear() &&
+               new Date(slot.startTime) > new Date()) || 
+              (slotDate.getDate() === tomorrow.getDate() && 
+               slotDate.getMonth() === tomorrow.getMonth() && 
+               slotDate.getFullYear() === tomorrow.getFullYear())
+            );
+          }) || [];
           
-          bookingPromises.push(
-            db.insert(bookings).values({
-              date: createBookingTime(bookingDate, hour),
-              userId: user.id,
-              branchId: randomBranch.id,
-              partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-              confirmed: false, // Unconfirmed = cancelled
-              arrived: false,
-              completed: false
-            })
-          );
+          if (upcomingTimeSlots.length > 0) {
+            const randomTimeSlot = upcomingTimeSlots[Math.floor(Math.random() * upcomingTimeSlots.length)];
+            
+            bookingPromises.push(
+              db.insert(bookings).values({
+                userId: user.id,
+                timeSlotId: randomTimeSlot.id,
+                partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                status: 'cancelled'
+              })
+            );
+          }
         }
       } catch (error) {
         console.error(`Error creating bookings for user ${user.id}:`, error);
@@ -845,10 +993,9 @@ async function seed() {
           }
           
           savedRestaurantPromises.push(
-            db.insert(savedRestaurants).values({
+            db.insert(savedBranches).values({
               userId: user.id,
-              restaurantId: restaurant.id,
-              branchIndex: branchInfo.index
+              branchId: branchInfo.id
             })
           );
         }

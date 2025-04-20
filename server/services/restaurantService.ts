@@ -28,6 +28,13 @@ export const getRestaurantProfile = async (restaurantId: number): Promise<Restau
   return profile;
 };
 
+//--Get All Restaurants--
+
+export const getRestaurants = async (): Promise<RestaurantProfile[]> => {
+  const restaurants = await db.select().from(restaurantProfiles);
+  return restaurants;
+};
+
 //--Create Restaurant Profile--
 
 export const createRestaurantProfile = async (profile: InsertRestaurantProfile): Promise<RestaurantProfile> => {

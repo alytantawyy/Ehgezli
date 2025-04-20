@@ -1,8 +1,17 @@
 
 import { Request, Response } from "express";
-import { changeBookingStatus, createBookingOverride, createBookingSettings, deleteBooking, deleteBookingOverride, generateTimeSlots, getBookingById, getBookingByIdAndUserId, getBookingOverride, getBookingOverridesForBranch, getBookingSettings, getBookingsForBranch, getBookingsForBranchOnDate, getUserBookings, updateBooking, updateBookingOverride } from "@server/services/bookingService";
+import { changeBookingStatus, createBooking, createBookingOverride, createBookingSettings, deleteBooking, deleteBookingOverride, generateTimeSlots, getBookingById, getBookingByIdAndUserId, getBookingOverride, getBookingOverridesForBranch, getBookingSettings, getBookingsForBranch, getBookingsForBranchOnDate, getUserBookings, updateBooking, updateBookingOverride, updateBookingSettings } from "@server/services/bookingService";
 
-//--- Get Bookings for Branch ---
+//--- Create Booking ---
+
+export const createBookingController = async (req: Request, res: Response) => {
+  const booking = req.body;
+  
+  const newBooking = await createBooking(booking);
+  res.json(newBooking);
+};
+
+
 
 export const getBookingsForBranchController = async (req: Request, res: Response) => {
   const branchId = req.params.branchId;
@@ -67,12 +76,22 @@ export const getBookingSettingsController = async (req: Request, res: Response) 
 //--- Create Booking Settings ---
 
 export const createBookingSettingsController = async (req: Request, res: Response) => {
-    
+
   const settings = req.body;
   
   const newSettings = await createBookingSettings(settings);
   res.json(newSettings);
 };
+
+//--- Update Booking Settings ---
+
+export const updateBookingSettingsController = async (req: Request, res: Response) => {
+  const branchId = req.params.branchId;
+  const data = req.body;
+  
+  const updatedSettings = await updateBookingSettings(Number(branchId), data);
+  res.json(updatedSettings);
+};  
   
 //--- Update Booking ---
 

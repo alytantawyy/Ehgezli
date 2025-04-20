@@ -14,8 +14,14 @@ import { setupWebSocket } from "@server/websocket";
 import { corsMiddleware, jsonMiddleware, urlencodedMiddleware } from "./middleware/global";
 import { loggingMiddleware } from "./middleware/logging";
 import { errorHandler } from "./middleware/errorHandling";
-import { registerRoutes } from "./routes";
-// Create a new Express application
+import { registerAuthRoutes } from "./routes/authRoutes";
+import { registerUserRoutes } from "./routes/userRoutes";
+import { registerRestaurantRoutes } from "./routes/restaurantRoutes";
+import { registerBranchRoutes } from "./routes/branchRoutes";
+import { registerSavedBranchRoutes } from "./routes/savedBranchRoutes";
+import { registerBookingRoutes } from "./routes/bookingRoutes";
+
+  // Create a new Express application
 const app = express();
 
 export const httpServer = createServer(app);
@@ -30,7 +36,23 @@ app.use(jsonMiddleware);
 app.use(urlencodedMiddleware);
 app.use(loggingMiddleware);
 
-registerRoutes(app);
+// Register authentication routes
+registerAuthRoutes(app);
+
+// Register user routes
+registerUserRoutes(app);
+
+// Register restaurant routes
+registerRestaurantRoutes(app);
+
+// Register branch routes
+registerBranchRoutes(app);
+
+// Register saved branch routes
+registerSavedBranchRoutes(app);
+
+// Register booking routes
+registerBookingRoutes(app);
 
 // Initialize the email service for sending notifications
 // Using .catch() to handle any errors during setup

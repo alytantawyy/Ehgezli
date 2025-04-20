@@ -27,6 +27,13 @@ export const getRestaurantBranches = async (restaurantId: number): Promise<Resta
   return branches;
 };
 
+//--Get All Branches--
+
+export const getAllRestaurantBranches = async (): Promise<RestaurantBranch[]> => {
+  const branches = await db.select().from(restaurantBranches);
+  return branches;
+};
+
 //--- Get Restaurant Branch by ID ---
 
 export const getRestaurantBranchById = async (branchId: number, restaurantId: number): Promise<RestaurantBranch | undefined> => {

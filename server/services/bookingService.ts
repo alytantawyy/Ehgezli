@@ -170,6 +170,21 @@ export const createBookingSettings = async (settings: InsertBookingSettings): Pr
   return newSettings;
 };
 
+//--Update Booking Settings--
+
+export const updateBookingSettings = async (branchId: number, data: Partial<BookingSettings>): Promise<BookingSettings | undefined> => {
+  const [updatedSettings] = await db
+    .update(bookingSettings)
+    .set(data)
+    .where(eq(bookingSettings.branchId, branchId))
+    .returning();
+
+  if (!updatedSettings) {
+    return undefined;
+  }
+  return updatedSettings;
+};
+
 //--- Create Booking ---
 
 export const createBooking = async (booking: InsertBooking): Promise<Booking> => {

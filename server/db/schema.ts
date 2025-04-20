@@ -150,7 +150,7 @@ export const bookingSettings = pgTable("booking_settings", {
   branchId: integer("branch_id").notNull().unique().references(() => restaurantBranches.id),
   openTime: text("open_time").notNull(),
   closeTime: text("close_time").notNull(),
-  interval: integer("interval").notNull().default(60),
+  interval: integer("interval").notNull().default(90),
   maxSeatsPerSlot: integer("max_seats_per_slot").notNull().default(25),
   maxTablesPerSlot: integer("max_tables_per_slot").notNull().default(10),
   createdAt: timestamp("created_at").notNull().defaultNow(),

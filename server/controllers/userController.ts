@@ -1,5 +1,5 @@
 
-import { getUser, updateUserProfile, deleteUser, getUserLocation, updateUserLocation } from "@server/services/userService";
+import { getUser, updateUserProfile, deleteUser, getUserLocation, updateUserLocation, createUser } from "@server/services/userService";
 import { Request, Response } from "express";
 
 // userController.ts
@@ -85,6 +85,28 @@ export const updateUserProfileController = async (req: Request, res: Response) =
         res.status(500).json({ message: "Internal Server Error" });
     }
   };
+
+  //--Create User--
+
+  export const createUserController = async (req: Request, res: Response) => {
+    try {
+        const { email, password, firstName, lastName, city, gender, favoriteCuisines } = req.body;
+      
+        const userData: any = {
+            email, password, firstName, lastName, city, gender, favoriteCuisines,
+            nationality: ""
+          };
+          if (req.body.birthday) {
+            userData.birthday = new Date(req.body.birthday);
+          }
+          const user = await createUser(userData);
+        res.json(user);
+    } catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+  };
+  
   
 
   
