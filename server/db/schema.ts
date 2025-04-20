@@ -32,8 +32,8 @@ export const users = pgTable("users", {
   nationality: text("nationality").notNull(),                    // User's nationality
   city: text("city").notNull(),                                  // User's city
   favoriteCuisines: text("favorite_cuisines").array().notNull(), // Array of favorite food types
-  lastLatitude: doublePrecision("last_latitude"),                           // Last known latitude
-  lastLongitude: doublePrecision("last_longitude"),                          // Last known longitude
+  lastLatitude: doublePrecision("last_latitude"),                 // Last known latitude
+  lastLongitude: doublePrecision("last_longitude"),               // Last known longitude
   locationUpdatedAt: timestamp("location_updated_at"),            // When location was last updated
   locationPermissionGranted: boolean("location_permission_granted").default(false), // If user granted location permission
   createdAt: timestamp("created_at").notNull().defaultNow(),     // Account creation date
@@ -222,12 +222,22 @@ export const savedBranches = pgTable("saved_branches", {
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
 }).extend({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Invalid email format"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   favoriteCuisines: z.array(z.string()).min(1, "Select at least one cuisine").max(3, "Maximum 3 cuisines allowed"),
   birthday: z.string()
     .refine((date) => !isNaN(new Date(date).getTime()), {
       message: "Invalid date format"
-    })
+    }),
+  locationPermissionGranted: z.boolean().default(false),
+  locationUpdatedAt: z.date().nullable(),
+  lastLatitude: z.number().nullable(),
+  lastLongitude: z.number().nullable(),
+  gender: z.string().default(""),
+  nationality: z.string().default(""),
+  city: z.string().default(""),
 });
 
 // Schema for inserting new restaurant authentication
@@ -238,7 +248,11 @@ export const insertRestaurantUserSchema = createInsertSchema(restaurantUsers).om
   updatedAt: true
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
-  email: z.string().email("Invalid email format")
+  email: z.string().email("Invalid email format"),
+  name: z.string().min(1, "Name is required"),
+  verified: z.boolean().default(false),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
 });
 
 export const insertBranchSchema = createInsertSchema(restaurantBranches).omit({

@@ -11,7 +11,7 @@
 import { db } from "@server/db/db";
 import { restaurantProfiles, InsertRestaurantProfile, RestaurantProfile, restaurantBranches, restaurantUsers, RestaurantUser, restaurantPasswordResetTokens, Restaurant, RestaurantSearchFilter, timeSlots, CreateRestaurantInput } from "@server/db/schema";
 import { getDistance } from "@server/utils/location";
-import { eq, and, or, ilike } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { createRestaurantUser, updateRestaurantUser } from "./restaurantUserService";
 
 // ==================== Restaurant Service ====================

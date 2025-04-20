@@ -1,4 +1,3 @@
-
 import { getUser, updateUserProfile, deleteUser, getUserLocation, updateUserLocation, createUser } from "@server/services/userService";
 import { Request, Response } from "express";
 
@@ -90,16 +89,42 @@ export const updateUserProfileController = async (req: Request, res: Response) =
 
   export const createUserController = async (req: Request, res: Response) => {
     try {
-        const { email, password, firstName, lastName, city, gender, favoriteCuisines } = req.body;
+        // Extract all fields from the request body
+        const { 
+          email, 
+          password, 
+          firstName, 
+          lastName, 
+          city, 
+          gender, 
+          favoriteCuisines,
+          nationality,  
+          lastLatitude,
+          lastLongitude,
+          locationPermissionGranted
+        } = req.body;
       
+        // Create user data object with all fields
         const userData: any = {
-            email, password, firstName, lastName, city, gender, favoriteCuisines,
-            nationality: ""
-          };
-          if (req.body.birthday) {
-            userData.birthday = new Date(req.body.birthday);
-          }
-          const user = await createUser(userData);
+          email, 
+          password, 
+          firstName, 
+          lastName, 
+          city, 
+          gender, 
+          favoriteCuisines,
+          nationality: nationality || "", 
+          locationPermissionGranted: locationPermissionGranted || false,
+          locationUpdatedAt: new Date()
+        };
+
+        // Handle birthday if provided
+        if (req.body.birthday) {
+          userData.birthday = new Date(req.body.birthday);
+        }
+
+        // Create the user
+        const user = await createUser(userData);
         res.json(user);
     } catch (error) {
         console.error('Error creating user:', error);

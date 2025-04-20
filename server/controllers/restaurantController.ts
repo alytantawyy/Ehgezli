@@ -23,9 +23,32 @@ export const getRestaurantProfileController = async (req: Request, res: Response
 //-- Create Restaurant --
 
 export const createRestaurantController = async (req: Request, res: Response) => {
-  const { email, password, name, about, description, cuisine, priceRange, logo } = req.body;
-  const restaurant = await createRestaurant({ email, password, name, about, description, cuisine, priceRange, logo });
-  res.json(restaurant);
+  try {
+    const { email, password, name, about, description, cuisine, priceRange, logo } = req.body;
+    
+    // Validate required fields
+    if (!email || !password || !name) {
+      return res.status(400).json({ message: "Email, password, and name are required" });
+    }
+    
+    // Ensure description has a default value if not provided
+    const restaurantData = {
+      email, 
+      password, 
+      name, 
+      about: about || "", 
+      description: description || "A wonderful dining experience", // Default description
+      cuisine: cuisine || "Mixed", 
+      priceRange: priceRange || "$$", 
+      logo: logo || ""
+    };
+    
+    const restaurant = await createRestaurant(restaurantData);
+    res.json(restaurant);
+  } catch (error) {
+    console.error('Error creating restaurant:', error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
 };
 
 //-- Update Restaurant --
@@ -66,6 +89,3 @@ export const searchRestaurantsController = async (req: Request, res: Response) =
   if (!restaurants) return res.status(404).json({ message: "Restaurants not found" });
   res.json(restaurants);
 };
-  
-
-  

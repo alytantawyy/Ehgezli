@@ -11,6 +11,7 @@ import { db } from "@server/db/db";
 import { restaurantUsers} from "@server/db/schema";
 import { eq } from "drizzle-orm";
 import { InsertRestaurantUser, RestaurantUser } from "@server/db/schema";
+import { hashPassword } from "./authService";
 
 // ==================== Restaurant User Service ====================
 
@@ -37,6 +38,11 @@ export const getRestaurantUserByEmail = async (email: string): Promise<Restauran
 //--- Create Restaurant User ---
 
 export const createRestaurantUser = async (restaurantUser: InsertRestaurantUser): Promise<RestaurantUser> => {
+  // Hash the password before storing it
+  if (restaurantUser.password) {
+    restaurantUser.password = await hashPassword(restaurantUser.password);
+  }
+  
   const [createdRestaurantUser] = await db.insert(restaurantUsers).values(restaurantUser).returning();
   if (!createdRestaurantUser) {
     throw new Error('Failed to create restaurant user');

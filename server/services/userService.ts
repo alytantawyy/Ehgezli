@@ -15,6 +15,7 @@ import { db } from "@server/db/db";
 import { UserLocation, userPasswordResetTokens, users} from "@server/db/schema";
 import { eq } from "drizzle-orm";
 import { InsertUser, User } from "@server/db/schema";
+import { hashPassword } from "./authService";
 
 
 // ==================== User Service ====================
@@ -42,6 +43,7 @@ export const getUserByEmail = async (email: string): Promise<User | undefined> =
 //--- Create User ---
 
 export const createUser = async (user: InsertUser): Promise<User> => {
+  user.password = await hashPassword(user.password);
   const [createdUser] = await db.insert(users).values(user).returning();
   if (!createdUser) {
     throw new Error('Failed to create user');
