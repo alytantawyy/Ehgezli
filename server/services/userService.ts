@@ -56,9 +56,11 @@ export const createUser = async (user: InsertUser): Promise<User> => {
 export const updateUserProfile = async (
   userId: number,
   profileData: {
+    email?: string;
     firstName?: string;
     lastName?: string;
     city?: string;
+    nationality?: string;
     gender?: string;
     favoriteCuisines?: string[];
   }

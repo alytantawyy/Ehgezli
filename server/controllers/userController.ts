@@ -7,7 +7,7 @@ import { Request, Response } from "express";
 
 export const getUserProfileController = async (req: Request, res: Response) => {
     try {
-        const userId = req.user?.id as number;
+        const userId = (req as any).user?.id;
         if (!userId) return res.status(401).json({ message: "Unauthorized" });
       
         const user = await getUser(userId);
@@ -20,12 +20,12 @@ export const getUserProfileController = async (req: Request, res: Response) => {
 
 export const updateUserProfileController = async (req: Request, res: Response) => {
     try {
-        const userId = req.user?.id as number;
+        const userId = (req as any).user?.id;
         if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-        const { firstName, lastName, city, gender, favoriteCuisines } = req.body;
+        const { email, firstName, lastName, city, nationality, favoriteCuisines } = req.body;
       
-        const user = await updateUserProfile(userId, { firstName, lastName, city, gender, favoriteCuisines });
+        const user = await updateUserProfile(userId, { email, firstName, lastName, city, nationality, favoriteCuisines });
         res.json(user);
     } catch (error) {
         console.error('Error updating user profile:', error);
@@ -37,7 +37,7 @@ export const updateUserProfileController = async (req: Request, res: Response) =
 
   export const deleteUserController = async (req: Request, res: Response) => {
     try {
-        const userId = req.user?.id as number;
+        const userId = (req as any).user?.id;
         if (!userId) return res.status(401).json({ message: "Unauthorized" });
       
         await deleteUser(userId);
@@ -53,7 +53,7 @@ export const updateUserProfileController = async (req: Request, res: Response) =
 
   export const getUserLocationController = async (req: Request, res: Response) => {
     try {
-        const userId = req.user?.id as number;
+        const userId = (req as any).user?.id;
         if (!userId) return res.status(401).json({ message: "Unauthorized" });
   
         const location = await getUserLocation(userId);
@@ -69,10 +69,13 @@ export const updateUserProfileController = async (req: Request, res: Response) =
 
   export const updateUserLocationController = async (req: Request, res: Response) => {
     try {
-        const userId = req.user?.id as number;
+        const userId = (req as any).user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
   
-    const { lastLatitude, lastLongitude, locationUpdatedAt, locationPermissionGranted } = req.body;
+    const { lastLatitude, lastLongitude, locationPermissionGranted } = req.body;
+    
+    // Always use the current date for locationUpdatedAt
+    const locationUpdatedAt = new Date();
   
     const location = await getUserLocation(userId);
     if (!location) return res.status(404).json({ message: "Location not found" });
