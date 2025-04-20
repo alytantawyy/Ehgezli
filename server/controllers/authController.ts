@@ -77,8 +77,15 @@ export const markRestaurantPasswordResetTokenAsUsedController = async (req: Requ
 //--- Update Restaurant Password ---
 
 export const updateRestaurantPasswordController = async (req: Request, res: Response) => {
-  // Get restaurantId from the authenticated restaurant
-  const restaurantId = (req as any).restaurant?.id;
+  // Get restaurantId from the authenticated user object
+  // Check if the authenticated entity is a restaurant
+  const authUser = (req as any).user;
+  
+  if (!authUser || authUser.type !== 'restaurant') {
+    return res.status(403).json({ message: "Not authorized as a restaurant" });
+  }
+  
+  const restaurantId = authUser.id;
   const hashedPassword = await hashPassword(req.body.password);
   
   if (!restaurantId || !hashedPassword) return res.status(400).json({ message: "Restaurant ID and password are required" });
