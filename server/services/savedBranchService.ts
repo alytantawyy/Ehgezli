@@ -3,14 +3,12 @@
  * - getUserSavedBranches
  * - saveBranch
  * - removeSavedBranch
- * - isBranchSaved
  * - getSavedBranchIds
  */
 
 import { db } from "@server/db/db";
 import { RestaurantBranch, restaurantBranches, savedBranches} from "@server/db/schema";
 import { and, eq } from "drizzle-orm";
-import savedRestaurants from "@/pages/saved-restaurants";
 
 // ==================== Saved Branch Service ====================
 
@@ -28,8 +26,8 @@ export const getUserSavedBranches = async (userId: number): Promise<RestaurantBr
   //--Save Branch--
 
   export const saveBranch = async (userId: number, branchId: number): Promise<void> => {
-    await db.insert(savedBranches).values({ userId, branchId });
-    if (!await db.select().from(savedBranches).where(and(eq(savedBranches.userId, userId), eq(savedBranches.branchId, branchId)))) {
+    const savedBranch = await db.insert(savedBranches).values({ userId, branchId });
+    if (!savedBranch) {
       throw new Error(`Failed to save branch ${branchId} for user ${userId}`);
     }
   };
@@ -43,20 +41,6 @@ export const getUserSavedBranches = async (userId: number): Promise<RestaurantBr
     }
     return true;
   };
-
-    //--Is Branch Saved--
-
-    export const isBranchSaved = async (branchId: number): Promise<boolean> => {
-        try {
-          const result = await db.select()
-            .from(savedBranches)
-            .where(eq(savedBranches.branchId, branchId));
-          return result.length > 0;
-        } catch (error) {
-          console.error('Error checking if branch is saved:', error);
-          return false;
-        }
-    };
 
     //--Get Saved Branch IDs--
 

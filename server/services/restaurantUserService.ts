@@ -57,8 +57,8 @@ export const updateRestaurantUser = async (userId: number, restaurantUser: Inser
 //--- Delete Restaurant User ---
 
 export const deleteRestaurantUser = async (userId: number): Promise<void> => {
-  await db.delete(restaurantUsers).where(eq(restaurantUsers.id, userId));
-  if (!await db.select().from(restaurantUsers).where(eq(restaurantUsers.id, userId))) {
+  const deletedUser = await db.delete(restaurantUsers).where(eq(restaurantUsers.id, userId));
+  if (!deletedUser) {
     throw new Error(`Restaurant user with id ${userId} not found`);
   }
 };

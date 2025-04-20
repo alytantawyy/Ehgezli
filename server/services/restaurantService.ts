@@ -9,9 +9,10 @@
  */
 
 import { db } from "@server/db/db";
-import { restaurantProfiles, InsertRestaurantProfile, RestaurantProfile, restaurantBranches, restaurantUsers, RestaurantUser, restaurantPasswordResetTokens, Restaurant, RestaurantSearchFilter, timeSlots } from "@server/db/schema";
+import { restaurantProfiles, InsertRestaurantProfile, RestaurantProfile, restaurantBranches, restaurantUsers, RestaurantUser, restaurantPasswordResetTokens, Restaurant, RestaurantSearchFilter, timeSlots, CreateRestaurantInput } from "@server/db/schema";
 import { getDistance } from "@server/utils/location";
 import { eq, and, or, ilike } from "drizzle-orm";
+import { createRestaurantUser, updateRestaurantUser } from "./restaurantUserService";
 
 // ==================== Restaurant Service ====================
 
@@ -27,7 +28,7 @@ export const getRestaurantProfile = async (restaurantId: number): Promise<Restau
   return profile;
 };
 
-//--- Create Restaurant Profile ---
+//--Create Restaurant Profile--
 
 export const createRestaurantProfile = async (profile: InsertRestaurantProfile): Promise<RestaurantProfile> => {
   const [createdProfile] = await db.insert(restaurantProfiles).values(profile).returning();
@@ -37,27 +38,69 @@ export const createRestaurantProfile = async (profile: InsertRestaurantProfile):
   return createdProfile;
 };
 
+//--- Create Restaurant ---
+
+export const createRestaurant = async (restaurant: CreateRestaurantInput): Promise<RestaurantProfile> => {
+
+    const restaurantUser = await createRestaurantUser({ email: restaurant.email, password: restaurant.password, name: restaurant.name });
+    const restaurantProfile = await createRestaurantProfile({ restaurantId: restaurantUser.id, about: restaurant.about, description: restaurant.description, cuisine: restaurant.cuisine, priceRange: restaurant.priceRange, logo: restaurant.logo });
+    
+    return restaurantProfile;
+};
+
 //--- Update Restaurant Profile ---
 
-export const updateRestaurantProfile = async (restaurantId: number, profileData: { 
+export const updateRestaurantProfile = async (
+    restaurantId: number,
+    profileData: {
+      about: string;
+      description: string;
+      cuisine: string;
+      priceRange: string;
+      logo: string;
+    }
+  ): Promise<RestaurantProfile> => {
+    const [updatedProfile] = await db.update(restaurantProfiles)
+      .set(profileData)
+      .where(eq(restaurantProfiles.restaurantId, restaurantId))
+      .returning();
+    if (!updatedProfile) {
+      throw new Error(`Restaurant profile with restaurantId ${restaurantId} not found`);
+    }
+    return updatedProfile;
+  };
+
+//---Update Restaurant---
+
+export const updateRestaurant = async (restaurantId: number, restaurantData: { 
   about: string;
   description: string;
   cuisine: string;
   priceRange: string;
   logo: string;
-}): Promise<void> => {
-  await db.update(restaurantProfiles)
-    .set(profileData)
-    .where(eq(restaurantProfiles.restaurantId, restaurantId));
-  if (!await db.select().from(restaurantProfiles).where(eq(restaurantProfiles.restaurantId, restaurantId))) {
-    throw new Error(`Restaurant profile with restaurantId ${restaurantId} not found`);
-  }
+  email: string;
+  password: string;
+  name: string;
+}): Promise<{ user: RestaurantUser; profile: RestaurantProfile }> => {
+  const updatedUser = await updateRestaurantUser(restaurantId, restaurantData);
+  const updatedProfile = await updateRestaurantProfile(restaurantId, restaurantData);
+  
+  return { user: updatedUser, profile: updatedProfile };
 };
 
 //--- Delete Restaurant Profile ---
 
 export const deleteRestaurantProfile = async (restaurantId: number): Promise<void> => {
   await db.delete(restaurantProfiles).where(eq(restaurantProfiles.restaurantId, restaurantId));
+};
+
+//---Delete Restaurant---
+
+export const deleteRestaurant = async (restaurantId: number): Promise<void> => {
+  await db.delete(restaurantUsers).where(eq(restaurantUsers.id, restaurantId));
+  await deleteRestaurantProfile(restaurantId);
+  await db.delete(restaurantBranches).where(eq(restaurantBranches.restaurantId, restaurantId));
+  await db.delete(restaurantPasswordResetTokens).where(eq(restaurantPasswordResetTokens.restaurantId, restaurantId));       
 };
 
 //--Get Detailed Restaurant--

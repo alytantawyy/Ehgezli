@@ -417,3 +417,22 @@ export interface RestaurantSearchFilter {
   userLatitude?: number;
   userLongitude?: number;
 }
+
+export interface UserLocation {
+  lastLatitude: number | null;
+  lastLongitude: number | null;
+  locationUpdatedAt: Date | null;
+  locationPermissionGranted: boolean | null;
+}
+
+
+export interface CreateRestaurantInput {
+  email: string;
+  password: string;
+  name: string;
+  about: string;
+  description: string;
+  cuisine: string;
+  priceRange: string;
+  logo: string;
+}

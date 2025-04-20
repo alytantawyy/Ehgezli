@@ -12,7 +12,7 @@
  */
 
 import { db } from "@server/db/db";
-import { userPasswordResetTokens, users} from "@server/db/schema";
+import { UserLocation, userPasswordResetTokens, users} from "@server/db/schema";
 import { eq } from "drizzle-orm";
 import { InsertUser, User } from "@server/db/schema";
 
@@ -54,19 +54,21 @@ export const createUser = async (user: InsertUser): Promise<User> => {
 export const updateUserProfile = async (
   userId: number,
   profileData: {
-    firstName: string;
-    lastName: string;
-    city: string;
-    gender: string;
-    favoriteCuisines: string[];
+    firstName?: string;
+    lastName?: string;
+    city?: string;
+    gender?: string;
+    favoriteCuisines?: string[];
   }
-): Promise<void> => {
-  await db.update(users)
+): Promise<User> => {
+  const [updatedUser] = await db.update(users)
     .set(profileData)
-    .where(eq(users.id, userId));
-  if (!await db.select().from(users).where(eq(users.id, userId))) {
+    .where(eq(users.id, userId))
+    .returning();
+  if (!updatedUser) {
     throw new Error(`User with id ${userId} not found`);
   }
+  return updatedUser;
 };
 
 //--- Get User Location ---
@@ -108,18 +110,20 @@ export const updateUserLocation = async (
       locationUpdatedAt: Date;
       locationPermissionGranted: boolean;
     }
-  ): Promise<void> => {
-    await db.update(users)
+  ): Promise<UserLocation> => {
+    const [updatedLocation] = await db.update(users)
       .set({
         lastLatitude: locationData.lastLatitude,
         lastLongitude: locationData.lastLongitude,
         locationUpdatedAt: locationData.locationUpdatedAt,
         locationPermissionGranted: locationData.locationPermissionGranted
       })
-      .where(eq(users.id, userId));
-    if (!await db.select().from(users).where(eq(users.id, userId))) {
+      .where(eq(users.id, userId))
+      .returning();
+    if (!updatedLocation) {
       throw new Error(`User with id ${userId} not found`);
     }
+    return updatedLocation;
   };
 
   //--- Delete User ---
