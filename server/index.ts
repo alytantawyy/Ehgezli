@@ -20,6 +20,7 @@ import { registerRestaurantRoutes } from "./routes/restaurantRoutes";
 import { registerBranchRoutes } from "./routes/branchRoutes";
 import { registerSavedBranchRoutes } from "./routes/savedBranchRoutes";
 import { registerBookingRoutes } from "./routes/bookingRoutes";
+import { registerRestaurantUserRoutes } from "./routes/restaurantUserRoutes";
 
   // Create a new Express application
 const app = express();
@@ -41,6 +42,9 @@ registerAuthRoutes(app);
 
 // Register user routes
 registerUserRoutes(app);
+
+// Register restaurant user routes
+registerRestaurantUserRoutes(app);
 
 // Register restaurant routes
 registerRestaurantRoutes(app);

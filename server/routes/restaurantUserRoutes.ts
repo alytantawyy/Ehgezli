@@ -1,9 +1,9 @@
 import { Express } from "express";
 import * as restaurantUserController from "@server/controllers/restaurantUserController";
+import { authenticate } from "@server/middleware/authMiddleware";
 
 export function registerRestaurantUserRoutes(app: Express) {
-  app.get("/api/restaurant-user", restaurantUserController.getRestaurantUserController);
-  app.post("/api/restaurant-user", restaurantUserController.createRestaurantUserController);
-  app.put("/api/restaurant-user", restaurantUserController.updateRestaurantUserController);
-  app.delete("/api/restaurant-user", restaurantUserController.deleteRestaurantUserController);
+  app.get("/api/restaurant-user", authenticate, restaurantUserController.getRestaurantUserController);
+  app.put("/api/restaurant-user", authenticate, restaurantUserController.updateRestaurantUserController);
+  app.delete("/api/restaurant-user", authenticate, restaurantUserController.deleteRestaurantUserController);
 }

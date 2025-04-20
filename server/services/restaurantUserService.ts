@@ -4,11 +4,12 @@
  * - getRestaurantUserByEmail
  * - createRestaurantUser
  * - updateRestaurantUser
+ * - updateRestaurantUserDetails
  * - deleteRestaurantUser
  */
 
 import { db } from "@server/db/db";
-import { restaurantUsers} from "@server/db/schema";
+import { restaurantUsers, restaurantProfiles, restaurantBranches } from "@server/db/schema";
 import { eq } from "drizzle-orm";
 import { InsertRestaurantUser, RestaurantUser } from "@server/db/schema";
 import { hashPassword } from "./authService";
@@ -60,11 +61,62 @@ export const updateRestaurantUser = async (userId: number, restaurantUser: Inser
   return updatedRestaurantUser;
 };
 
+//--- Update Restaurant User Details ---
+
+export const updateRestaurantUserDetails = async (
+  userId: number,
+  details: {
+    email?: string;
+    name?: string;
+  }
+): Promise<RestaurantUser> => {
+  const [updatedRestaurantUser] = await db.update(restaurantUsers)
+    .set(details)
+    .where(eq(restaurantUsers.id, userId))
+    .returning();
+  if (!updatedRestaurantUser) {
+    throw new Error(`Failed to update restaurant user with id ${userId}`);
+  }
+  return updatedRestaurantUser;
+};
+
 //--- Delete Restaurant User ---
 
 export const deleteRestaurantUser = async (userId: number): Promise<void> => {
-  const deletedUser = await db.delete(restaurantUsers).where(eq(restaurantUsers.id, userId));
-  if (!deletedUser) {
-    throw new Error(`Restaurant user with id ${userId} not found`);
+  // First, delete the related restaurant profile
+  try {
+    await db.delete(restaurantProfiles)
+      .where(eq(restaurantProfiles.restaurantId, userId));
+      
+    console.log(`Deleted restaurant profile for user ${userId}`);
+  } catch (error) {
+    console.error(`Error deleting restaurant profile: ${error}`);
+    throw new Error(`Failed to delete restaurant profile for user ${userId}: ${error}`);
+  }
+  
+  // Then, delete any restaurant branches
+  try {
+    await db.delete(restaurantBranches)
+      .where(eq(restaurantBranches.restaurantId, userId));
+      
+    console.log(`Deleted restaurant branches for user ${userId}`);
+  } catch (error) {
+    console.error(`Error deleting restaurant branches: ${error}`);
+    // Continue with deletion even if branches fail
+  }
+  
+  // Finally, delete the restaurant user
+  try {
+    const result = await db.delete(restaurantUsers)
+      .where(eq(restaurantUsers.id, userId));
+      
+    if (!result) {
+      throw new Error(`Restaurant user with id ${userId} not found`);
+    }
+    
+    console.log(`Deleted restaurant user ${userId}`);
+  } catch (error) {
+    console.error(`Error deleting restaurant user: ${error}`);
+    throw new Error(`Failed to delete restaurant user ${userId}: ${error}`);
   }
 };
