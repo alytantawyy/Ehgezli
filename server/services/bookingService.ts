@@ -185,6 +185,15 @@ export const updateBookingSettings = async (branchId: number, data: Partial<Book
   return updatedSettings;
 };
 
+//--Delete Booking Settings--
+
+export const deleteBookingSettings = async (branchId: number): Promise<void> => {
+  await db
+    .delete(bookingSettings)
+    .where(eq(bookingSettings.branchId, branchId));
+};
+
+
 //--- Create Booking ---
 
 export const createBooking = async (booking: InsertBooking): Promise<Booking> => {
@@ -247,6 +256,15 @@ export const deleteBooking = async (bookingId: number): Promise<void> => {
     return slots;
   };
 
+  //--Delete Time Slots--
+
+  export const deleteTimeSlots = async (branchId: number): Promise<void> => {
+    await db
+      .delete(timeSlots)
+      .where(eq(timeSlots.branchId, branchId));
+
+  }
+
   //--Create Booking Override--
 
   export const createBookingOverride = async (override: InsertBookingOverride): Promise<BookingOverride> => {
@@ -273,6 +291,7 @@ export const deleteBooking = async (bookingId: number): Promise<void> => {
     }
     return override;
   };    
+
 
   //--Get Booking Overrides for Branch--
 

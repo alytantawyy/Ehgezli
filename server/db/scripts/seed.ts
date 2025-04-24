@@ -46,12 +46,12 @@ async function seed() {
   // Clear existing data in correct order (respecting foreign keys)
   console.log('Clearing existing data...');
   await db.delete(savedBranches);
+  await db.delete(bookings);
+  await db.delete(timeSlots);
   await db.delete(bookingOverrides);
   await db.delete(bookingSettings);
-  await db.delete(timeSlots);
   await db.delete(userPasswordResetTokens);
   await db.delete(restaurantPasswordResetTokens);
-  await db.delete(bookings);
   await db.delete(restaurantBranches);
   await db.delete(restaurantProfiles);
   await db.delete(restaurantUsers);

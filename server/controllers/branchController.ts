@@ -1,6 +1,8 @@
 
 import { Request, Response } from "express";
 import { createRestaurantBranch, deleteRestaurantBranch, getAllRestaurantBranches, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, updateRestaurantBranch } from "@server/services/branchService";
+import { getDetailedRestaurant } from "@server/services/restaurantService";
+import {deleteBookingSettings, deleteTimeSlots, deleteBooking, deleteBookingOverride} from "@server/services/bookingService";
 
 //--Get All Branches--
 
@@ -35,7 +37,10 @@ export const getRestaurantBranchByIdController = async (req: Request, res: Respo
 //--- Create Restaurant Branch ---
 
 export const createRestaurantBranchController = async (req: Request, res: Response) => {
-  const branch = await createRestaurantBranch(req.body);
+  const restaurantId = (req as any).user.id;
+  if (!restaurantId) return res.status(400).json({ message: "Restaurant ID is required" });
+  
+  const branch = await createRestaurantBranch({ ...req.body, restaurantId });
   res.json(branch);
 };
   
@@ -43,8 +48,14 @@ export const createRestaurantBranchController = async (req: Request, res: Respon
 
 export const updateRestaurantBranchController = async (req: Request, res: Response) => {
   const branchId = req.params.branchId;
-  const restaurantId = req.params.restaurantId;
+  const restaurantId = (req as any).user.id;
   if (!branchId || !restaurantId) return res.status(400).json({ message: "Branch ID and Restaurant ID are required" });
+
+  const restaurant = await getDetailedRestaurant(Number(restaurantId));
+  if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+
+  const branchIsOwned = restaurant.branches.some(branch => branch.id === Number(branchId));
+  if (!branchIsOwned) return res.status(403).json({ message: "Unauthorized" });
   
   const branch = await updateRestaurantBranch(Number(branchId), Number(restaurantId), req.body);
   res.json(branch);
@@ -54,9 +65,19 @@ export const updateRestaurantBranchController = async (req: Request, res: Respon
 
 export const deleteRestaurantBranchController = async (req: Request, res: Response) => {
   const branchId = req.params.branchId;
-  const restaurantId = req.params.restaurantId;
+  const restaurantId = (req as any).user.id;
   if (!branchId || !restaurantId) return res.status(400).json({ message: "Branch ID and Restaurant ID are required" });
   
+  const restaurant = await getDetailedRestaurant(Number(restaurantId));
+  if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+  
+  const branchIsOwned = restaurant.branches.some(branch => branch.id === Number(branchId));
+  if (!branchIsOwned) return res.status(403).json({ message: "Unauthorized" });
+  
+  await deleteBookingSettings(Number(branchId));
+  await deleteBookingOverride(Number(branchId));
+  await deleteBooking(Number(branchId));
+  await deleteTimeSlots(Number(branchId));
   await deleteRestaurantBranch(Number(branchId), Number(restaurantId));
   res.json({ message: "Branch deleted successfully" });
 };

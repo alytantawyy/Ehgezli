@@ -95,33 +95,35 @@ export const updateRestaurant = async (restaurantId: number, restaurantData: {
   return { user: updatedUser, profile: updatedProfile };
 };
 
-//--- Delete Restaurant Profile ---
-
-export const deleteRestaurantProfile = async (restaurantId: number): Promise<void> => {
-  await db.delete(restaurantProfiles).where(eq(restaurantProfiles.restaurantId, restaurantId));
-};
-
-//---Delete Restaurant---
-
-export const deleteRestaurant = async (restaurantId: number): Promise<void> => {
-  await db.delete(restaurantUsers).where(eq(restaurantUsers.id, restaurantId));
-  await deleteRestaurantProfile(restaurantId);
-  await db.delete(restaurantBranches).where(eq(restaurantBranches.restaurantId, restaurantId));
-  await db.delete(restaurantPasswordResetTokens).where(eq(restaurantPasswordResetTokens.restaurantId, restaurantId));       
-};
 
 //--Get Detailed Restaurant--
 
-export const getDetailedRestaurant = async (restaurantId: number): Promise<{ profile: RestaurantProfile; user: RestaurantUser } | undefined> => {
-  const [profile] = await db
+export const getDetailedRestaurant = async (restaurantId: number): Promise<{ profile: RestaurantProfile; user: Omit<RestaurantUser, 'password' | 'verified'>; branches: any[] } | undefined> => {
+  // First get the restaurant profile and user
+  const [profileData] = await db
     .select()
     .from(restaurantProfiles)
     .innerJoin(restaurantUsers, eq(restaurantProfiles.restaurantId, restaurantUsers.id))
     .where(eq(restaurantProfiles.restaurantId, restaurantId));
-  if (!profile) {
+  
+  if (!profileData) {
     throw new Error(`Restaurant profile with restaurantId ${restaurantId} not found`);
   }
-  return { profile: profile.restaurant_profiles, user: profile.restaurant_users };
+  
+  // Then get the branches separately
+  const branches = await db
+    .select()
+    .from(restaurantBranches)
+    .where(eq(restaurantBranches.restaurantId, restaurantId));
+  
+  // Remove the password from the user object
+  const { password, verified, ...userWithoutPassword } = profileData.restaurant_users;
+  
+  return { 
+    profile: profileData.restaurant_profiles, 
+    user: userWithoutPassword, 
+    branches: branches 
+  };
 };
 
 //--Get Restaurant User By Reset Token--
@@ -211,4 +213,3 @@ export const searchRestaurants = async (
   
     return filteredResults;
   };
-

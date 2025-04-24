@@ -53,8 +53,30 @@ export const createRestaurantUser = async (restaurantUser: InsertRestaurantUser)
 
 //--- Update Restaurant User ---
 
-export const updateRestaurantUser = async (userId: number, restaurantUser: InsertRestaurantUser): Promise<RestaurantUser> => {
-  const [updatedRestaurantUser] = await db.update(restaurantUsers).set(restaurantUser).where(eq(restaurantUsers.id, userId)).returning();
+export const updateRestaurantUser = async (userId: number, restaurantUser: Partial<InsertRestaurantUser>): Promise<RestaurantUser> => {
+  // Only include fields that exist in the table
+  const validFields = {
+    ...(restaurantUser.email ? { email: restaurantUser.email } : {}),
+    ...(restaurantUser.name ? { name: restaurantUser.name } : {}),
+    // Don't update password directly through this function
+    // Use a separate function for password updates that includes hashing
+  };
+  
+  // Only proceed if there are fields to update
+  if (Object.keys(validFields).length === 0) {
+    // If no valid fields to update, just return the existing user
+    const [existingUser] = await db.select().from(restaurantUsers).where(eq(restaurantUsers.id, userId));
+    if (!existingUser) {
+      throw new Error(`Restaurant user with id ${userId} not found`);
+    }
+    return existingUser;
+  }
+  
+  const [updatedRestaurantUser] = await db.update(restaurantUsers)
+    .set(validFields)
+    .where(eq(restaurantUsers.id, userId))
+    .returning();
+    
   if (!updatedRestaurantUser) {
     throw new Error(`Failed to update restaurant user with id ${userId}`);
   }

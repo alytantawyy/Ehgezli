@@ -102,7 +102,7 @@ export const restaurantUsers = pgTable("restaurant_users", {
 // Restaurant profile information
 export const restaurantProfiles = pgTable("restaurant_profiles", {
   id: serial("id").primaryKey(),
-  restaurantId: integer("restaurant_id").notNull().unique().references(() => restaurantUsers.id),
+  restaurantId: integer("restaurant_id").notNull().unique().references(() => restaurantUsers.id, { onDelete: 'cascade' }),
   about: text("about").notNull().default(""),                    // Short description
   description: text("description").notNull(),        // Detailed description
   cuisine: text("cuisine").notNull(),                // Type of food
@@ -116,7 +116,7 @@ export const restaurantProfiles = pgTable("restaurant_profiles", {
 // Restaurant branches/locations
 export const restaurantBranches = pgTable("restaurant_branches", {
   id: serial("id").primaryKey(),
-  restaurantId: integer("restaurant_id").notNull(),
+  restaurantId: integer("restaurant_id").notNull().references(() => restaurantUsers.id, { onDelete: 'cascade' }),
   address: text("address").notNull(),
   city: text("city").notNull(),
   latitude: doublePrecision("latitude"),  // Geographical coordinate
@@ -137,8 +137,8 @@ export const restaurantUserRelations = relations(restaurantUsers, ({ one, many }
 // Table for storing reservations
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),              // Who made the booking
-  timeSlotId: integer("time_slot_id").notNull().references(() => timeSlots.id),    // Which time slot
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),              // Who made the booking
+  timeSlotId: integer("time_slot_id").notNull().references(() => timeSlots.id, { onDelete: 'cascade' }),    // Which time slot
   partySize: integer("party_size").notNull(),        // How many people
   status: text("status", {enum: ["pending", "confirmed", "arrived", "cancelled", "completed"]}).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -147,7 +147,7 @@ export const bookings = pgTable("bookings", {
 
 export const bookingSettings = pgTable("booking_settings", {
   id: serial("id").primaryKey(),
-  branchId: integer("branch_id").notNull().unique().references(() => restaurantBranches.id),
+  branchId: integer("branch_id").notNull().unique().references(() => restaurantBranches.id, { onDelete: 'cascade' }),
   openTime: text("open_time").notNull(),
   closeTime: text("close_time").notNull(),
   interval: integer("interval").notNull().default(90),
@@ -159,7 +159,7 @@ export const bookingSettings = pgTable("booking_settings", {
 
 export const timeSlots = pgTable("time_slots", {
   id: serial("id").primaryKey(),
-  branchId: integer("branch_id").notNull().references(() => restaurantBranches.id),
+  branchId: integer("branch_id").notNull().references(() => restaurantBranches.id, { onDelete: 'cascade' }),
   date: timestamp("date").notNull(),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
@@ -172,7 +172,7 @@ export const timeSlots = pgTable("time_slots", {
 
 export const bookingOverrides = pgTable("booking_overrides", {
   id: serial("id").primaryKey(),
-  branchId: integer("branch_id").notNull().references(() => restaurantBranches.id),
+  branchId: integer("branch_id").notNull().references(() => restaurantBranches.id, { onDelete: 'cascade' }),
   date: timestamp("date").notNull(),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
@@ -204,15 +204,11 @@ export const timeSlotRelations = relations(timeSlots, ({ one, many }) => ({
   bookings: many(bookings),
 }));
 
-
-
-// ==================== Saved Restaurants ====================
-
-// Users can save their favorite restaurants
+// Saved branches
 export const savedBranches = pgTable("saved_branches", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  branchId: integer("branch_id").notNull().references(() => restaurantBranches.id),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  branchId: integer("branch_id").notNull().references(() => restaurantBranches.id, { onDelete: 'cascade' }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -269,7 +265,7 @@ export const insertBranchSchema = createInsertSchema(restaurantBranches).omit({
   }),
 });
 
-
+// Schema for inserting new bookings
 export const insertBookingSchema = createInsertSchema(bookings).omit({
   id: true,
   createdAt: true,
@@ -281,7 +277,7 @@ export const insertBookingSchema = createInsertSchema(bookings).omit({
   status: z.enum(["pending", "confirmed", "arrived", "cancelled"]).default("pending"),
 });
 
-
+// Schema for inserting new restaurant profiles
 export const insertRestaurantProfileSchema = createInsertSchema(restaurantProfiles)
   .omit({
     id: true,
@@ -311,32 +307,32 @@ export const insertRestaurantProfileSchema = createInsertSchema(restaurantProfil
     }),
   });
 
-  export const insertBookingSettingsSchema = createInsertSchema(bookingSettings).omit({
-    id: true,
-    createdAt: true,
-    updatedAt: true,
-  }).extend({
-    openTime: z.string().min(1, "Open time is required"),
-    closeTime: z.string().min(1, "Close time is required"),
-    interval: z.number().min(1, "Interval must be at least 1 minute"),
-    maxSeatsPerSlot: z.number().min(1, "At least 1 seat required"),
-    maxTablesPerSlot: z.number().min(1, "At least 1 table required"),
-  });
+// Schema for inserting new booking settings
+export const insertBookingSettingsSchema = createInsertSchema(bookingSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  openTime: z.string().min(1, "Open time is required"),
+  closeTime: z.string().min(1, "Close time is required"),
+  interval: z.number().min(1, "Interval must be at least 1 minute"),
+  maxSeatsPerSlot: z.number().min(1, "At least 1 seat required"),
+  maxTablesPerSlot: z.number().min(1, "At least 1 table required"),
+});
 
-  export const insertBookingOverrideSchema = createInsertSchema(bookingOverrides).omit({
-    id: true,
-    createdAt: true,
-    updatedAt: true,
-  }).extend({
-    date: z.string(),
-    startTime: z.string(),
-    endTime: z.string(),
-    overrideType: z.enum(["closed", "capacity", "custom"]),
-    newMaxSeats: z.number().min(0),
-    note: z.string().optional(),
-  });
-  
-
+// Schema for inserting new booking overrides
+export const insertBookingOverrideSchema = createInsertSchema(bookingOverrides).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  date: z.string(),
+  startTime: z.string(),
+  endTime: z.string(),
+  overrideType: z.enum(["closed", "capacity", "custom"]),
+  newMaxSeats: z.number().min(0),
+  note: z.string().optional(),
+});
 
 // ==================== Types and Interfaces ====================
 
@@ -355,7 +351,6 @@ export interface ExtendedBooking extends Booking {
   };
 }
 
-
 // Export types
 export type InsertUser = typeof users.$inferInsert;
 export type InsertRestaurantUser = typeof restaurantUsers.$inferInsert;
@@ -371,7 +366,6 @@ export type BookingSettings = typeof bookingSettings.$inferSelect;
 export type InsertBookingSettings = typeof bookingSettings.$inferInsert;
 export type BookingOverride = typeof bookingOverrides.$inferSelect;
 export type InsertBookingOverride = typeof bookingOverrides.$inferInsert; 
-
 
 // Restaurant type combining auth and profile
 export type Restaurant = RestaurantUser & {
@@ -438,7 +432,6 @@ export interface UserLocation {
   locationUpdatedAt: Date | null;
   locationPermissionGranted: boolean | null;
 }
-
 
 export interface CreateRestaurantInput {
   email: string;
