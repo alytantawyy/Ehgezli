@@ -5,7 +5,7 @@ import { Request, Response } from "express";
 //--- Get User Saved Branches ---
 
 export const getUserSavedBranchesController = async (req: Request, res: Response) => {
-  const userId = req.user?.id as number;
+  const userId = (req as any).user?.id;
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
   
   const savedBranches = await getUserSavedBranches(userId);
@@ -15,10 +15,11 @@ export const getUserSavedBranchesController = async (req: Request, res: Response
 //--- Save Branch ---
 
 export const saveBranchController = async (req: Request, res: Response) => {
-  const userId = req.user?.id as number;
+  const userId = (req as any).user?.id;
+  const branchId = (req as any).params.branchId;
+  
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
   
-  const { branchId } = req.body;
   if (!branchId) return res.status(400).json({ message: "Branch ID is required" });
   
   await saveBranch(userId, branchId);
@@ -28,10 +29,11 @@ export const saveBranchController = async (req: Request, res: Response) => {
 //--- Remove Saved Branch ---
 
 export const removeSavedBranchController = async (req: Request, res: Response) => {
-  const userId = req.user?.id as number;
+  const userId = (req as any).user?.id;
+  const branchId = (req as any).params.branchId;
+  
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
   
-  const { branchId } = req.body;
   if (!branchId) return res.status(400).json({ message: "Branch ID is required" });
   
   await removeSavedBranch(userId, branchId);
@@ -41,7 +43,7 @@ export const removeSavedBranchController = async (req: Request, res: Response) =
 //--- Get Saved Branch IDs ---
 
 export const getSavedBranchIdsController = async (req: Request, res: Response) => {
-  const userId = req.user?.id as number;
+  const userId = (req as any).user?.id;
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
   
   const savedBranchIds = await getSavedBranchIds(userId);
