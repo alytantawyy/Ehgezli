@@ -1,4 +1,3 @@
-
 import { Request, Response } from "express";
 import { changeBookingStatus, createBooking, createBookingOverride, createBookingSettings, deleteBooking, deleteBookingOverride, generateTimeSlots, getBookingById, getBookingByIdAndUserId, getBookingOverride, getBookingOverridesForBranch, getBookingSettings, getBookingsForBranch, getBookingsForBranchOnDate, getUserBookings, updateBooking, updateBookingOverride, updateBookingSettings } from "@server/services/bookingService";
 
@@ -6,8 +5,18 @@ import { changeBookingStatus, createBooking, createBookingOverride, createBookin
 
 export const createBookingController = async (req: Request, res: Response) => {
   const booking = req.body;
-  
-  const newBooking = await createBooking(booking);
+  const userId = (req as any).user?.id;
+  const restaurantUserId = (req as any).restaurant?.id;
+
+  if (!userId && !restaurantUserId) {
+    return res.status(400).json({ message: "Either User ID or Restaurant ID is required" });
+  }
+
+  const bookingData: any = { ...booking };
+  if (userId) bookingData.userId = userId;
+  else bookingData.restaurantUserId = restaurantUserId;
+
+  const newBooking = await createBooking(bookingData);
   res.json(newBooking);
 };
 

@@ -26,6 +26,7 @@ export const users = pgTable("users", {
   firstName: text("first_name").notNull(),                         // User's first name
   lastName: text("last_name").notNull(),                          // User's last name
   email: text("email").notNull().unique(),                        // Unique email address
+  phone: text("phone").notNull(),                                // User's phone number
   password: text("password").notNull(),                           // Hashed password
   gender: text("gender").notNull(),                               // User's gender
   birthday: timestamp("birthday").notNull(),                      // User's birthday
@@ -137,7 +138,10 @@ export const restaurantUserRelations = relations(restaurantUsers, ({ one, many }
 // Table for storing reservations
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),              // Who made the booking
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),              // Who made the booking
+  guestName: text("guest_name"),
+guestPhone: text("guest_phone"),
+guestEmail: text("guest_email"),
   timeSlotId: integer("time_slot_id").notNull().references(() => timeSlots.id, { onDelete: 'cascade' }),    // Which time slot
   partySize: integer("party_size").notNull(),        // How many people
   status: text("status", {enum: ["pending", "confirmed", "arrived", "cancelled", "completed"]}).notNull(),
@@ -265,16 +269,20 @@ export const insertBranchSchema = createInsertSchema(restaurantBranches).omit({
   }),
 });
 
-// Schema for inserting new bookings
-export const insertBookingSchema = createInsertSchema(bookings).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-}).extend({
-  userId: z.number(),
+export const insertBookingSchema = z.object({
   timeSlotId: z.number(),
   partySize: z.number().min(1, "Party size must be at least 1"),
-  status: z.enum(["pending", "confirmed", "arrived", "cancelled"]).default("pending"),
+  status: z.enum(["pending", "confirmed", "arrived", "cancelled", "completed"]).default("pending"),
+  userId: z.number().optional(),
+
+  guestName: z.string().optional(),
+  guestEmail: z.string().email("Invalid email").optional(),
+  guestPhone: z.string().optional(), // Optional phone format validation here
+}).refine(data => {
+  return data.userId !== undefined || (data.guestName && (data.guestEmail || data.guestPhone));
+}, {
+  message: "Must provide either a userId or guestName + guestEmail/guestPhone",
+  path: ["userId"], // Customize path to show where error is triggered
 });
 
 // Schema for inserting new restaurant profiles
