@@ -64,6 +64,7 @@ async function seed() {
       firstName: 'John',
       lastName: 'Doe',
       email: 'john@example.com',
+      phone: '+201234567890',
       password: 'password123',
       gender: 'male',
       birthday: new Date('1990-01-01'),
@@ -79,6 +80,7 @@ async function seed() {
       firstName: 'Jane',
       lastName: 'Smith',
       email: 'jane@example.com',
+      phone: '+201234567891',
       password: 'password123',
       gender: 'female',
       birthday: new Date('1992-05-15'),
@@ -94,6 +96,7 @@ async function seed() {
       firstName: 'Ahmed',
       lastName: 'Hassan',
       email: 'ahmed@example.com',
+      phone: '+201234567892',
       password: 'password123',
       gender: 'male',
       birthday: new Date('1988-10-20'),
@@ -109,6 +112,7 @@ async function seed() {
       firstName: 'Fatima',
       lastName: 'Ali',
       email: 'fatima@example.com',
+      phone: '+201234567893',
       password: 'password123',
       gender: 'female',
       birthday: new Date('1995-03-08'),
@@ -124,6 +128,7 @@ async function seed() {
       firstName: 'Mohamed',
       lastName: 'Ibrahim',
       email: 'mohamed@example.com',
+      phone: '+201234567894',
       password: 'password123',
       gender: 'male',
       birthday: new Date('1985-12-15'),
@@ -139,6 +144,7 @@ async function seed() {
       firstName: 'Layla',
       lastName: 'Mahmoud',
       email: 'layla@example.com',
+      phone: '+201234567895',
       password: 'password123',
       gender: 'female',
       birthday: new Date('1993-07-22'),
@@ -154,6 +160,7 @@ async function seed() {
       firstName: 'Omar',
       lastName: 'Farouk',
       email: 'omar@example.com',
+      phone: '+201234567896',
       password: 'password123',
       gender: 'male',
       birthday: new Date('1991-09-05'),
@@ -169,6 +176,7 @@ async function seed() {
       firstName: 'Nour',
       lastName: 'Ahmed',
       email: 'nour@example.com',
+      phone: '+201234567897',
       password: 'password123',
       gender: 'female',
       birthday: new Date('1994-02-18'),
@@ -184,6 +192,7 @@ async function seed() {
       firstName: 'Youssef',
       lastName: 'Samir',
       email: 'youssef@example.com',
+      phone: '+201234567898',
       password: 'password123',
       gender: 'male',
       birthday: new Date('1989-11-30'),
@@ -199,6 +208,7 @@ async function seed() {
       firstName: 'Amira',
       lastName: 'Khalil',
       email: 'amira@example.com',
+      phone: '+201234567899',
       password: 'password123',
       gender: 'female',
       birthday: new Date('1996-04-12'),
@@ -218,6 +228,7 @@ async function seed() {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        phone: user.phone,
         password: await hashPassword(user.password),
         gender: user.gender,
         birthday: user.birthday,
@@ -748,25 +759,21 @@ async function seed() {
   
   // Create a variety of bookings
   const bookingPromises: Promise<any>[] = [];
-  
-  if (allBranches.length > 0) {
-    // For each user, create different types of bookings
-    for (const user of users_data) {
-      try {
+
+  for (const user of users_data) {
+    try {
+      // For each user, create different types of bookings
+      for (const branch of allBranches) {
         // 1. Past completed bookings (1-2 per user)
-        const completedCount = Math.floor(Math.random() * 2) + 1;
-        for (let i = 0; i < completedCount; i++) {
-          const branchIndex = Math.floor(Math.random() * allBranches.length);
-          const randomBranch = allBranches[branchIndex];
-          
-          // Get a random time slot for this branch from the past
-          const pastTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(
-            slot => new Date(slot.date) < new Date()
-          ) || [];
+        const pastCompletedCount = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < pastCompletedCount; i++) {
+          // Find a time slot for this branch in the past
+          const pastTimeSlots = timeSlotsByBranch[branch.id]?.filter(slot => 
+            new Date(slot.startTime) < new Date()
+          );
           
           if (pastTimeSlots.length > 0) {
             const randomTimeSlot = pastTimeSlots[Math.floor(Math.random() * pastTimeSlots.length)];
-            
             bookingPromises.push(
               db.insert(bookings).values({
                 userId: user.id,
@@ -779,26 +786,24 @@ async function seed() {
         }
 
         // 2. Currently arrived bookings (0-1 per user)
-        if (Math.random() > 0.7) { // 30% chance
-          const branchIndex = Math.floor(Math.random() * allBranches.length);
-          const randomBranch = allBranches[branchIndex];
-          
-          // Get a time slot for today
-          const todayTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(slot => {
-            const slotDate = new Date(slot.date);
-            return slotDate.getDate() === new Date().getDate() && 
-                   slotDate.getMonth() === new Date().getMonth() && 
-                   slotDate.getFullYear() === new Date().getFullYear();
-          }) || [];
+        if (Math.random() > 0.5) {
+          // Find a time slot for today
+          const todayTimeSlots = timeSlotsByBranch[branch.id]?.filter(slot => {
+            const slotDate = new Date(slot.startTime);
+            const now = new Date();
+            return slotDate.getDate() === now.getDate() &&
+                  slotDate.getMonth() === now.getMonth() &&
+                  slotDate.getFullYear() === now.getFullYear() &&
+                  slotDate.getHours() < now.getHours();
+          });
           
           if (todayTimeSlots.length > 0) {
             const randomTimeSlot = todayTimeSlots[Math.floor(Math.random() * todayTimeSlots.length)];
-            
             bookingPromises.push(
               db.insert(bookings).values({
                 userId: user.id,
                 timeSlotId: randomTimeSlot.id,
-                partySize: Math.floor(Math.random() * 4) + 2, // 2-6 people
+                partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
                 status: 'arrived'
               })
             );
@@ -806,118 +811,137 @@ async function seed() {
         }
 
         // 3. Upcoming confirmed bookings (1-2 per user)
-        const upcomingCount = Math.floor(Math.random() * 2) + 1;
-        for (let i = 0; i < upcomingCount; i++) {
-          const branchIndex = Math.floor(Math.random() * allBranches.length);
-          const randomBranch = allBranches[branchIndex];
+        const upcomingConfirmedCount = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < upcomingConfirmedCount; i++) {
+          // Find a time slot for today but in the future
+          const upcomingTodayTimeSlots = timeSlotsByBranch[branch.id]?.filter(slot => {
+            const slotDate = new Date(slot.startTime);
+            const now = new Date();
+            return slotDate.getDate() === now.getDate() &&
+                  slotDate.getMonth() === now.getMonth() &&
+                  slotDate.getFullYear() === now.getFullYear() &&
+                  slotDate.getHours() > now.getHours();
+          });
           
-          // Get a time slot for today or tomorrow
-          const upcomingTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(slot => {
-            const slotDate = new Date(slot.date);
-            const today = new Date();
-            const tomorrow = new Date();
-            tomorrow.setDate(today.getDate() + 1);
+          if (upcomingTodayTimeSlots.length > 0) {
+            const randomTimeSlot = upcomingTodayTimeSlots[Math.floor(Math.random() * upcomingTodayTimeSlots.length)];
             
-            return (
-              (slotDate.getDate() === today.getDate() && 
-               slotDate.getMonth() === today.getMonth() && 
-               slotDate.getFullYear() === today.getFullYear() &&
-               new Date(slot.startTime) > new Date()) || 
-              (slotDate.getDate() === tomorrow.getDate() && 
-               slotDate.getMonth() === tomorrow.getMonth() && 
-               slotDate.getFullYear() === tomorrow.getFullYear())
-            );
-          }) || [];
-          
-          if (upcomingTimeSlots.length > 0) {
-            const randomTimeSlot = upcomingTimeSlots[Math.floor(Math.random() * upcomingTimeSlots.length)];
+            // 50% chance this will be a guest booking (to test that feature)
+            const isGuestBooking = Math.random() > 0.5;
             
-            bookingPromises.push(
-              db.insert(bookings).values({
-                userId: user.id,
-                timeSlotId: randomTimeSlot.id,
-                partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                status: 'confirmed'
-              })
-            );
+            if (isGuestBooking) {
+              // Create a booking with guest information (restaurant creating for a guest)
+              bookingPromises.push(
+                db.insert(bookings).values({
+                  guestName: `Guest of ${user.firstName}`,
+                  guestPhone: `+20${Math.floor(Math.random() * 1000000000)}`,
+                  guestEmail: `guest${Math.floor(Math.random() * 1000)}@example.com`,
+                  timeSlotId: randomTimeSlot.id,
+                  partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                  status: 'confirmed'
+                })
+              );
+            } else {
+              // Regular user booking
+              bookingPromises.push(
+                db.insert(bookings).values({
+                  userId: user.id,
+                  timeSlotId: randomTimeSlot.id,
+                  partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                  status: 'confirmed'
+                })
+              );
+            }
           }
         }
 
         // 4. Future confirmed bookings (1-2 per user)
-        const futureCount = Math.floor(Math.random() * 2) + 1;
-        for (let i = 0; i < futureCount; i++) {
-          const branchIndex = Math.floor(Math.random() * allBranches.length);
-          const randomBranch = allBranches[branchIndex];
-          
-          // Get a time slot for the future (beyond tomorrow)
-          const futureTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(slot => {
-            const slotDate = new Date(slot.date);
-            const dayAfterTomorrow = new Date();
-            dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
-            
-            const nextMonthDate = new Date();
-            nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-            
-            return slotDate >= dayAfterTomorrow && slotDate <= nextMonthDate;
-          }) || [];
+        const futureConfirmedCount = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < futureConfirmedCount; i++) {
+          // Find a time slot for the future (not today)
+          const futureTimeSlots = timeSlotsByBranch[branch.id]?.filter(slot => {
+            const slotDate = new Date(slot.startTime);
+            const now = new Date();
+            const tomorrow = new Date();
+            tomorrow.setDate(now.getDate() + 1);
+            return slotDate >= tomorrow;
+          });
           
           if (futureTimeSlots.length > 0) {
             const randomTimeSlot = futureTimeSlots[Math.floor(Math.random() * futureTimeSlots.length)];
             
-            bookingPromises.push(
-              db.insert(bookings).values({
-                userId: user.id,
-                timeSlotId: randomTimeSlot.id,
-                partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                status: 'confirmed'
-              })
-            );
+            // 50% chance this will be a guest booking (to test that feature)
+            const isGuestBooking = Math.random() > 0.5;
+            
+            if (isGuestBooking) {
+              // Create a booking with guest information (restaurant creating for a guest)
+              bookingPromises.push(
+                db.insert(bookings).values({
+                  guestName: `Future Guest ${Math.floor(Math.random() * 100)}`,
+                  guestPhone: `+20${Math.floor(Math.random() * 1000000000)}`,
+                  guestEmail: `futureguest${Math.floor(Math.random() * 1000)}@example.com`,
+                  timeSlotId: randomTimeSlot.id,
+                  partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                  status: 'confirmed'
+                })
+              );
+            } else {
+              // Regular user booking
+              bookingPromises.push(
+                db.insert(bookings).values({
+                  userId: user.id,
+                  timeSlotId: randomTimeSlot.id,
+                  partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                  status: 'confirmed'
+                })
+              );
+            }
           }
         }
 
         // 5. Cancelled bookings (0-2 per user)
-        const cancelledCount = Math.floor(Math.random() * 3);
+        const cancelledCount = Math.floor(Math.random() * 3); // 0-2
         for (let i = 0; i < cancelledCount; i++) {
-          const branchIndex = Math.floor(Math.random() * allBranches.length);
-          const randomBranch = allBranches[branchIndex];
+          // Find any time slot (past or future)
+          const anyTimeSlots = timeSlotsByBranch[branch.id]?.filter(slot => 
+            true
+          );
           
-          // Get a time slot for today or tomorrow
-          const upcomingTimeSlots = timeSlotsByBranch[randomBranch.id]?.filter(slot => {
-            const slotDate = new Date(slot.date);
-            const today = new Date();
-            const tomorrow = new Date();
-            tomorrow.setDate(today.getDate() + 1);
+          if (anyTimeSlots.length > 0) {
+            const randomTimeSlot = anyTimeSlots[Math.floor(Math.random() * anyTimeSlots.length)];
             
-            return (
-              (slotDate.getDate() === today.getDate() && 
-               slotDate.getMonth() === today.getMonth() && 
-               slotDate.getFullYear() === today.getFullYear() &&
-               new Date(slot.startTime) > new Date()) || 
-              (slotDate.getDate() === tomorrow.getDate() && 
-               slotDate.getMonth() === tomorrow.getMonth() && 
-               slotDate.getFullYear() === tomorrow.getFullYear())
-            );
-          }) || [];
-          
-          if (upcomingTimeSlots.length > 0) {
-            const randomTimeSlot = upcomingTimeSlots[Math.floor(Math.random() * upcomingTimeSlots.length)];
+            // 50% chance this will be a guest booking (to test that feature)
+            const isGuestBooking = Math.random() > 0.5;
             
-            bookingPromises.push(
-              db.insert(bookings).values({
-                userId: user.id,
-                timeSlotId: randomTimeSlot.id,
-                partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                status: 'cancelled'
-              })
-            );
+            if (isGuestBooking) {
+              // Create a booking with guest information (restaurant creating for a guest)
+              bookingPromises.push(
+                db.insert(bookings).values({
+                  guestName: `Cancelled Guest ${Math.floor(Math.random() * 100)}`,
+                  guestPhone: `+20${Math.floor(Math.random() * 1000000000)}`,
+                  guestEmail: `cancelledguest${Math.floor(Math.random() * 1000)}@example.com`,
+                  timeSlotId: randomTimeSlot.id,
+                  partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                  status: 'cancelled'
+                })
+              );
+            } else {
+              // Regular user booking
+              bookingPromises.push(
+                db.insert(bookings).values({
+                  userId: user.id,
+                  timeSlotId: randomTimeSlot.id,
+                  partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
+                  status: 'cancelled'
+                })
+              );
+            }
           }
         }
-      } catch (error) {
-        console.error(`Error creating bookings for user ${user.id}:`, error);
       }
+    } catch (error) {
+      console.error(`Error creating bookings for user ${user.id}:`, error);
     }
-  } else {
-    console.log('No valid branches found, skipping booking creation');
   }
 
   await Promise.all(bookingPromises);

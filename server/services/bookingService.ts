@@ -44,7 +44,10 @@ export const getBookingsForBranch = async (branchId: number): Promise<Booking[]>
     partySize: row.bookings.partySize,
     status: row.bookings.status,
     createdAt: row.bookings.createdAt,
-    updatedAt: row.bookings.updatedAt
+    updatedAt: row.bookings.updatedAt,
+    guestName: row.bookings.guestName,
+    guestPhone: row.bookings.guestPhone,
+    guestEmail: row.bookings.guestEmail
   }));
 };
 
@@ -73,7 +76,10 @@ export const getBookingsForBranchOnDate = async (branchId: number, date: Date): 
     partySize: row.bookings.partySize,
     status: row.bookings.status,
     createdAt: row.bookings.createdAt,
-    updatedAt: row.bookings.updatedAt
+    updatedAt: row.bookings.updatedAt,
+    guestName: row.bookings.guestName,
+    guestPhone: row.bookings.guestPhone,
+    guestEmail: row.bookings.guestEmail
   }));
 };
 

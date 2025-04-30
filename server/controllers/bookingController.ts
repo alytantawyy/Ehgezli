@@ -5,24 +5,59 @@ import { changeBookingStatus, createBooking, createBookingOverride, createBookin
 
 export const createBookingController = async (req: Request, res: Response) => {
   const booking = req.body;
-  const userId = (req as any).user?.id;
-  const restaurantUserId = (req as any).restaurant?.id;
+  const user = (req as any).user;
+  
+  // Determine if this is a restaurant user or regular user based on the type
+  const isRestaurantUser = user?.type === 'restaurant';
+  const userId = isRestaurantUser ? null : user?.id;
+  const restaurantUserId = isRestaurantUser ? user?.id : null;
 
   if (!userId && !restaurantUserId) {
     return res.status(400).json({ message: "Either User ID or Restaurant ID is required" });
   }
 
   const bookingData: any = { ...booking };
+  
+  // Check if this is a guest booking (has guest information)
+  const isGuestBooking = booking.guestName || booking.guestPhone || booking.guestEmail;
+  
+  // Only restaurant users can create guest bookings
+  if (isGuestBooking && !isRestaurantUser) {
+    return res.status(403).json({ 
+      message: "Only restaurant users can create bookings for guests" 
+    });
+  }
+  
+  // Handle user ID assignment
   if (userId) bookingData.userId = userId;
-  else bookingData.restaurantUserId = restaurantUserId;
+  
+  // Always attach restaurant user ID if available
+  if (restaurantUserId) bookingData.restaurantUserId = restaurantUserId;
+  
+  // Validate guest information if this is a guest booking by a restaurant
+  if (isRestaurantUser && isGuestBooking && (!bookingData.guestName || !bookingData.guestPhone)) {
+    return res.status(400).json({ 
+      message: "Guest name and phone are required when booking as a guest" 
+    });
+  }
 
-  const newBooking = await createBooking(bookingData);
+  // Always set status to confirmed by default
+  bookingData.status = "confirmed";
+
+  const newBooking: any = await createBooking(bookingData);
   res.json(newBooking);
 };
 
-
+//--- Get Bookings for Branch ---
 
 export const getBookingsForBranchController = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
   const branchId = req.params.branchId;
   if (!branchId) return res.status(400).json({ message: "Branch ID is required" });
   
@@ -33,6 +68,13 @@ export const getBookingsForBranchController = async (req: Request, res: Response
 //--- Get Bookings for Branch on Date ---
 
 export const getBookingsForBranchOnDateController = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
   const branchId = req.params.branchId;
   const date = new Date(req.params.date);
   if (!branchId || !date) return res.status(400).json({ message: "Branch ID and Date are required" });
@@ -44,16 +86,38 @@ export const getBookingsForBranchOnDateController = async (req: Request, res: Re
 //--- Get Booking by ID ---
 
 export const getBookingByIdController = async (req: Request, res: Response) => {
-  const bookingId = req.params.bookingId;
+  const user = (req as any).user;
+  if (!user) return res.status(401).json({ message: "Unauthorized" });
+  
+  const bookingId = req.params.id; 
   if (!bookingId) return res.status(400).json({ message: "Booking ID is required" });
   
   const booking = await getBookingById(Number(bookingId));
+  
+  // If no booking found
+  if (!booking) {
+    return res.status(404).json({ message: "Booking not found" });
+  }
+  
+  // For regular users, only allow access to their own bookings
+  if (user.type === 'user' && booking.userId !== user.id) {
+    return res.status(403).json({ message: "You can only view your own bookings" });
+  }
+  
+  // Restaurant users can view any booking
   res.json(booking);
 };
   
 //--- Get Booking by ID and User ID ---
 
 export const getBookingByIdAndUserIdController = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
   const bookingId = req.params.bookingId;
   const userId = req.params.userId;
   if (!bookingId || !userId) return res.status(400).json({ message: "Booking ID and User ID are required" });
@@ -65,16 +129,23 @@ export const getBookingByIdAndUserIdController = async (req: Request, res: Respo
 //--- Get User Bookings ---
 
 export const getUserBookingsController = async (req: Request, res: Response) => {
-  const userId = req.params.userId;
-  if (!userId) return res.status(400).json({ message: "User ID is required" });
+  const user = (req as any).user;
+  if (!user) return res.status(401).json({ message: "Unauthorized" });
   
-  const bookings = await getUserBookings(Number(userId));
+  const bookings = await getUserBookings(user.id);
   res.json(bookings);
 };
 
 //--- Get Booking Settings ---
 
 export const getBookingSettingsController = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
   const branchId = req.params.branchId;
   if (!branchId) return res.status(400).json({ message: "Branch ID is required" });
   
@@ -85,7 +156,13 @@ export const getBookingSettingsController = async (req: Request, res: Response) 
 //--- Create Booking Settings ---
 
 export const createBookingSettingsController = async (req: Request, res: Response) => {
-
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
   const settings = req.body;
   
   const newSettings = await createBookingSettings(settings);
@@ -95,6 +172,13 @@ export const createBookingSettingsController = async (req: Request, res: Respons
 //--- Update Booking Settings ---
 
 export const updateBookingSettingsController = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
   const branchId = req.params.branchId;
   const data = req.body;
   
@@ -137,6 +221,12 @@ export const generateTimeSlotsController = async (req: Request, res: Response) =
 
 export const createBookingOverrideController = async (req: Request, res: Response) => {
   const override = req.body;
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
   
   const newOverride = await createBookingOverride(override);
   res.json(newOverride);
@@ -155,6 +245,13 @@ export const getBookingOverrideController = async (req: Request, res: Response) 
 //--- Get Booking Overrides for Branch ---
 
 export const getBookingOverridesForBranchController = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
   const branchId = req.params.branchId;
   if (!branchId) return res.status(400).json({ message: "Branch ID is required" });
   
@@ -175,6 +272,13 @@ export const deleteBookingOverrideController = async (req: Request, res: Respons
 //--- Update Booking Override ---
 
 export const updateBookingOverrideController = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
   const overrideId = req.params.overrideId;
   const data = req.body;
   
@@ -185,6 +289,13 @@ export const updateBookingOverrideController = async (req: Request, res: Respons
 //--- Change Booking Status ---
 
 export const changeBookingStatusController = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const isRestaurantUser = user?.type === 'restaurant';
+  
+  if (!isRestaurantUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
   const bookingId = req.params.bookingId;
   const status = req.body.status;
   
