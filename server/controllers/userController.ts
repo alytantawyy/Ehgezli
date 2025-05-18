@@ -77,10 +77,15 @@ export const updateUserProfileController = async (req: Request, res: Response) =
     // Always use the current date for locationUpdatedAt
     const locationUpdatedAt = new Date();
   
-    const location = await getUserLocation(userId);
-    if (!location) return res.status(404).json({ message: "Location not found" });
-  
-    const updatedLocation = await updateUserLocation(userId, { lastLatitude, lastLongitude, locationUpdatedAt, locationPermissionGranted });
+    // Don't check if location exists first - just update with the provided values
+    // This will create the location data if it doesn't exist or update it if it does
+    const updatedLocation = await updateUserLocation(userId, { 
+      lastLatitude, 
+      lastLongitude, 
+      locationUpdatedAt, 
+      locationPermissionGranted: locationPermissionGranted ?? false // Default to false if not provided
+    });
+    
     res.json(updatedLocation);
     } catch (error) {
         console.error('Error updating user location:', error);
@@ -104,7 +109,8 @@ export const updateUserProfileController = async (req: Request, res: Response) =
           nationality,  
           lastLatitude,
           lastLongitude,
-          locationPermissionGranted
+          locationPermissionGranted,
+          phone
         } = req.body;
       
         // Create user data object with all fields
@@ -118,7 +124,8 @@ export const updateUserProfileController = async (req: Request, res: Response) =
           favoriteCuisines,
           nationality: nationality || "", 
           locationPermissionGranted: locationPermissionGranted || false,
-          locationUpdatedAt: new Date()
+          locationUpdatedAt: new Date(),
+          phone
         };
 
         // Handle birthday if provided

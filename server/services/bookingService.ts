@@ -17,6 +17,7 @@
  * - deleteBookingOverride
  * - updateBookingOverride
  * - changeBookingStatus
+ * - generateTimeSlotsForDays
  */
 
 import { db } from "@server/db/db";
@@ -85,17 +86,27 @@ export const getBookingsForBranchOnDate = async (branchId: number, date: Date): 
 
 //--Get Booking by ID--
 
-export const getBookingById = async (bookingId: number): Promise<Booking | undefined> => {
-  const [booking] = await db
-    .select()
+export const getBookingById = async (bookingId: number): Promise<(Booking & { restaurantId?: number }) | undefined> => {
+  // Get booking with restaurant information
+  const result = await db
+    .select({
+      booking: bookings,
+      restaurantId: restaurantBranches.restaurantId
+    })
     .from(bookings)
+    .innerJoin(timeSlots, eq(bookings.timeSlotId, timeSlots.id))
+    .innerJoin(restaurantBranches, eq(timeSlots.branchId, restaurantBranches.id))
     .where(eq(bookings.id, bookingId));
 
-  if (!booking) {
+  if (!result || result.length === 0) {
     return undefined;
   }
 
-  return booking;
+  // Return booking with restaurantId for authorization checks
+  return {
+    ...result[0].booking,
+    restaurantId: result[0].restaurantId
+  };
 };
 
 //--Get Booking by ID and User ID--
@@ -165,11 +176,18 @@ export const getBookingSettings = async (branchId: number): Promise<BookingSetti
 
 //--Create Booking Settings--
 
-export const createBookingSettings = async (settings: InsertBookingSettings): Promise<BookingSettings> => {
-  const [newSettings] = await db
+export const createBookingSettings = async (
+  settings: InsertBookingSettings,
+  tx?: any
+): Promise<BookingSettings> => {
+  // Use provided transaction or db directly
+  const queryRunner = tx || db;
+  
+  const [newSettings] = await queryRunner
     .insert(bookingSettings)
     .values(settings)
     .returning();
+    
   if (!newSettings) {
     throw new Error('Failed to create booking settings');
   }
@@ -347,3 +365,70 @@ export const changeBookingStatus = async (
   
     return updatedBooking;
   };
+
+/**
+ * Generates and saves time slots for multiple days based on booking settings
+ * @param tx Database transaction object
+ * @param branchId Branch ID to create time slots for
+ * @param settings Booking settings to use for time slot generation
+ * @param days Number of days to generate slots for
+ * @returns Number of slots generated
+ */
+export const generateTimeSlotsForDays = async (
+  tx: any,
+  branchId: number,
+  settings: BookingSettings,
+  days: number
+): Promise<number> => {
+  const today = new Date();
+  let slotsGenerated = 0;
+  
+  // Generate slots for each day
+  for (let i = 0; i < days; i++) {
+    try {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      
+      // Get time slots for the day based on settings
+      const slots = generateTimeSlots(
+        settings.openTime,
+        settings.closeTime,
+        settings.interval
+      );
+      
+      // Create time slot entries for each slot
+      for (const slotTime of slots) {
+        try {
+          const [hours, minutes] = slotTime.split(':').map(Number);
+          
+          const startTime = new Date(date);
+          startTime.setHours(hours, minutes, 0, 0);
+          
+          const endTime = new Date(startTime);
+          endTime.setMinutes(endTime.getMinutes() + settings.interval);
+          
+          // Create time slot in database
+          await tx
+            .insert(timeSlots)
+            .values({
+              branchId: branchId,
+              date: date,
+              startTime: startTime,
+              endTime: endTime,
+              maxSeats: settings.maxSeatsPerSlot ?? 0,
+              maxTables: settings.maxTablesPerSlot ?? 0,
+              isClosed: false
+            });
+            
+          slotsGenerated++;
+        } catch (slotError) {
+          // Continue with other slots even if one fails
+        }
+      }
+    } catch (dayError) {
+      // Continue with other days even if one fails
+    }
+  }
+  
+  return slotsGenerated;
+};

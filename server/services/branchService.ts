@@ -11,8 +11,8 @@
 
 import { db } from "@server/db/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { restaurantBranches, RestaurantBranch, InsertRestaurantBranch, timeSlots, bookings } from "@server/db/schema"; 
-import { getBookingSettings } from "./bookingService";
+import { restaurantBranches, RestaurantBranch, InsertRestaurantBranch, timeSlots, bookings, bookingSettings, BookingSettings, InsertBookingSettings } from "@server/db/schema"; 
+import { getBookingSettings, generateTimeSlots, generateTimeSlotsForDays, createBookingSettings } from "./bookingService";
 import { formatTime } from "@server/utils/date";
 
 // ==================== Branch Service ====================
@@ -52,17 +52,47 @@ export const getRestaurantBranchById = async (branchId: number, restaurantId: nu
   return branch;
 };
 
-//--- Create Restaurant Branch --- 
+//--- Create Restaurant Branch ---
 
-export const createRestaurantBranch = async (branch: InsertRestaurantBranch): Promise<RestaurantBranch> => {
-  const [newBranch] = await db
-    .insert(restaurantBranches)
-    .values(branch)
-    .returning();
-  if (!newBranch) {
-    throw new Error('Failed to create branch');
-  }
-  return newBranch;
+export const createRestaurantBranch = async (
+  branchData: InsertRestaurantBranch, 
+  bookingSettingsData: Omit<InsertBookingSettings, 'branchId'>,
+  generateDays: number
+): Promise<{ branch: RestaurantBranch, settings: BookingSettings, slotsGenerated: number }> => {
+  // Use a transaction to ensure all operations succeed or fail together
+  return await db.transaction(async (tx) => {
+    try {
+      // 1. Create the branch
+      const [branch] = await tx
+        .insert(restaurantBranches)
+        .values(branchData)
+        .returning();
+        
+      if (!branch) {
+        throw new Error('Failed to create branch');
+      }
+      
+      // 2. Create booking settings
+      const bookingSettingsWithBranchId = {
+        ...bookingSettingsData,
+        branchId: branch.id
+      };
+      
+      const settings = await createBookingSettings(bookingSettingsWithBranchId, tx);
+      
+      // 3. Generate time slots for the specified number of days
+      const slotsGenerated = await generateTimeSlotsForDays(
+        tx,
+        branch.id,
+        settings,
+        generateDays
+      );
+      
+      return { branch, settings, slotsGenerated };
+    } catch (error) {
+      throw error; // Re-throw to ensure transaction is rolled back
+    }
+  });
 };
 
 //--- Update Restaurant Branch ---
@@ -144,11 +174,3 @@ export const getRestaurantBranchAvailability = async (branchId: number, date: Da
 
     return availability;
   };
-
-
-
-
-  
-    
-  
-  

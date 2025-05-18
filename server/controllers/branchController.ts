@@ -1,4 +1,3 @@
-
 import { Request, Response } from "express";
 import { createRestaurantBranch, deleteRestaurantBranch, getAllRestaurantBranches, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, updateRestaurantBranch } from "@server/services/branchService";
 import { getDetailedRestaurant } from "@server/services/restaurantService";
@@ -38,12 +37,51 @@ export const getRestaurantBranchByIdController = async (req: Request, res: Respo
 
 export const createRestaurantBranchController = async (req: Request, res: Response) => {
   const restaurantId = (req as any).user.id;
-  if (!restaurantId) return res.status(400).json({ message: "Restaurant ID is required" });
+  if (!restaurantId) return res.status(401).json({ message: "Unauthorized - Restaurant ID is required" });
   
-  const branch = await createRestaurantBranch({ ...req.body, restaurantId });
-  res.json(branch);
+  try {
+    // Verify the restaurant exists
+    const restaurant = await getDetailedRestaurant(Number(restaurantId));
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    
+    // Extract booking settings and generateDays from request
+    const { bookingSettings, generateDays = 30, ...branchData } = req.body;
+    
+    // Validate booking settings are provided
+    if (!bookingSettings || typeof bookingSettings !== 'object') {
+      return res.status(400).json({ message: "Booking settings are required" });
+    }
+    
+    // Required booking settings fields
+    const requiredFields = ['openTime', 'closeTime', 'interval', 'maxSeatsPerSlot', 'maxTablesPerSlot'];
+    const missingFields = requiredFields.filter(field => !(field in bookingSettings));
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({ 
+        message: `Missing required booking settings: ${missingFields.join(', ')}` 
+      });
+    }
+    
+    // Create branch with booking settings and time slots
+    const result = await createRestaurantBranch(
+      { ...branchData, restaurantId },
+      bookingSettings,
+      generateDays
+    );
+    
+    // Return success response with created data
+    res.json({
+      ...result.branch,
+      bookingSettings: result.settings,
+      message: `Branch created successfully with booking settings and ${result.slotsGenerated} time slots`
+    });
+  } catch (error) {
+    console.error('Error creating branch:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create branch';
+    res.status(500).json({ message: errorMessage });
+  }
 };
-  
+
 //--- Update Restaurant Branch ---
 
 export const updateRestaurantBranchController = async (req: Request, res: Response) => {
