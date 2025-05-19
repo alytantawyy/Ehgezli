@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createRestaurantBranch, deleteRestaurantBranch, getAllRestaurantBranches, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, updateRestaurantBranch } from "@server/services/branchService";
+import { createRestaurantBranch, deleteRestaurantBranch, getAllRestaurantBranches, getBranchById, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, updateRestaurantBranch } from "@server/services/branchService";
 import { getDetailedRestaurant } from "@server/services/restaurantService";
 import {deleteBookingSettings, deleteTimeSlots, deleteBooking, deleteBookingOverride} from "@server/services/bookingService";
 
@@ -130,4 +130,18 @@ export const getRestaurantBranchAvailabilityController = async (req: Request, re
   const availability = await getRestaurantBranchAvailability(Number(branchId), date);
   res.json(availability);
 };
+
+export const getBranchByIdController = async (req: Request, res: Response) => {
+  const branchId = req.params.branchId;
+  if (!branchId) return res.status(400).json({ message: "Branch ID is required" });
+  
+  try {
+    const branch = await getBranchById(Number(branchId));
+    if (!branch) return res.status(404).json({ message: "Branch not found" });
+    res.json(branch);
+  } catch (error) {
+    console.error("Error fetching branch:", error);
+    res.status(500).json({ message: "Failed to fetch branch details" });
+  }
+}
   

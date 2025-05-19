@@ -10,7 +10,7 @@
  */
 
 import { db } from "@server/db/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, count } from "drizzle-orm";
 import { restaurantBranches, RestaurantBranch, InsertRestaurantBranch, timeSlots, bookings, bookingSettings, BookingSettings, InsertBookingSettings } from "@server/db/schema"; 
 import { getBookingSettings, generateTimeSlots, generateTimeSlotsForDays, createBookingSettings } from "./bookingService";
 import { formatTime } from "@server/utils/date";
@@ -50,6 +50,39 @@ export const getRestaurantBranchById = async (branchId: number, restaurantId: nu
     throw new Error(`Branch with id ${branchId} not found`);
   }
   return branch;
+};
+
+//--- Get Branch By Id (Public) ---
+
+export const getBranchById = async (branchId: number): Promise<RestaurantBranch | undefined> => {
+  try {
+    console.log(`Fetching branch with id ${branchId}`);
+    
+    // First check if the branch exists
+    const branchCount = await db
+      .select({ count: count() })
+      .from(restaurantBranches)
+      .where(eq(restaurantBranches.id, branchId));
+    
+    console.log(`Branch count for id ${branchId}:`, branchCount[0]?.count);
+    
+    if (branchCount[0]?.count === 0) {
+      console.log(`No branch found with id ${branchId}`);
+      return undefined;
+    }
+    
+    // Now get the branch data
+    const [branch] = await db
+      .select()
+      .from(restaurantBranches)
+      .where(eq(restaurantBranches.id, branchId));
+    
+    console.log('Branch data:', branch);
+    return branch;
+  } catch (error) {
+    console.error(`Error fetching branch with id ${branchId}:`, error);
+    throw new Error(`Failed to fetch branch details`);
+  }
 };
 
 //--- Create Restaurant Branch ---
