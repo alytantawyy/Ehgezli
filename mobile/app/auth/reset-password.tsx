@@ -12,9 +12,9 @@ import {
   Dimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { EhgezliButton } from '../components/EhgezliButton';
-import Colors from '../constants/Colors';
-import * as client from '../shared/api/client';
+import { EhgezliButton } from '../../components/common/EhgezliButton';
+import Colors from '../../constants/Colors';
+import { resetPassword, validateResetToken } from '../../api/auth';
 import * as Linking from 'expo-linking';
 
 const { width, height } = Dimensions.get('window');
@@ -92,27 +92,30 @@ export default function ResetPasswordScreen() {
     
     try {
       console.log('Submitting password reset with token:', token);
-      const response = await client.resetPassword(token, password);
-      console.log('Password reset response:', response);
-      setResetSuccess(true);
       
-      // Clear any existing auth token to prevent auto-login
-      try {
-        await client.clearAuthToken();
-        console.log('Auth token cleared successfully');
-      } catch (clearError) {
-        console.error('Error clearing auth token:', clearError);
+      // First validate the token
+      const isValid = await validateResetToken(token);
+      
+      if (!isValid) {
+        setError('Invalid or expired reset token. Please request a new password reset.');
+        setIsLoading(false);
+        return;
       }
+      
+      // Then reset the password
+      await resetPassword({ token, password });
+      console.log('Password reset successful');
+      setResetSuccess(true);
       
       Alert.alert(
         'Success',
         'Your password has been reset successfully. You can now log in with your new password.'
       );
       
-      // Force navigation to login with a small delay to ensure token clearing completes
+      // Navigate to login with a small delay
       setTimeout(() => {
         console.log('Navigating to login screen');
-        router.replace('/login');
+        router.replace('./login');
       }, 500);
     } catch (err) {
       console.error('Password reset error:', err);

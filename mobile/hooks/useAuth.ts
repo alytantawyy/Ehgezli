@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '../store/auth-store';
 import { useRouter, useSegments } from 'expo-router';
-import { checkAuthToken } from '../api/auth';
+import { verifyToken } from '../api/auth';
 
 export function useAuth() {
   const { 
@@ -51,7 +51,7 @@ export function useAuth() {
   useEffect(() => {
     const checkToken = async () => {
       try {
-        const token = await checkAuthToken();
+        const token = await verifyToken();
         if (token) {
           // If we have a token, we should fetch the user profile
           // This would be implemented in a real app

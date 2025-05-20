@@ -74,10 +74,16 @@ export interface RestaurantRegisterData {
   logo?: string;
 }
 
-export interface ResetPasswordData {
-  email: string;
-}
-
 export interface ForgotPasswordData {
   email: string;
 }   
+
+export interface PasswordUpdateData {
+  token: string;
+  password: string;
+}
+
+export interface ResetPasswordData {
+  token: string;
+  password: string;
+}

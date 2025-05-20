@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, Dimensions, TouchableOpacity, Modal } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocation } from '../context/location-context';
-import { Branch } from '../shared/api/client';
+import { useLocation } from '../../context/location-context';
+import { Branch } from '../../types/booking';
 
 interface RestaurantMapProps {
   branches: Branch[];
@@ -12,6 +12,12 @@ interface RestaurantMapProps {
   isPreview?: boolean;
 }
 
+/**
+ * RestaurantMap Component
+ * 
+ * Displays restaurant branch locations on a map
+ * Used in restaurant details and branch management screens
+ */
 export function RestaurantMap({ branches, restaurantName, onClose, isPreview = false }: RestaurantMapProps) {
   const { location } = useLocation();
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
@@ -46,8 +52,8 @@ export function RestaurantMap({ branches, restaurantName, onClose, isPreview = f
     if (validBranches.length === 1) {
       const branch = validBranches[0];
       return {
-        latitude: parseFloat(branch.latitude!),
-        longitude: parseFloat(branch.longitude!),
+        latitude: parseFloat(branch.latitude!.toString()),
+        longitude: parseFloat(branch.longitude!.toString()),
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       };
@@ -60,8 +66,8 @@ export function RestaurantMap({ branches, restaurantName, onClose, isPreview = f
     let maxLng = Number.MIN_VALUE;
 
     validBranches.forEach(branch => {
-      const lat = parseFloat(branch.latitude!);
-      const lng = parseFloat(branch.longitude!);
+      const lat = parseFloat(branch.latitude!.toString());
+      const lng = parseFloat(branch.longitude!.toString());
 
       minLat = Math.min(minLat, lat);
       maxLat = Math.max(maxLat, lat);
@@ -99,32 +105,47 @@ export function RestaurantMap({ branches, restaurantName, onClose, isPreview = f
       <TouchableOpacity 
         style={styles.previewContainer} 
         onPress={() => setShowFullMap(true)}
-        activeOpacity={0.8}
       >
-        <View style={styles.previewContent}>
-          <Ionicons name="location-outline" size={20} color="#007AFF" style={styles.previewIcon} />
-          <View style={styles.previewTextContainer}>
-            <Text style={styles.previewAddress} numberOfLines={1}>
-              {firstBranch.address || 'View location'}
-            </Text>
-            {firstBranch.distance !== undefined && (
-              <Text style={styles.previewDistance}>
-                {firstBranch.distance.toFixed(1)} km away
-              </Text>
-            )}
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#999" />
-        </View>
-
-        {showFullMap && (
-          <Modal visible={showFullMap} animationType="slide">
-            <RestaurantMap 
-              branches={branches} 
-              restaurantName={restaurantName} 
-              onClose={() => setShowFullMap(false)}
+        <MapView
+          style={styles.previewMap}
+          initialRegion={{
+            latitude: parseFloat(firstBranch.latitude!.toString()),
+            longitude: parseFloat(firstBranch.longitude!.toString()),
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
+          scrollEnabled={false}
+          zoomEnabled={false}
+          rotateEnabled={false}
+          pitchEnabled={false}
+        >
+          {validBranches.map((branch) => (
+            <Marker
+              key={branch.id}
+              coordinate={{
+                latitude: parseFloat(branch.latitude!.toString()),
+                longitude: parseFloat(branch.longitude!.toString()),
+              }}
+              title={branch.name}
             />
-          </Modal>
-        )}
+          ))}
+        </MapView>
+        <View style={styles.previewOverlay}>
+          <Ionicons name="expand" size={24} color="#fff" />
+          <Text style={styles.previewText}>View Map</Text>
+        </View>
+        
+        <Modal
+          visible={showFullMap}
+          animationType="slide"
+          onRequestClose={() => setShowFullMap(false)}
+        >
+          <RestaurantMap 
+            branches={branches} 
+            restaurantName={restaurantName} 
+            onClose={() => setShowFullMap(false)} 
+          />
+        </Modal>
       </TouchableOpacity>
     );
   }
@@ -133,7 +154,7 @@ export function RestaurantMap({ branches, restaurantName, onClose, isPreview = f
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerText} numberOfLines={1} ellipsizeMode="tail">
-          {restaurantName ? `${restaurantName} Location` : 'Location'}
+          {restaurantName} Locations
         </Text>
         {onClose && (
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -145,33 +166,36 @@ export function RestaurantMap({ branches, restaurantName, onClose, isPreview = f
       <MapView
         style={styles.map}
         initialRegion={initialRegion()}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
       >
-        {validBranches.map((branch, index) => (
+        {validBranches.map((branch) => (
           <Marker
-            key={`${branch.id}-${index}`}
+            key={branch.id}
             coordinate={{
-              latitude: parseFloat(branch.latitude!),
-              longitude: parseFloat(branch.longitude!),
+              latitude: parseFloat(branch.latitude!.toString()),
+              longitude: parseFloat(branch.longitude!.toString()),
             }}
-            title={restaurantName}
-            description={`${branch.address}, ${branch.city || ''}`}
+            title={branch.name}
+            description={branch.address}
             onPress={() => setSelectedBranch(branch)}
           />
         ))}
+        
+        {location && (
+          <Marker
+            coordinate={{
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            }}
+            title="Your Location"
+            pinColor="blue"
+          />
+        )}
       </MapView>
       
       {selectedBranch && (
         <View style={styles.branchInfo}>
-          <Text style={styles.branchName}>{restaurantName}</Text>
+          <Text style={styles.branchName}>{selectedBranch.name}</Text>
           <Text style={styles.branchAddress}>{selectedBranch.address}</Text>
-          {selectedBranch.city && (
-            <Text style={styles.branchCity}>{selectedBranch.city}</Text>
-          )}
-          {selectedBranch.distance !== undefined && (
-            <Text style={styles.branchDistance}>{selectedBranch.distance.toFixed(1)} km away</Text>
-          )}
         </View>
       )}
     </View>
@@ -190,85 +214,73 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    paddingTop: 50, // Add extra padding for status bar
   },
   headerText: {
     fontSize: 18,
     fontWeight: 'bold',
-    flex: 1, // Allow text to take available space
-    marginRight: 10, // Add margin to prevent overlap with close button
+    flex: 1,
   },
   closeButton: {
-    padding: 8, // Increase touch target
+    padding: 4,
   },
   map: {
-    width: Dimensions.get('window').width,
-    height: Dimensions.get('window').height * 0.6,
+    flex: 1,
   },
   branchInfo: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
     padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
   },
   branchName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   branchAddress: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 2,
-  },
-  branchCity: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 4,
-  },
-  branchDistance: {
     fontSize: 14,
-    color: '#007AFF',
-    marginTop: 4,
+    color: '#666',
   },
   noLocationContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
   noLocationText: {
     fontSize: 16,
     color: '#666',
+    marginTop: 16,
     textAlign: 'center',
-    marginTop: 12,
   },
   previewContainer: {
-    backgroundColor: '#f8f8f8',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    height: 150,
+    borderRadius: 12,
     overflow: 'hidden',
+    marginBottom: 16,
   },
-  previewContent: {
-    flexDirection: 'row',
+  previewMap: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  previewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
   },
-  previewIcon: {
-    marginRight: 8,
-  },
-  previewTextContainer: {
-    flex: 1,
-    marginLeft: 12,
-    marginRight: 8,
-  },
-  previewAddress: {
+  previewText: {
+    color: '#fff',
     fontSize: 16,
-    color: '#333',
-  },
-  previewDistance: {
-    fontSize: 14,
-    color: '#007AFF',
-    marginTop: 2,
+    fontWeight: 'bold',
+    marginTop: 8,
   },
 });

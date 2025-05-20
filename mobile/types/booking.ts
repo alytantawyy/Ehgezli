@@ -1,3 +1,13 @@
+/**
+ * Booking Types
+ * 
+ * Shared types for booking entities used across user and restaurant sections
+ */
+
+// Basic booking status types
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'arrived' | 'completed';
+
+// Base booking interface
 export interface Booking {
   id: number;
   userId: number;
@@ -13,8 +23,7 @@ export interface Booking {
   updatedAt: string;
 }
 
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'arrived' | 'completed';
-
+// Time slot information
 export interface TimeSlot {
   id: number;
   branchId: number;
@@ -29,6 +38,39 @@ export interface TimeSlot {
   updatedAt: string;
 }
 
+// Branch information
+export interface Branch {
+  id: number;
+  restaurantId: number;
+  name: string;
+  address: string;
+  city: string;
+  country: string;
+  phone?: string;
+  email?: string;
+  capacity: number;
+  openingHours: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Restaurant information
+export interface Restaurant {
+  id: number;
+  name: string;
+  description?: string;
+  cuisine: string;
+  priceRange: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+  website?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Extended booking with related entities for user view
 export interface BookingWithDetails extends Booking {
   timeSlot: {
     startTime: string;
@@ -42,6 +84,26 @@ export interface BookingWithDetails extends Booking {
   };
 }
 
+// Extended booking with customer details for restaurant view
+export interface BookingWithCustomer extends Booking {
+  timeSlot: {
+    startTime: string;
+    endTime: string;
+    date: string;
+  };
+  branch: {
+    name: string;
+  };
+  user: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+  };
+  customerName: string; // Computed from user or guest name
+}
+
+// Data for creating a new booking
 export interface CreateBookingData {
   timeSlotId: number;
   branchId: number;
@@ -52,6 +114,7 @@ export interface CreateBookingData {
   specialRequests?: string;
 }
 
+// Data for updating an existing booking
 export interface UpdateBookingData {
   partySize?: number;
   guestName?: string;

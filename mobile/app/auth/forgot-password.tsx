@@ -14,9 +14,9 @@ import {
   Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { EhgezliButton } from '../components/EhgezliButton';
-import Colors from '../constants/Colors';
-import { requestPasswordReset } from '../shared/api/client';
+import { EhgezliButton } from '../../components/common/EhgezliButton';
+import Colors from '../../constants/Colors';
+import { forgotPassword } from '../../api/auth';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,7 +25,6 @@ export default function ForgotPasswordScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   
   const router = useRouter();
 
@@ -40,35 +39,16 @@ export default function ForgotPasswordScreen() {
     
     try {
       console.log('Sending password reset request for:', email);
-      const response = await requestPasswordReset(email);
-      console.log('Password reset response:', response);
+      await forgotPassword({email});
+      console.log('Password reset request sent');
       setSuccess(true);
       
-      // Store preview URL if available (development mode)
-      if (response.previewUrl) {
-        console.log('Preview URL available:', response.previewUrl);
-        setPreviewUrl(response.previewUrl);
-        
-        Alert.alert(
-          'Check Your Email',
-          'If an account exists with that email, you will receive a password reset code.',
-          [
-            { 
-              text: 'View Email Preview', 
-              onPress: () => Linking.openURL(response.previewUrl as string) 
-            },
-            { text: 'OK', onPress: () => router.back() }
-          ]
-        );
-      } else {
-        console.log('No preview URL in response');
-        // In development mode, check the server console for the reset code
-        Alert.alert(
-          'Check Your Email',
-          'If an account exists with that email, you will receive a password reset code.\n\nIn development mode, check the server console for the reset code.',
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
-      }
+      // Show success message
+      Alert.alert(
+        'Check Your Email',
+        'If an account exists with that email, you will receive a password reset code.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (err) {
       console.error('Password reset error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -119,7 +99,7 @@ export default function ForgotPasswordScreen() {
               
               <TouchableOpacity 
                 style={styles.backButton}
-                onPress={() => router.back()}
+                onPress={() => router.push('./login')}
               >
                 <Text style={styles.backButtonText}>Back to Login</Text>
               </TouchableOpacity>

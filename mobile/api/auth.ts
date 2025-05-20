@@ -9,7 +9,8 @@ import {
   Restaurant,
   RestaurantRegisterData,
   ResetPasswordData,
-  ForgotPasswordData
+  ForgotPasswordData,
+  PasswordUpdateData
 } from '../types/auth';
 
 // User authentication
@@ -29,12 +30,22 @@ export const logout = async (): Promise<void> => {
   await AsyncStorage.removeItem('auth_token');
 };
 
+// Password reset flow for users
 export const forgotPassword = async (forgotPasswordData: ForgotPasswordData): Promise<void> => {
-  await apiClient.post('/auth/forgot-password', forgotPasswordData);
+  await apiClient.post('/auth/password-reset', forgotPasswordData);
+};
+
+export const validateResetToken = async (token: string): Promise<boolean> => {
+  const { data } = await apiClient.post('/auth/validate-password-reset-token', { token });
+  return data.valid;
 };
 
 export const resetPassword = async (resetPasswordData: ResetPasswordData): Promise<void> => {
-  await apiClient.post('/auth/reset-password', resetPasswordData);
+  await apiClient.post('/auth/mark-password-reset-token-as-used', resetPasswordData);
+};
+
+export const updateUserPassword = async (passwordData: PasswordUpdateData): Promise<void> => {
+  await apiClient.post('/auth/update-user-password', passwordData);
 };
 
 // Restaurant authentication
@@ -50,12 +61,22 @@ export const restaurantRegister = async (restaurantData: RestaurantRegisterData)
   return data.restaurant;
 };
 
+// Password reset flow for restaurants
 export const restaurantForgotPassword = async (forgotPasswordData: ForgotPasswordData): Promise<void> => {
-  await apiClient.post('/auth/restaurant-forgot-password', forgotPasswordData);
+  await apiClient.post('/auth/restaurant-password-reset', forgotPasswordData);
+};
+
+export const validateRestaurantResetToken = async (token: string): Promise<boolean> => {
+  const { data } = await apiClient.post('/auth/validate-restaurant-password-reset-token', { token });
+  return data.valid;
 };
 
 export const restaurantResetPassword = async (resetPasswordData: ResetPasswordData): Promise<void> => {
-  await apiClient.post('/auth/restaurant-reset-password', resetPasswordData);
+  await apiClient.post('/auth/mark-restaurant-password-reset-token-as-used', resetPasswordData);
+};
+
+export const updateRestaurantPassword = async (passwordData: PasswordUpdateData): Promise<void> => {
+  await apiClient.post('/auth/update-restaurant-password', passwordData);
 };
 
 // Verify token is valid
@@ -68,20 +89,3 @@ export const verifyToken = async (): Promise<boolean> => {
     return false;
   }
 };
-
-// Update user password
-export const updateUserPassword = async (currentPassword: string, newPassword: string): Promise<void> => {
-  await apiClient.post('/auth/update-user-password', {
-    currentPassword,
-    newPassword
-  });
-};
-
-// Update restaurant password
-export const updateRestaurantPassword = async (currentPassword: string, newPassword: string): Promise<void> => {
-  await apiClient.post('/auth/update-restaurant-password', {
-    currentPassword,
-    newPassword
-  });
-};
-
