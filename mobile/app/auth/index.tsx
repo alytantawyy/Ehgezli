@@ -1,0 +1,418 @@
+/**
+ * Authentication Screen (index.tsx)
+ * 
+ * This is the main authentication screen for the Ehgezli app.
+ * It handles user login, registration, and restaurant owner authentication.
+ * The screen uses a tabbed interface to switch between different auth modes.
+ */
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  ImageBackground,
+  Dimensions,
+} from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AuthTabs from '../../components/authScreen/AuthTabs';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../context/auth-context';
+
+// Get screen dimensions for responsive layout
+const { height } = Dimensions.get('window');
+// Check if running on web platform for conditional rendering
+const isWeb = Platform.OS === 'web';
+
+export default function LoginScreen() {
+  // ===== STATE MANAGEMENT =====
+  // Authentication mode - single state to track all auth flows
+  const [authMode, setAuthMode] = React.useState<'userLogin' | 'userRegister' | 'restaurantLogin' | 'restaurantRegister'>('userLogin');
+  
+  // User credentials for login/registration
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  
+  // User profile information for registration
+  const [firstName, setFirstName] = React.useState('');
+  const [lastName, setLastName] = React.useState('');
+  const [phoneNumber, setPhoneNumber] = React.useState('');
+  const [gender, setGender] = React.useState('');
+  const [birthday, setBirthday] = React.useState<Date | null>(null);
+  const [city, setCity] = React.useState('');
+  const [nationality, setNationality] = React.useState('');
+  const [cuisines, setCuisines] = React.useState<string[]>([]);
+  
+  // Available cuisine options for user preferences
+  const [availableCuisines] = React.useState([
+    'Italian', 'Chinese', 'Japanese', 'Mexican', 'Indian', 'French', 
+    'Thai', 'Mediterranean', 'American', 'Middle Eastern', 'Greek', 
+    'Spanish', 'Korean', 'Vietnamese', 'Turkish', 'Egyptian'
+  ]);
+  
+  // Restaurant profile information for registration
+  const [restaurantCuisine, setRestaurantCuisine] = React.useState('');
+  const [restaurantName, setRestaurantName] = React.useState('');
+  const [priceRange, setPriceRange] = React.useState('');
+  const [restaurantLogo, setRestaurantLogo] = React.useState('');
+  
+  // UI state for dropdowns and modals
+  const [showCityDropdown, setShowCityDropdown] = React.useState(false);
+  const [showGenderDropdown, setShowGenderDropdown] = React.useState(false);
+  const [showCuisineDropdown, setShowCuisineDropdown] = React.useState(false);
+  const [showPriceRangeDropdown, setShowPriceRangeDropdown] = React.useState(false);
+  const [showImagePickerModal, setShowImagePickerModal] = React.useState(false);
+  
+  // Loading and error states
+  const [restaurantLoading, setRestaurantLoading] = React.useState(false);
+  const [restaurantError, setRestaurantError] = React.useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = React.useState(false);
+  
+    /**
+   * Handle successful login
+   * Redirects user to the main tabs screen
+   */
+    const handleLoginSuccess = () => {
+      router.replace('/user/(tabs)' as any);
+    };
+  
+    /**
+     * Handle successful registration
+     * Redirects user to the main tabs screen
+     */
+    const handleRegisterSuccess = () => {
+      router.replace('/user/(tabs)' as any);
+    };
+  
+    /**
+     * Handle successful restaurant login
+     * Redirects restaurant owner to the restaurant dashboard
+     */
+    const handleRestaurantLoginSuccess = () => {
+      router.replace('/restaurant/(tabs)' as any);
+    };
+  
+    /**
+     * Handle successful restaurant registration
+     * Redirects restaurant owner to the restaurant dashboard
+     */
+    const handleRestaurantRegisterSuccess = () => {
+      router.replace('/restaurant/(tabs)' as any);
+    };
+  
+    /**
+     * Navigate to forgot password screen
+     */
+    const handleForgotPassword = () => {
+      router.push('/auth/forgot-password' as any);
+    };
+  
+    const handleRestaurantForgotPassword = () => {
+      router.push('/auth/forgot-password' as any);
+    };
+
+  /**
+   * Handle tab changes in the AuthTabs component
+   * @param tab - The tab that was selected
+   */
+  const handleTabChange = (tab: 'login' | 'register' | 'restaurant') => {
+    if (tab === 'login') {
+      setAuthMode('userLogin');
+    } else if (tab === 'register') {
+      setAuthMode('userRegister');
+    } else if (tab === 'restaurant') {
+      // Default to restaurant login when restaurant tab is selected
+      setAuthMode('restaurantLogin');
+    }
+  };
+
+  /**
+   * Toggle between restaurant login and registration modes
+   * @param isLogin - Whether to show login (true) or registration (false)
+   */
+  const handleRestaurantModeToggle = (isLogin: boolean) => {
+    setAuthMode(isLogin ? 'restaurantLogin' : 'restaurantRegister');
+  };
+
+  // Group related state variables into logical objects for better organization
+  const userProfile = {
+    firstName,
+    setFirstName,
+    lastName,
+    setLastName,
+    phoneNumber,
+    setPhoneNumber,
+    gender,
+    setGender,
+    birthday,
+    setBirthday,              
+    city,
+    setCity,
+    nationality,
+    setNationality,
+    cuisines,
+    setCuisines,
+    availableCuisines,
+  };
+
+  const restaurantProfile = {
+    restaurantCuisine,
+    setRestaurantCuisine,
+    restaurantName,
+    setRestaurantName,
+    priceRange,
+    setPriceRange,
+    restaurantLogo,
+    setRestaurantLogo,
+  };
+
+  const uiState = {
+    showCityDropdown,
+    setShowCityDropdown,
+    showGenderDropdown,
+    setShowGenderDropdown,
+    showCuisineDropdown,
+    setShowCuisineDropdown,
+    showPriceRangeDropdown,    
+    setShowPriceRangeDropdown,
+    showImagePickerModal,
+    setShowImagePickerModal,
+  };
+
+  const authState = {
+    isAuthenticating,
+    setIsAuthenticating,
+  };
+
+  // Hooks for authentication and navigation
+  const { login, register, restaurantLogin, restaurantRegister } = useAuth();
+  const router = useRouter();
+
+  /**
+   * Handle login form submission
+   */
+  const handleSubmit = async () => {
+    // Set loading state
+    setIsAuthenticating(true);
+    
+    try {
+      if (authMode === 'userLogin') {
+        // Handle user login
+        await login(email, password);
+        handleLoginSuccess();
+      } else if (authMode === 'userRegister') {
+        // Handle user registration
+        await register({
+          firstName,
+          lastName,
+          email,
+          password,
+          phoneNumber,
+          gender,
+          birthday,
+          nationality,
+          city,
+          favoriteCuisines: cuisines || []
+        });
+        handleRegisterSuccess();
+      } else if (authMode === 'restaurantLogin') {
+        // Handle restaurant login
+        await restaurantLogin({ email, password });
+        handleRestaurantLoginSuccess();
+      } else if (authMode === 'restaurantRegister') {
+        // Handle restaurant registration
+        await restaurantRegister({
+          name: restaurantName,
+          email,
+          password,
+          cuisine: restaurantCuisine || '',
+          priceRange: priceRange || '',
+          logo: restaurantLogo || ''
+        });
+        handleRestaurantRegisterSuccess();
+      }
+    } catch (error) {
+      console.error('Authentication error:', error);
+      // Set error state (you could add this to your state management)
+      // setAuthError(error.message);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  // Complete authCallbacks object with all handlers
+  const authCallbacks = {
+    onLoginSuccess: handleLoginSuccess,
+    onRegisterSuccess: handleRegisterSuccess,
+    onRestaurantLogin: handleRestaurantLoginSuccess,
+    onRestaurantRegister: handleRestaurantRegisterSuccess,
+    onForgotPassword: handleForgotPassword,
+    onRestaurantForgotPassword: handleRestaurantForgotPassword,
+    onFormSubmit: handleSubmit,  // Renamed for consistency
+    onTabChange: handleTabChange,
+    isRestaurantLoginMode: authMode === 'restaurantLogin',
+    onRestaurantModeToggle: handleRestaurantModeToggle
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="dark" />
+      {/* KeyboardAvoidingView adjusts layout when keyboard appears */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Main container with different layouts for web and mobile */}
+          <View style={isWeb ? styles.webContainer : styles.mobileContainer}>
+            {/* Left side image section (full width on mobile, half width on web) */}
+            <View style={styles.imageSection}>
+              <ImageBackground
+                source={require('../../assets/images/icon.png')}
+                style={styles.imageBackground}
+                resizeMode="cover"
+              >
+                <View style={styles.imageOverlay}>
+                  <Text style={styles.logoOnImage}>Ehgezli</Text>
+                  <Text style={styles.taglineOnImage}>Find and book the best restaurants</Text>
+                </View>
+              </ImageBackground>
+            </View>
+
+            {/* Right side form section (full width on mobile, half width on web) */}
+            <View style={styles.formSection}>
+              {/* Header only shown on mobile (hidden on web since it's in the image section) */}
+              <View style={styles.header}>
+                <Text style={styles.logo}>Ehgezli</Text>
+                <Text style={styles.tagline}>Find and book the best restaurants</Text>
+              </View>
+
+              {/* Form container with welcome text and AuthTabs component */}
+              <View style={styles.formContainer}>
+                <Text style={styles.welcomeText}>Welcome</Text>
+                <Text style={styles.subtitle}>Sign in or create an account</Text>
+
+                {/* AuthTabs component handles all the form UI and tab switching */}
+                <AuthTabs
+                  initialTab={authMode === 'userLogin' ? 'login' : authMode === 'userRegister' ? 'register' : 'restaurant'}
+                  userProfile={userProfile}
+                  restaurantProfile={restaurantProfile}
+                  uiState={uiState}
+                  authState={authState}
+                  authCallbacks={authCallbacks}
+                />
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+/**l
+ * Styles for the authentication screen
+ * Includes responsive layouts for both web and mobile platforms
+ */
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+  },
+  // Web-specific container with side-by-side layout
+  webContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    height: height,
+  },
+  // Mobile-specific container with stacked layout
+  mobileContainer: {
+    flex: 1,
+  },
+  // Image section styling
+  imageSection: {
+    flex: isWeb ? 1 : undefined,
+    height: isWeb ? '100%' : height * 0.3,
+  },
+  imageBackground: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoOnImage: {
+    fontSize: 42,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 10,
+  },
+  taglineOnImage: {
+    fontSize: 18,
+    color: '#fff',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  // Form section styling
+  formSection: {
+    flex: isWeb ? 1 : undefined,
+    padding: 20,
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 30,
+    display: isWeb ? 'none' : 'flex', // Hide on web, show on mobile
+  },
+  logo: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#FF385C',
+    marginBottom: 5,
+  },
+  tagline: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  formContainer: {
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
+  },
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#333',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+  },
+});
+
+/**
+ * Function to show/hide the birthday picker
+ * Note: This function is not implemented in the current code
+ * and should be properly defined to handle the birthday picker UI
+ */
+function setShowBirthdayPicker(arg0: boolean) {
+  throw new Error('Function not implemented.');
+}

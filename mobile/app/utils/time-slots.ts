@@ -148,3 +148,13 @@ export const getDefaultTimeForDisplay = (currentTime?: Date): string => {
   const baseTime = getBaseTime(currentTime);
   return format(baseTime, 'h:mm a');
 };
+
+// Add a default export to prevent Expo Router from treating this as a route
+export default {
+  getBaseTime,
+  generateLocalTimeSlots,
+  generateTimeSlotsFromTime,
+  formatTimeWithAMPM,
+  formatDateShort,
+  getDefaultTimeForDisplay
+};

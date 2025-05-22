@@ -1,5 +1,5 @@
 import apiClient from './api-client';
-import { User, UserLocation } from '../types/auth';
+import { User, UserLocation } from '../types/user';
 
 interface UpdateUserData {
   name?: string;

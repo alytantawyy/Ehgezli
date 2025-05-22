@@ -11,7 +11,7 @@ import { AuthRoute, UserRoute, RestaurantRoute } from '../types/navigation';
  * Redirects to the appropriate section of the app
  */
 export default function Index() {
-  const { user, isLoading, isRestaurant } = useAuth();
+  const { user, isLoading } = useAuth();
 
   // Show loading indicator while auth state is being determined
   if (isLoading) {
@@ -28,7 +28,7 @@ export default function Index() {
   }
 
   // If user is a restaurant owner, redirect to restaurant dashboard
-  if (isRestaurant) {
+  if (user.isRestaurant) {
     return <Redirect href={RestaurantRoute.tabs as any} />;
   }
 

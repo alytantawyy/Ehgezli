@@ -10,10 +10,10 @@ import { Redirect } from 'expo-router';
  * Handles authentication checking and navigation structure
  */
 export default function RestaurantLayout() {
-  const { user, isLoading, isRestaurant } = useAuth();
+  const { user, isLoading } = useAuth();
 
   // If the user is not authenticated or not a restaurant owner, redirect to the login screen
-  if (!isLoading && (!user || !isRestaurant)) {
+  if (!isLoading && (!user || !user.isRestaurant)) {
     // Using type assertion to bypass route validation during restructuring
     const loginPath: any = "/auth/login";
     return <Redirect href={loginPath} />;

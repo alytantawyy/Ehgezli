@@ -78,9 +78,10 @@ export interface BookingWithDetails extends Booking {
     date: string;
   };
   branch: {
+    id: number;
+    restaurantName: string;
     address: string;
     city: string;
-    restaurantName: string;
   };
 }
 
@@ -106,11 +107,10 @@ export interface BookingWithCustomer extends Booking {
 // Data for creating a new booking
 export interface CreateBookingData {
   timeSlotId: number;
-  branchId: number;
   partySize: number;
   guestName?: string;
-  guestEmail?: string;
   guestPhone?: string;
+  guestEmail?: string;
   specialRequests?: string;
 }
 
@@ -122,4 +122,15 @@ export interface UpdateBookingData {
   guestPhone?: string;
   specialRequests?: string;
   status?: BookingStatus;
+}
+
+// Data for creating a booking override
+export interface CreateBookingOverrideData {
+  date: string;
+  startTime: string;
+  endTime: string;
+  overrideType: string;
+  newMaxSeats?: number;
+  newMaxTables?: number;
+  note?: string;
 }

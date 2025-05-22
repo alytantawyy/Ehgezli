@@ -2,23 +2,29 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // For using icon components (in this case, a close icon)
-import Colors from '../constants/Colors'; // Custom color constants based on your app's theme
-import { EhgezliButton } from './EhgezliButton'; // Custom button component used in the footer
+import Colors from '@/constants/Colors'; // Custom color constants based on your app's theme
+import { EhgezliButton } from '@/components/common/EhgezliButton'; // Custom button component used in the footer
 
 // Define the component's props interface using TypeScript.
 // This describes what properties the FilterDrawer expects.
 interface FilterDrawerProps {
   isVisible: boolean;                // Determines if the FilterDrawer should be displayed
   onClose: () => void;               // Function to call when the drawer is closed
-  cityFilter: string;                // Current selected city filter value
-  setCityFilter: (city: string) => void;       // Function to update the selected city
-  cuisineFilter: string;             // Current selected cuisine filter value
-  setCuisineFilter: (cuisine: string) => void; // Function to update the selected cuisine
-  priceFilter: string;               // Current selected price filter value
-  setPriceFilter: (price: string) => void;     // Function to update the selected price range
-  distanceFilter: string;            // Current selected distance filter value
-  setDistanceFilter: (distance: string) => void; // Function to update the selected distance range
-  onApplyFilters: () => void;        // Function to apply filters and update the display (e.g., list of restaurants)
+  selectedDate?: Date;               // Currently selected date
+  onDateChange: (event: any, selectedDate?: Date) => void; // Function to update the selected date
+  selectedTime?: Date;               // Currently selected time
+  onTimeChange: (event: any, selectedTime?: Date) => void; // Function to update the selected time
+  partySize: number;                 // Current party size
+  onPartySizeChange: (size: number) => void; // Function to update the party size
+  cityFilter?: string;                // Current selected city filter value
+  setCityFilter?: (city: string) => void;       // Function to update the selected city
+  cuisineFilter?: string;             // Current selected cuisine filter value
+  setCuisineFilter?: (cuisine: string) => void; // Function to update the selected cuisine
+  priceFilter?: string;               // Current selected price filter value
+  setPriceFilter?: (price: string) => void;     // Function to update the selected price range
+  distanceFilter?: string;            // Current selected distance filter value
+  setDistanceFilter?: (distance: string) => void; // Function to update the selected distance range
+  onApplyFilters?: () => void;        // Function to apply filters and update the display (e.g., list of restaurants)
 }
 
 // Constants for available filters.
@@ -52,6 +58,12 @@ const { height } = Dimensions.get('window');
 export function FilterDrawer({
   isVisible,
   onClose,
+  selectedDate,
+  onDateChange,
+  selectedTime,
+  onTimeChange,
+  partySize,
+  onPartySizeChange,
   cityFilter,
   setCityFilter,
   cuisineFilter,
@@ -70,13 +82,13 @@ export function FilterDrawer({
 
   // Reset function that resets all the filters to their default state ('all').
   const handleReset = () => {
-    setCityFilter('all');
-    setCuisineFilter('all');
-    setPriceFilter('all');
-    setDistanceFilter('all');
+    setCityFilter && setCityFilter('all');
+    setCuisineFilter && setCuisineFilter('all');
+    setPriceFilter && setPriceFilter('all');
+    setDistanceFilter && setDistanceFilter('all');
     
     // Apply the reset filters immediately
-    onApplyFilters();
+    onApplyFilters && onApplyFilters();
   };
 
   return (
@@ -107,7 +119,7 @@ export function FilterDrawer({
                   // If "all" is selected, change button background to highlight selection.
                   cityFilter === 'all' && { backgroundColor: colors.primary }
                 ]}
-                onPress={() => setCityFilter('all')}
+                onPress={() => setCityFilter && setCityFilter('all')}
               >
                 <Text 
                   style={[
@@ -127,7 +139,7 @@ export function FilterDrawer({
                     styles.optionButton,
                     cityFilter === city && { backgroundColor: colors.primary }
                   ]}
-                  onPress={() => setCityFilter(city === cityFilter ? 'all' : city)}
+                  onPress={() => setCityFilter && setCityFilter(city === cityFilter ? 'all' : city)}
                 >
                   <Text 
                     style={[
@@ -152,7 +164,7 @@ export function FilterDrawer({
                   styles.optionButton,
                   distanceFilter === 'all' && { backgroundColor: colors.primary }
                 ]}
-                onPress={() => setDistanceFilter('all')}
+                onPress={() => setDistanceFilter && setDistanceFilter('all')}
               >
                 <Text 
                   style={[
@@ -172,7 +184,7 @@ export function FilterDrawer({
                     styles.optionButton,
                     distanceFilter === distance && { backgroundColor: colors.primary }
                   ]}
-                  onPress={() => setDistanceFilter(distance === distanceFilter ? 'all' : distance)}
+                  onPress={() => setDistanceFilter && setDistanceFilter(distance === distanceFilter ? 'all' : distance)}
                 >
                   <Text 
                     style={[
@@ -197,7 +209,7 @@ export function FilterDrawer({
                   styles.optionButton,
                   cuisineFilter === 'all' && { backgroundColor: colors.primary }
                 ]}
-                onPress={() => setCuisineFilter('all')}
+                onPress={() => setCuisineFilter && setCuisineFilter('all')}
               >
                 <Text 
                   style={[
@@ -217,7 +229,7 @@ export function FilterDrawer({
                     styles.optionButton,
                     cuisineFilter === cuisine && { backgroundColor: colors.primary }
                   ]}
-                  onPress={() => setCuisineFilter(cuisine === cuisineFilter ? 'all' : cuisine)}
+                  onPress={() => setCuisineFilter && setCuisineFilter(cuisine === cuisineFilter ? 'all' : cuisine)}
                 >
                   <Text 
                     style={[
@@ -242,7 +254,7 @@ export function FilterDrawer({
                   styles.optionButton,
                   priceFilter === 'all' && { backgroundColor: colors.primary }
                 ]}
-                onPress={() => setPriceFilter('all')}
+                onPress={() => setPriceFilter && setPriceFilter('all')}
               >
                 <Text 
                   style={[
@@ -262,7 +274,7 @@ export function FilterDrawer({
                     styles.optionButton,
                     priceFilter === price && { backgroundColor: colors.primary }
                   ]}
-                  onPress={() => setPriceFilter(price === priceFilter ? 'all' : price)}
+                  onPress={() => setPriceFilter && setPriceFilter(price === priceFilter ? 'all' : price)}
                 >
                   <Text 
                     style={[
@@ -292,7 +304,7 @@ export function FilterDrawer({
             title="Apply Filters"
             variant="ehgezli"
             onPress={() => {
-              onApplyFilters();
+              onApplyFilters && onApplyFilters();
               onClose();
             }}
             style={styles.footerButton}

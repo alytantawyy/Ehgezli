@@ -6,76 +6,49 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface RegisterFormProps {
+interface RestaurantRegisterFormProps {
   onSuccess?: () => void;
-  isLoginMode?: boolean;
-  setIsLoginMode?: Dispatch<SetStateAction<boolean>>;
-  isRestaurantMode?: boolean;
-  setIsRestaurantMode?: Dispatch<SetStateAction<boolean>>;
-  isRestaurantLoginMode?: boolean;
-  setIsRestaurantLoginMode?: Dispatch<SetStateAction<boolean>>;
-  firstName?: string;
-  setFirstName?: Dispatch<SetStateAction<string>>;
-  lastName?: string;
-  setLastName?: Dispatch<SetStateAction<string>>;
-  phoneNumber?: string;
-  setPhoneNumber?: Dispatch<SetStateAction<string>>;
-  gender?: string;
-  setGender?: Dispatch<SetStateAction<string>>;
-  birthday?: Date | null;
-  setBirthday?: Dispatch<SetStateAction<Date | null>>;
-  city?: string;
-  setCity?: Dispatch<SetStateAction<string>>;
-  nationality?: string;
-  setNationality?: Dispatch<SetStateAction<string>>;
-  cuisines?: string[];
-  setCuisines?: Dispatch<SetStateAction<string[]>>;
-  availableCuisines?: string[];
-  showCityDropdown?: boolean;
-  setShowCityDropdown?: Dispatch<SetStateAction<boolean>>;
-  showBirthdayPicker?: boolean;
-  setShowBirthdayPicker?: Dispatch<SetStateAction<boolean>>;
-  datePickerMode?: 'date' | 'time';
-  setDatePickerMode?: Dispatch<SetStateAction<'date' | 'time'>>;
-  showGenderDropdown?: boolean;
-  setShowGenderDropdown?: Dispatch<SetStateAction<boolean>>;
+  restaurantName?: string;
+  setRestaurantName?: Dispatch<SetStateAction<string>>;
+  restaurantCuisine?: string;
+  setRestaurantCuisine?: Dispatch<SetStateAction<string>>;
+  priceRange?: string;
+  setPriceRange?: Dispatch<SetStateAction<string>>;
+  restaurantLogo?: string;
+  setRestaurantLogo?: Dispatch<SetStateAction<string>>;
   showCuisineDropdown?: boolean;
   setShowCuisineDropdown?: Dispatch<SetStateAction<boolean>>;
+  showPriceRangeDropdown?: boolean;
+  setShowPriceRangeDropdown?: Dispatch<SetStateAction<boolean>>;
   showImagePickerModal?: boolean;
   setShowImagePickerModal?: Dispatch<SetStateAction<boolean>>;
   isAuthenticating?: boolean;
   setIsAuthenticating?: Dispatch<SetStateAction<boolean>>;
   handleSubmit?: () => void;
+  onToggleMode?: () => void;
 }
 
-const RegisterForm: React.FC<RegisterFormProps> = ({ 
+const RestaurantRegisterForm: React.FC<RestaurantRegisterFormProps> = ({
   onSuccess,
-  firstName,
-  setFirstName,
-  lastName,
-  setLastName,
-  phoneNumber,
-  setPhoneNumber,
-  gender,
-  setGender,
-  birthday,
-  setBirthday,
-  city,
-  setCity,
-  nationality,
-  setNationality,
-  availableCuisines,
-  showGenderDropdown,
-  setShowGenderDropdown,
+  restaurantName,
+  setRestaurantName,
+  restaurantCuisine,
+  setRestaurantCuisine,
+  priceRange,
+  setPriceRange,
+  restaurantLogo,
+  setRestaurantLogo,
   showCuisineDropdown,
   setShowCuisineDropdown,
+  showPriceRangeDropdown,
+  setShowPriceRangeDropdown,
   showImagePickerModal,
   setShowImagePickerModal,
   isAuthenticating,
   setIsAuthenticating,
-  handleSubmit
+  handleSubmit,
+  onToggleMode
 }) => {
   // Local state for form fields
   const [email, setEmail] = useState('');
@@ -94,7 +67,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
   // Handle form submission
   const handleRegister = () => {
     // Validate form fields
-    if (!firstName || !email || !password || !confirmPassword) {
+    if (!restaurantName || !email || !password || !confirmPassword || !restaurantCuisine || !priceRange) {
       setError('Please fill in all required fields');
       return;
     }
@@ -118,70 +91,62 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
   };
 
   return (
-    <SafeAreaView>
     <View style={styles.container}>
-      <Text style={styles.title}>User Registration</Text>
+      <Text style={styles.title}>Restaurant Registration</Text>
       
       {error && <Text style={styles.errorText}>{error}</Text>}
       
-      <Text style={styles.label}>First Name</Text>
+      <Text style={styles.label}>Restaurant Name</Text>
       <TextInput
         style={styles.input}
-        placeholder="Enter your first name"
-        value={firstName}
-        onChangeText={setFirstName}
-        autoCapitalize="words"
-      />
-      
-      <Text style={styles.label}>Last Name</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your last name"
-        value={lastName}
-        onChangeText={setLastName}
-        autoCapitalize="words"
+        placeholder="Enter restaurant name"
+        value={restaurantName}
+        onChangeText={setRestaurantName}
       />
       
       <Text style={styles.label}>Email</Text>
       <TextInput
         style={styles.input}
-        placeholder="Enter your email address"
+        placeholder="Enter email address"
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
       />
-
-  <Text style={styles.label}>Password</Text>
+      
+      <Text style={styles.label}>Password</Text>
       <TextInput
         style={styles.input}
-        placeholder="Create a password"
+        placeholder="Enter password"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
       />
-
-  <Text style={styles.label}>Confirm Password</Text>
+      
+      <Text style={styles.label}>Confirm Password</Text>
       <TextInput
         style={styles.input}
-        placeholder="Confirm your password"
+        placeholder="Confirm password"
         value={confirmPassword}
         onChangeText={setConfirmPassword}
         secureTextEntry
       />
       
-      <Text style={styles.label}>Phone Number</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your phone number"
-        value={phoneNumber}
-        onChangeText={setPhoneNumber}
-        keyboardType="phone-pad"
-      />
+      <Text style={styles.label}>Cuisine</Text>
+      <TouchableOpacity 
+        style={styles.dropdown}
+        onPress={() => setShowCuisineDropdown && setShowCuisineDropdown(true)}
+      >
+        <Text>{restaurantCuisine || 'Select cuisine'}</Text>
+      </TouchableOpacity>
       
-
-      
-      
+      <Text style={styles.label}>Price Range</Text>
+      <TouchableOpacity 
+        style={styles.dropdown}
+        onPress={() => setShowPriceRangeDropdown && setShowPriceRangeDropdown(true)}
+      >
+        <Text>{priceRange || 'Select price range'}</Text>
+      </TouchableOpacity>
       
       <TouchableOpacity 
         style={styles.button}
@@ -189,18 +154,23 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         disabled={isLoading}
       >
         <Text style={styles.buttonText}>
-          {isLoading ? 'Registering...' : 'Register'}
+          {isLoading ? 'Registering...' : 'Register Restaurant'}
         </Text>
       </TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={styles.switchModeButton}
+        onPress={onToggleMode}
+      >
+        <Text style={styles.switchModeText}>Already have an account? Login</Text>
+      </TouchableOpacity>
     </View>
-    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: 'center',
+    width: '100%',
     padding: 16,
   },
   title: {
@@ -221,6 +191,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 12,
   },
+  dropdown: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
   button: {
     backgroundColor: '#FF6B00',
     height: 50,
@@ -238,6 +217,13 @@ const styles = StyleSheet.create({
     color: 'red',
     marginBottom: 16,
   },
+  switchModeButton: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  switchModeText: {
+    color: '#FF6B00',
+  },
 });
 
-export default RegisterForm;
+export default RestaurantRegisterForm;

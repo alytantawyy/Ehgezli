@@ -1,39 +1,6 @@
-export interface User {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  city: string;
-  gender: string;
-  favoriteCuisines: string[];
-  birthday?: string;
-  nationality?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface UserLocation {
-  id: number;
-  userId: number;
-  latitude: number;
-  longitude: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Restaurant {
-  id: number;
-  email: string;
-  name: string;
-  about?: string;
-  description?: string;
-  cuisine?: string;
-  priceRange?: string;
-  logo?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { Restaurant } from "./restaurant";
+import { User } from "./user";
+import { RestaurantUser } from "./restaurantUser";
 
 export interface AuthResponse {
   user: User;
@@ -41,7 +8,7 @@ export interface AuthResponse {
 }
 
 export interface RestaurantAuthResponse {
-  restaurant: Restaurant;
+  restaurant: RestaurantUser;
   token: string;
 }
 
@@ -72,18 +39,20 @@ export interface RestaurantRegisterData {
   cuisine?: string;
   priceRange?: string;
   logo?: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface ForgotPasswordData {
   email: string;
-}   
-
-export interface PasswordUpdateData {
-  token: string;
-  password: string;
 }
 
 export interface ResetPasswordData {
   token: string;
   password: string;
+}
+
+export interface PasswordUpdateData {
+  currentPassword: string;
+  newPassword: string;
 }

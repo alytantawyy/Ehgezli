@@ -4,14 +4,17 @@ import {
   AuthResponse, 
   LoginCredentials, 
   RegisterData, 
-  User, 
   RestaurantAuthResponse,
-  Restaurant,
   RestaurantRegisterData,
   ResetPasswordData,
   ForgotPasswordData,
   PasswordUpdateData
 } from '../types/auth';
+import { User } from '@/types/user';
+import { RestaurantUser } from '@/types/restaurantUser';
+
+
+
 
 // User authentication
 export const login = async (credentials: LoginCredentials): Promise<User> => {
@@ -24,10 +27,6 @@ export const register = async (userData: RegisterData): Promise<User> => {
   const { data } = await apiClient.post<AuthResponse>('/auth/register', userData);
   await AsyncStorage.setItem('auth_token', data.token);
   return data.user;
-};
-
-export const logout = async (): Promise<void> => {
-  await AsyncStorage.removeItem('auth_token');
 };
 
 // Password reset flow for users
@@ -49,13 +48,13 @@ export const updateUserPassword = async (passwordData: PasswordUpdateData): Prom
 };
 
 // Restaurant authentication
-export const restaurantLogin = async (credentials: LoginCredentials): Promise<Restaurant> => {
+export const restaurantLogin = async (credentials: LoginCredentials): Promise<RestaurantUser> => {
   const { data } = await apiClient.post<RestaurantAuthResponse>('/auth/restaurant-login', credentials);
   await AsyncStorage.setItem('auth_token', data.token);
   return data.restaurant;
 };
 
-export const restaurantRegister = async (restaurantData: RestaurantRegisterData): Promise<Restaurant> => {
+export const restaurantRegister = async (restaurantData: RestaurantRegisterData): Promise<RestaurantUser> => {
   const { data } = await apiClient.post<RestaurantAuthResponse>('/auth/restaurant-register', restaurantData);
   await AsyncStorage.setItem('auth_token', data.token);
   return data.restaurant;

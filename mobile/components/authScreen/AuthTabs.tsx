@@ -10,7 +10,8 @@ import React, { useState, Dispatch, SetStateAction } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import LoginForm from './LoginForm';
 import RegisterForm from './RegisterForm';
-import RestaurantForm from './RestaurantForm';
+import RestaurantLoginForm from './RestaurantLoginForm';
+import RestaurantRegisterForm from './RestaurantRegisterForm';
 
 /**
  * Defines the possible tab types that can be active at any given time.
@@ -21,56 +22,73 @@ import RestaurantForm from './RestaurantForm';
 type TabType = 'login' | 'register' | 'restaurant';
 
 /**
- * Interface defining all props that can be passed to the AuthTabs component.
- * This extensive list of props allows for highly customizable behavior and state management.
+ * Props interface for the AuthTabs component
  */
 interface AuthTabsProps {
-  // Core tab functionality props
-  initialTab?: TabType;                                 // Which tab should be active initially
-  onLoginSuccess?: () => void;                          // Callback for successful login
-  onRegisterSuccess?: () => void;                       // Callback for successful registration
-  onForgotPassword?: () => void;                        // Callback for forgot password action
-  onRestaurantLogin?: () => void;                       // Callback for successful restaurant login
+  // Tab configuration
+  initialTab?: TabType;
   
-  // User profile props passed from login.tsx
-  firstName?: string;                                   // User's first name
-  setFirstName?: Dispatch<SetStateAction<string>>;      // Setter for firstName
-  gender?: string;                                      // User's gender
-  setGender?: Dispatch<SetStateAction<string>>;         // Setter for gender
-  city?: string;                                        // User's city
-  setCity?: Dispatch<SetStateAction<string>>;           // Setter for city
-  cuisines?: string[];                                  // User's favorite cuisines
-  setCuisines?: Dispatch<SetStateAction<string[]>>;     // Setter for cuisines
-  availableCuisines?: string[];                         // List of available cuisine options
+  // Grouped objects for better organization
+  userProfile?: {
+    firstName: string;
+    setFirstName: Dispatch<SetStateAction<string>>;
+    lastName: string;
+    setLastName: Dispatch<SetStateAction<string>>;
+    phoneNumber: string;
+    setPhoneNumber: Dispatch<SetStateAction<string>>;
+    gender: string;
+    setGender: Dispatch<SetStateAction<string>>;
+    birthday: Date | null;
+    setBirthday: Dispatch<SetStateAction<Date | null>>;
+    city: string;
+    setCity: Dispatch<SetStateAction<string>>;
+    nationality: string;
+    setNationality: Dispatch<SetStateAction<string>>;
+    cuisines: string[];
+    setCuisines: Dispatch<SetStateAction<string[]>>;
+    availableCuisines: string[];
+  };
   
-  // UI control props
-  showCityDropdown?: boolean;                           // Whether to show city dropdown
-  setShowCityDropdown?: Dispatch<SetStateAction<boolean>>; // Setter for showCityDropdown
-  datePickerMode?: 'date' | 'time';                     // Mode for date picker
-  setDatePickerMode?: Dispatch<SetStateAction<'date' | 'time'>>; // Setter for datePickerMode
-  showGenderDropdown?: boolean;                         // Whether to show gender dropdown
-  setShowGenderDropdown?: Dispatch<SetStateAction<boolean>>; // Setter for showGenderDropdown
+  restaurantProfile?: {
+    restaurantName: string;
+    setRestaurantName: Dispatch<SetStateAction<string>>;
+    restaurantCuisine: string;
+    setRestaurantCuisine: Dispatch<SetStateAction<string>>;
+    priceRange: string;
+    setPriceRange: Dispatch<SetStateAction<string>>;
+    restaurantLogo: string;
+    setRestaurantLogo: Dispatch<SetStateAction<string>>;
+  };
   
-  // Restaurant-specific props
-  restaurantCuisine?: string;                           // Restaurant cuisine type
-  setRestaurantCuisine?: Dispatch<SetStateAction<string>>; // Setter for restaurantCuisine
-  priceRange?: string;                                  // Restaurant price range
-  setPriceRange?: Dispatch<SetStateAction<string>>;     // Setter for priceRange
-  restaurantLogo?: string;                              // Restaurant logo URL
-  setRestaurantLogo?: Dispatch<SetStateAction<string>>; // Setter for restaurantLogo
-  showCuisineDropdown?: boolean;                        // Whether to show cuisine dropdown
-  setShowCuisineDropdown?: Dispatch<SetStateAction<boolean>>; // Setter for showCuisineDropdown
-  showPriceRangeDropdown?: boolean;                     // Whether to show price range dropdown
-  setShowPriceRangeDropdown?: Dispatch<SetStateAction<boolean>>; // Setter for showPriceRangeDropdown
-  showImagePickerModal?: boolean;                       // Whether to show image picker modal
-  setShowImagePickerModal?: Dispatch<SetStateAction<boolean>>; // Setter for showImagePickerModal
+  uiState?: {
+    showCityDropdown: boolean;
+    setShowCityDropdown: Dispatch<SetStateAction<boolean>>;
+    showGenderDropdown: boolean;
+    setShowGenderDropdown: Dispatch<SetStateAction<boolean>>;
+    showCuisineDropdown: boolean;
+    setShowCuisineDropdown: Dispatch<SetStateAction<boolean>>;
+    showPriceRangeDropdown: boolean;
+    setShowPriceRangeDropdown: Dispatch<SetStateAction<boolean>>;
+    showImagePickerModal: boolean;
+    setShowImagePickerModal: Dispatch<SetStateAction<boolean>>;
+  };
   
-  // Authentication state props
-  isAuthenticating?: boolean;                           // Whether authentication is in progress
-  setIsAuthenticating?: Dispatch<SetStateAction<boolean>>; // Setter for isAuthenticating
+  authState?: {
+    isAuthenticating: boolean;
+    setIsAuthenticating: Dispatch<SetStateAction<boolean>>;
+  };
   
-  // Form submission handler
-  handleSubmit?: () => void;                            // Custom submit handler for forms
+  authCallbacks?: {
+    onLoginSuccess: () => void;
+    onRegisterSuccess: () => void;
+    onRestaurantLogin: () => void;
+    onRestaurantRegister: () => void;
+    onForgotPassword: () => void;
+    onFormSubmit: () => void;
+    onTabChange: (tab: TabType) => void;
+    onRestaurantModeToggle: (isLogin: boolean) => void;
+    isRestaurantLoginMode: boolean;
+  };
 }
 
 /**
@@ -87,41 +105,85 @@ interface AuthTabsProps {
 const AuthTabs: React.FC<AuthTabsProps> = ({
   // Destructure all props with default value for initialTab
   initialTab = 'login',
-  onLoginSuccess,
-  onRegisterSuccess,
-  onForgotPassword,
-  onRestaurantLogin,
-  firstName,
-  setFirstName,
-  city,
-  setCity,
-  cuisines,
-  setCuisines,
-  availableCuisines,
-  showCityDropdown,
-  setShowCityDropdown,
-  datePickerMode,
-  setDatePickerMode,
-  showGenderDropdown,
-  setShowGenderDropdown,
-  restaurantCuisine,
-  setRestaurantCuisine,
-  priceRange,
-  setPriceRange,
-  restaurantLogo,
-  setRestaurantLogo,
-  showCuisineDropdown,
-  setShowCuisineDropdown,
-  showPriceRangeDropdown,
-  setShowPriceRangeDropdown,
-  showImagePickerModal,
-  setShowImagePickerModal,
-  isAuthenticating,
-  setIsAuthenticating,
-  handleSubmit,
+  
+  // Extract values from grouped objects
+  userProfile,
+  restaurantProfile,
+  uiState,
+  authState,
+  authCallbacks,
 }) => {
+  // Extract values from grouped objects
+  const _firstName = userProfile?.firstName;
+  const _setFirstName = userProfile?.setFirstName;
+  const _lastName = userProfile?.lastName;
+  const _setLastName = userProfile?.setLastName;
+  const _phoneNumber = userProfile?.phoneNumber;
+  const _setPhoneNumber = userProfile?.setPhoneNumber;
+  const _gender = userProfile?.gender;
+  const _setGender = userProfile?.setGender;
+  const _birthday = userProfile?.birthday;
+  const _setBirthday = userProfile?.setBirthday;
+  const _city = userProfile?.city;
+  const _setCity = userProfile?.setCity;
+  const _nationality = userProfile?.nationality;
+  const _setNationality = userProfile?.setNationality;
+  const _cuisines = userProfile?.cuisines;
+  const _setCuisines = userProfile?.setCuisines;
+  const _availableCuisines = userProfile?.availableCuisines;
+  
+  const _restaurantName = restaurantProfile?.restaurantName;
+  const _setRestaurantName = restaurantProfile?.setRestaurantName;
+  const _restaurantCuisine = restaurantProfile?.restaurantCuisine;
+  const _setRestaurantCuisine = restaurantProfile?.setRestaurantCuisine;
+  const _priceRange = restaurantProfile?.priceRange;
+  const _setPriceRange = restaurantProfile?.setPriceRange;
+  const _restaurantLogo = restaurantProfile?.restaurantLogo;
+  const _setRestaurantLogo = restaurantProfile?.setRestaurantLogo;
+  
+  const _showCityDropdown = uiState?.showCityDropdown;
+  const _setShowCityDropdown = uiState?.setShowCityDropdown;
+  const _showGenderDropdown = uiState?.showGenderDropdown;
+  const _setShowGenderDropdown = uiState?.setShowGenderDropdown;
+  const _showCuisineDropdown = uiState?.showCuisineDropdown;
+  const _setShowCuisineDropdown = uiState?.setShowCuisineDropdown;
+  const _showPriceRangeDropdown = uiState?.showPriceRangeDropdown;
+  const _setShowPriceRangeDropdown = uiState?.setShowPriceRangeDropdown;
+  const _showImagePickerModal = uiState?.showImagePickerModal;
+  const _setShowImagePickerModal = uiState?.setShowImagePickerModal;
+  
+  const _isAuthenticating = authState?.isAuthenticating;
+  const _setIsAuthenticating = authState?.setIsAuthenticating;
+  
+  const _onLoginSuccess = authCallbacks?.onLoginSuccess;
+  const _onRegisterSuccess = authCallbacks?.onRegisterSuccess;
+  const _onRestaurantLogin = authCallbacks?.onRestaurantLogin;
+  const _onRestaurantRegister = authCallbacks?.onRestaurantRegister;
+  const _onForgotPassword = authCallbacks?.onForgotPassword;
+  const _onFormSubmit = authCallbacks?.onFormSubmit;
+  
+  // Extract restaurant mode toggle from authCallbacks
+  const _onRestaurantModeToggle = authCallbacks?.onRestaurantModeToggle;
+  const _isRestaurantLoginMode = authCallbacks?.isRestaurantLoginMode !== undefined ? 
+    authCallbacks.isRestaurantLoginMode : true; // Default to login mode if not specified
+
   // State to track which tab is currently active
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+
+  // Handle tab change
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    // If there's an external tab change handler, call it
+    if (authCallbacks?.onTabChange) {
+      authCallbacks.onTabChange(tab);
+    }
+  };
+
+  // Early return if required props are missing
+  if (!userProfile || !authCallbacks) {
+    console.warn('AuthTabs: Missing required props (userProfile or authCallbacks)');
+    return null;
+  }
 
   return (
     <View style={styles.container}>
@@ -130,7 +192,7 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
         {/* Login Tab Button */}
         <TouchableOpacity
           style={[styles.tab, activeTab === 'login' && styles.activeTab]} // Apply active styling conditionally
-          onPress={() => setActiveTab('login')} // Change active tab on press
+          onPress={() => handleTabChange('login')} // Change active tab on press
         >
           <Text style={[styles.tabText, activeTab === 'login' && styles.activeTabText]}>
             Login
@@ -140,7 +202,7 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
         {/* Register Tab Button */}
         <TouchableOpacity
           style={[styles.tab, activeTab === 'register' && styles.activeTab]}
-          onPress={() => setActiveTab('register')}
+          onPress={() => handleTabChange('register')}
         >
           <Text style={[styles.tabText, activeTab === 'register' && styles.activeTabText]}>
             Register
@@ -150,7 +212,7 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
         {/* Restaurant Tab Button */}
         <TouchableOpacity
           style={[styles.tab, activeTab === 'restaurant' && styles.activeTab]}
-          onPress={() => setActiveTab('restaurant')}
+          onPress={() => handleTabChange('restaurant')}
         >
           <Text style={[styles.tabText, activeTab === 'restaurant' && styles.activeTabText]}>
             Restaurant
@@ -164,69 +226,69 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
         {activeTab === 'login' ? (
           // Login Form - shown when activeTab is 'login'
           <LoginForm 
-            onSuccess={onLoginSuccess} // Callback for successful login
-            onForgotPassword={onForgotPassword} // Callback for forgot password
-            // Pass down all relevant props for the login form
-            firstName={firstName}
-            setFirstName={setFirstName}
-            city={city}
-            setCity={setCity}
-            cuisines={cuisines}
-            setCuisines={setCuisines}
-            availableCuisines={availableCuisines}
-            showCityDropdown={showCityDropdown}
-            setShowCityDropdown={setShowCityDropdown}
-            datePickerMode={datePickerMode}
-            setDatePickerMode={setDatePickerMode}
-            showGenderDropdown={showGenderDropdown}
-            setShowGenderDropdown={setShowGenderDropdown}
-            showCuisineDropdown={showCuisineDropdown}
-            setShowCuisineDropdown={setShowCuisineDropdown}
-            showImagePickerModal={showImagePickerModal}
-            setShowImagePickerModal={setShowImagePickerModal}
-            isAuthenticating={isAuthenticating}
-            setIsAuthenticating={setIsAuthenticating}
-            handleSubmit={handleSubmit} // Custom submit handler if provided
+            onSuccess={_onLoginSuccess}
+            isAuthenticating={_isAuthenticating}
+            setIsAuthenticating={_setIsAuthenticating}
+            handleSubmit={_onFormSubmit}
           />
         ) : activeTab === 'register' ? (
           // Register Form - shown when activeTab is 'register'
           <RegisterForm 
-            onSuccess={onRegisterSuccess} // Callback for successful registration
-            // Pass down all relevant props for the register form
-            firstName={firstName}
-            availableCuisines={availableCuisines}
-            datePickerMode={datePickerMode}
-            setDatePickerMode={setDatePickerMode}
-            showGenderDropdown={showGenderDropdown}
-            setShowGenderDropdown={setShowGenderDropdown}
-            showCuisineDropdown={showCuisineDropdown}
-            setShowCuisineDropdown={setShowCuisineDropdown}
-            showImagePickerModal={showImagePickerModal}
-            setShowImagePickerModal={setShowImagePickerModal}
-            isAuthenticating={isAuthenticating}
-            setIsAuthenticating={setIsAuthenticating}
-            handleSubmit={handleSubmit} // Custom submit handler if provided
+            onSuccess={_onRegisterSuccess}
+            firstName={_firstName}
+            setFirstName={_setFirstName}
+            lastName={_lastName}
+            setLastName={_setLastName}
+            phoneNumber={_phoneNumber}
+            setPhoneNumber={_setPhoneNumber}
+            gender={_gender}
+            setGender={_setGender}
+            birthday={_birthday}
+            setBirthday={_setBirthday}
+            city={_city}
+            setCity={_setCity}
+            nationality={_nationality}
+            setNationality={_setNationality}
+            availableCuisines={_availableCuisines}
+            showGenderDropdown={_showGenderDropdown}
+            setShowGenderDropdown={_setShowGenderDropdown}
+            showCuisineDropdown={_showCuisineDropdown}
+            setShowCuisineDropdown={_setShowCuisineDropdown}
+            showImagePickerModal={_showImagePickerModal}
+            setShowImagePickerModal={_setShowImagePickerModal}
+            isAuthenticating={_isAuthenticating}
+            setIsAuthenticating={_setIsAuthenticating}
+            handleSubmit={_onFormSubmit}
+          />
+        ) : _isRestaurantLoginMode ? (
+          // Restaurant Login Form - shown when activeTab is 'restaurant' and in login mode
+          <RestaurantLoginForm 
+            onSuccess={_onRestaurantLogin}
+            isAuthenticating={_isAuthenticating}
+            handleSubmit={_onFormSubmit}
+            onToggleMode={() => _onRestaurantModeToggle && _onRestaurantModeToggle(false)}
           />
         ) : (
-          // Restaurant Form - shown when activeTab is 'restaurant'
-          <RestaurantForm 
-            onSuccess={onRestaurantLogin} // Callback for successful restaurant login/registration
-            // Pass down all restaurant-specific props
-            restaurantCuisine={restaurantCuisine}
-            setRestaurantCuisine={setRestaurantCuisine}
-            priceRange={priceRange}
-            setPriceRange={setPriceRange}
-            restaurantLogo={restaurantLogo}
-            setRestaurantLogo={setRestaurantLogo}
-            showCuisineDropdown={showCuisineDropdown}
-            setShowCuisineDropdown={setShowCuisineDropdown}
-            showPriceRangeDropdown={showPriceRangeDropdown}
-            setShowPriceRangeDropdown={setShowPriceRangeDropdown}
-            showImagePickerModal={showImagePickerModal}
-            setShowImagePickerModal={setShowImagePickerModal}
-            isAuthenticating={isAuthenticating}
-            setIsAuthenticating={setIsAuthenticating}
-            handleSubmit={handleSubmit} // Custom submit handler if provided
+          // Restaurant Register Form - shown when activeTab is 'restaurant' and in register mode
+          <RestaurantRegisterForm 
+            onSuccess={_onRestaurantRegister}
+            isAuthenticating={_isAuthenticating}
+            handleSubmit={_onFormSubmit}
+            onToggleMode={() => _onRestaurantModeToggle && _onRestaurantModeToggle(true)}
+            restaurantName={_restaurantName}
+            setRestaurantName={_setRestaurantName}
+            restaurantCuisine={_restaurantCuisine}
+            setRestaurantCuisine={_setRestaurantCuisine}
+            priceRange={_priceRange}
+            setPriceRange={_setPriceRange}
+            restaurantLogo={_restaurantLogo}
+            setRestaurantLogo={_setRestaurantLogo}
+            showCuisineDropdown={_showCuisineDropdown}
+            setShowCuisineDropdown={_setShowCuisineDropdown}
+            showPriceRangeDropdown={_showPriceRangeDropdown}
+            setShowPriceRangeDropdown={_setShowPriceRangeDropdown}
+            showImagePickerModal={_showImagePickerModal}
+            setShowImagePickerModal={_setShowImagePickerModal}
           />
         )}
       </View>

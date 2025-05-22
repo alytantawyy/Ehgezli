@@ -23,11 +23,11 @@ export interface RestaurantBranch {
   phone?: string;
   openingHours?: string;
   closingHours?: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   bookingSettings?: BookingSettings;
-}
+} 
 
 export interface BookingSettings {
   id: number;
@@ -47,9 +47,10 @@ export interface BookingOverride {
   date: string;
   startTime: string;
   endTime: string;
-  isAvailable: boolean;
-  maxSeatsOverride?: number;
-  maxTablesOverride?: number;
+  overrideType: string;
+  newMaxSeats?: number;
+  newMaxTables?: number;
+  note?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +69,9 @@ export interface RestaurantFilter {
 
 export interface BranchWithAvailability extends RestaurantBranch {
   availableSlots?: AvailableSlot[];
+  slots?: { time: string }[];
+  closingTime?: string;
+  distance?: number;
 }
 
 export interface RestaurantWithAvailability extends Restaurant {
@@ -81,4 +85,94 @@ export interface AvailableSlot {
   endTime: string;
   remainingSeats: number;
   remainingTables?: number;
+}
+
+export interface DetailedRestaurantResponse {
+  profile: {
+    id: number;
+    restaurantId: number;
+    about: string;
+    description: string;
+    cuisine: string;
+    priceRange: string;
+    logo: string;
+    isProfileComplete: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  branches: {
+    id: number;
+    restaurantId: number;
+    address: string;
+    city: string;
+    latitude: number;
+    longitude: number;
+  }[];
+}
+
+export interface RestaurantSearchResponse {
+  restaurant_profiles: {
+    id: number;
+    restaurantId: number;
+    about: string;
+    description: string;
+    cuisine: string;
+    priceRange: string;
+    logo: string;
+    isProfileComplete: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+  restaurant_users: {
+    id: number;
+    email: string;
+    name: string;
+    verified: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+  restaurant_branches: {
+    id: number;
+    restaurantId: number;
+    address: string;
+    city: string;
+    latitude: number;
+    longitude: number;
+  };
+}
+
+export interface CreateBookingSettingsData {
+  openTime: string;
+  closeTime: string;
+  interval: number;
+  maxSeatsPerSlot: number;
+  maxTablesPerSlot: number;
+}
+
+export interface CreateBranchData {
+  address: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  phone?: string;
+  openingHours?: string;
+  closingHours?: string;
+  bookingSettings: CreateBookingSettingsData;
+}
+
+export interface CreateBookingOverrideData {
+  date: string;
+  startTime: string;
+  endTime: string;
+  overrideType: string;
+  newMaxSeats?: number;
+  newMaxTables?: number;
+  note?: string;
 }

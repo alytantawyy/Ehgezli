@@ -8,10 +8,9 @@ import { Avatar } from '../../../components/common/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useAuth } from '../../../context/auth-context';
-import { useLocation } from '../../../context/location-context';
 import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { getDefaultTimeForDisplay, getBaseTime, generateTimeSlotsFromTime } from '../../../shared/utils/time-slots';
+import { getDefaultTimeForDisplay, getBaseTime, generateTimeSlotsFromTime } from '../../../app/utils/time-slots';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { getRestaurants } from '../../../api/restaurant';
 import * as ExpoLocation from 'expo-location';
@@ -63,7 +62,7 @@ export default function HomeScreen() {
   const handleTimeChange = (event: any, selectedTime?: Date) => {
     const currentTime = selectedTime || new Date();
     setShowTimePicker(Platform.OS === 'ios');
-    setSelectedTime(currentTime);
+    setSelectedTime(currentTime.toTimeString().split(' ')[0]);
   };
 
   // Handle party size change
@@ -82,8 +81,8 @@ export default function HomeScreen() {
       
       <View style={styles.searchContainer}>
         <SearchBar
-          value={searchQuery}
-          onChangeText={handleSearch}
+          initialValue={searchQuery}
+          onSearch={handleSearch}
           placeholder="Search restaurants..."
         />
         <TouchableOpacity style={styles.filterButton} onPress={toggleFilter}>
@@ -98,18 +97,15 @@ export default function HomeScreen() {
         </View>
       ) : (
         <RestaurantList
-          restaurants={restaurants}
           searchQuery={searchQuery}
-          onSelectRestaurant={(id) => router.push(`/user/restaurant-details?id=${id}` as any)}
+          onSelectRestaurant={(id: number) => router.push(`/user/restaurant-details?id=${id}` as any)}
         />
       )}
       
       <FilterDrawer
-        isOpen={isFilterOpen}
+        isVisible={isFilterOpen}
         onClose={toggleFilter}
-        selectedDate={selectedDate}
         onDateChange={handleDateChange}
-        selectedTime={selectedTime}
         onTimeChange={handleTimeChange}
         partySize={partySize}
         onPartySizeChange={handlePartySizeChange}

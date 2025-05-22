@@ -1,5 +1,5 @@
 import apiClient from './api-client';
-import { RestaurantBranch, BookingSettings } from '../types/restaurant';
+import { RestaurantBranch, CreateBranchData } from '../types/restaurant';
 
 // Get a single branch by ID
 export const getBranchById = async (branchId: number) => {
@@ -8,7 +8,7 @@ export const getBranchById = async (branchId: number) => {
 };
 
 // Create a new branch (restaurant owners only)
-export const createBranch = async (branchData: Omit<RestaurantBranch, 'id' | 'createdAt' | 'updatedAt'>) => {
+export const createBranch = async (branchData: CreateBranchData) => {
   const { data } = await apiClient.post<RestaurantBranch>(`/branch`, branchData);
   return data;
 };

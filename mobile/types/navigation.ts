@@ -7,7 +7,7 @@
 
 // Auth routes
 export const AuthRoute = {
-  login: '/auth/login',
+  login: '/auth',
   forgotPassword: '/auth/forgot-password',
   resetPassword: '/auth/reset-password',
 } as const;

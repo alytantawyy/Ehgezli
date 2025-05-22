@@ -1,28 +1,47 @@
-import React, { createContext, useContext, ReactNode } from 'react';
-import { ColorSchemeName } from 'react-native';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useColorScheme } from 'react-native';
+import Colors from '../constants/Colors';
 
-type ThemeContextType = {
-  colorScheme: ColorSchemeName;
-};
+type Theme = 'light' | 'dark' | 'system';
 
-// Create context with light mode as default
-const ThemeContext = createContext<ThemeContextType>({
-  colorScheme: 'light',
-});
-
-// Custom hook to use the theme context
-export function useTheme() {
-  return useContext(ThemeContext);
+interface ThemeContextType {
+  theme: Theme;
+  colors: typeof Colors;
+  setTheme: (theme: Theme) => void;
 }
 
-// Provider component that forces light mode regardless of system settings
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Always return 'light' as the color scheme
-  const colorScheme: ColorSchemeName = 'light';
+const ThemeContext = createContext<ThemeContextType>({
+  theme: 'system',
+  colors: Colors,
+  setTheme: () => {},
+});
+
+export const useTheme = () => useContext(ThemeContext);
+
+export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [theme, setTheme] = useState<Theme>('system');
+  const systemColorScheme = useColorScheme() || 'light';
+  
+  // Determine the active color scheme based on theme setting
+  const activeColorScheme = theme === 'system' ? systemColorScheme : theme;
+  const colors = activeColorScheme === 'dark' ? Colors : Colors;
+
+  // Listen for system color scheme changes
+  useEffect(() => {
+    if (theme === 'system') {
+      // No need to do anything here as useColorScheme will update automatically
+    }
+  }, [systemColorScheme, theme]);
 
   return (
-    <ThemeContext.Provider value={{ colorScheme }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        colors,
+        setTheme,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );
-}
+};

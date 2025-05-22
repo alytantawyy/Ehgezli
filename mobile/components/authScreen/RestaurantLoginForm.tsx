@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 
-interface LoginFormProps {
+interface RestaurantLoginFormProps {
   onSuccess?: () => void;
   isAuthenticating?: boolean;
   setIsAuthenticating?: Dispatch<SetStateAction<boolean>>;
@@ -15,7 +15,7 @@ interface LoginFormProps {
   onToggleMode?: () => void;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({
+const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
   onSuccess,
   isAuthenticating,
   setIsAuthenticating,
@@ -39,7 +39,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
   const handleLogin = () => {
     // Validate form fields
     if (!email || !password) {
-      setError('Please enter both email and password');
+      setError('Please enter email and password');
       return;
     }
 
@@ -52,20 +52,22 @@ const LoginForm: React.FC<LoginFormProps> = ({
 
     // If external submit handler is provided, use it
     if (handleSubmit) {
+      // Store email/password in parent component's state before submitting
+      // This would typically be done via state update callbacks passed from parent
       handleSubmit();
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>User Login</Text>
+      <Text style={styles.title}>Restaurant Login</Text>
       
       {error && <Text style={styles.errorText}>{error}</Text>}
       
       <Text style={styles.label}>Email</Text>
       <TextInput
         style={styles.input}
-        placeholder="Enter your email"
+        placeholder="Enter email address"
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
@@ -75,7 +77,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
       <Text style={styles.label}>Password</Text>
       <TextInput
         style={styles.input}
-        placeholder="Enter your password"
+        placeholder="Enter password"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -150,4 +152,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LoginForm;
+export default RestaurantLoginForm;

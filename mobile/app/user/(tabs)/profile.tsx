@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { updateUserProfile } from '../../../api/user';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 /**
  * Profile Tab Screen
@@ -80,7 +80,14 @@ export default function ProfileScreen() {
   };
 
   // Render settings section
-  const renderSettingsSection = (title: string, items: { icon: string; title: string; onPress: () => void }[]) => (
+  const renderSettingsSection = (title: string, items: { 
+    icon: any; 
+    title: string; 
+    onPress: () => void;
+    hasSwitch?: boolean;
+    switchValue?: boolean;
+    onToggle?: (value: boolean) => void;
+  }[]) => (
     <View style={styles.settingsSection}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {items.map((item, index) => (
@@ -122,7 +129,9 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           
           <Text style={styles.userName}>
-            {user ? `${user.firstName} ${user.lastName}` : 'Guest User'}
+            {user ? (('firstName' in user) ? 
+              `${user.firstName} ${user.lastName}` : 
+              user.name) : 'Guest User'}
           </Text>
           <Text style={styles.userEmail}>
             {user?.email || 'guest@example.com'}
@@ -144,7 +153,7 @@ export default function ProfileScreen() {
             onPress: () => router.push('/user/edit-profile' as any),
           },
           {
-            icon: 'heart',
+            icon: 'star',
             title: 'Saved Restaurants',
             onPress: () => router.push('/user/saved-restaurants' as any),
           },
@@ -155,46 +164,6 @@ export default function ProfileScreen() {
           },
         ])}
         
-        {/* App Settings */}
-        {renderSettingsSection('Settings', [
-          {
-            icon: 'notifications',
-            title: 'Notifications',
-            switchValue: notificationsEnabled,
-            onToggle: setNotificationsEnabled,
-          },
-          {
-            icon: 'location',
-            title: 'Location Services',
-            switchValue: locationEnabled,
-            onToggle: setLocationEnabled,
-          },
-          {
-            icon: 'moon',
-            title: 'Dark Mode',
-            switchValue: darkModeEnabled,
-            onToggle: setDarkModeEnabled,
-          },
-        ])}
-        
-        {/* Support & About */}
-        {renderSettingsSection('Support', [
-          {
-            icon: 'help-circle',
-            title: 'Help Center',
-            onPress: () => router.push('/user/help-center' as any),
-          },
-          {
-            icon: 'information-circle',
-            title: 'About',
-            onPress: () => router.push('/user/about' as any),
-          },
-          {
-            icon: 'shield-checkmark',
-            title: 'Privacy Policy',
-            onPress: () => router.push('/user/privacy-policy' as any),
-          },
-        ])}
         
         {/* Logout Button */}
         <TouchableOpacity 

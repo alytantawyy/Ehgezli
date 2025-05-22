@@ -1,13 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { RestaurantCard } from './RestaurantCard';
-import { RestaurantWithAvailability, BranchWithAvailability, TimeSlot, AvailableSlot } from './RestaurantCard';
-import { getRestaurants, getSavedRestaurants, SavedRestaurantItem, getRestaurantsWithAvailability, Restaurant, User } from '../shared/api/client';
-import { generateLocalTimeSlots, formatTimeWithAMPM, getBaseTime, generateTimeSlotsFromTime } from '../shared/utils/time-slots';
+import { Restaurant, RestaurantBranch, BranchWithAvailability, RestaurantFilter } from '../../types/restaurant';
+import { getRestaurants } from '../../api/restaurant';
+import { getSavedBranches } from '../../api/savedBranch';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocation } from '../context/location-context';
-import { useAuth } from '../context/auth-context';
+import { useAuth } from '../../context/auth-context';
+import { useLocation } from '../../context/location-context';
+import { generateLocalTimeSlots, generateTimeSlotsFromTime } from '../../app/utils/time-slots';
+import { User } from '../../types/user';
+import { getBranchAvailability } from '../../api/branch';
 
 // Function to calculate distance between two coordinates using Haversine formula
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -33,11 +36,12 @@ interface RestaurantListProps {
   cuisineFilter?: string;
   priceFilter?: string;
   distanceFilter?: string;
-  date: Date;
+  date?: Date;
   time?: string;
-  partySize: number;
+  partySize?: number;
   showSavedOnly?: boolean;
   nearbyRestaurants?: Restaurant[];
+  onSelectRestaurant?: (id: number) => void;
 }
 
 export function RestaurantList({
@@ -51,6 +55,7 @@ export function RestaurantList({
   partySize,
   showSavedOnly = false,
   nearbyRestaurants = [],
+  onSelectRestaurant,
 }: RestaurantListProps) {
   console.log('[RestaurantList] rendering with filters:', { searchQuery, cityFilter, cuisineFilter, priceFilter, date, partySize, time, showSavedOnly });
 
@@ -58,12 +63,10 @@ export function RestaurantList({
   const { location } = useLocation();
 
   // Get user's favorite cuisines from auth context
-  const { user, isRestaurant } = useAuth();
+  const { user } = useAuth();
   
   // Handle different user types for favorite cuisines
-  const favoriteCuisines = isRestaurant 
-    ? [] // Restaurant users don't have favorite cuisines
-    : (user as User)?.favoriteCuisines || [];
+  const favoriteCuisines = (user as User)?.favoriteCuisines || [];
 
   // Centralized function to generate and format time slots consistently
   const generateAndFormatTimeSlots = () => {
@@ -86,7 +89,7 @@ export function RestaurantList({
         if (ampm === 'AM' && hours === 12) hour24 = 0;
 
         // Create a date object with the selected date and time
-        const timeDate = new Date(date);
+        const timeDate = new Date(date || new Date());
         timeDate.setHours(hour24, minutes, 0, 0);
 
         // Ensure the combined date-time is not in the past
@@ -111,7 +114,7 @@ export function RestaurantList({
   };
 
   // Query for all restaurants with availability
-  const { data: restaurants, isLoading } = useQuery<RestaurantWithAvailability[]>({
+  const { data: restaurants, isLoading } = useQuery<Restaurant[]>({
     queryKey: ['restaurants', searchQuery, cityFilter, cuisineFilter, priceFilter, date, time, partySize, showSavedOnly],
     queryFn: async () => {
       console.log('[RestaurantList] Fetching with search query:', searchQuery);
@@ -119,242 +122,92 @@ export function RestaurantList({
 
       // If showSavedOnly is true, return saved restaurants only
       if (showSavedOnly) {
-        const savedData = await getSavedRestaurants();
-        console.log('Raw saved restaurants data:', savedData);
+        const savedBranches = await getSavedBranches();
+        console.log('Raw saved branches data:', savedBranches);
 
-        if (!savedData || savedData.length === 0) {
-          console.log('No saved restaurants found');
+        if (!savedBranches || savedBranches.length === 0) {
+          console.log('No saved branches found');
           return [];
         }
 
-        // Transform the saved restaurants data to match the expected format
-        const transformedData = savedData.map((item: SavedRestaurantItem) => {
-          console.log(`Processing saved restaurant: ${item.restaurant?.name || 'unnamed'}, ID: ${item.restaurantId}`);
-
-          // Extract the restaurant object from the saved item
-          const restaurant = item.restaurant as unknown as RestaurantWithAvailability;
-
-          // Copy profile properties to the top level
-          if (restaurant.profile) {
-            console.log(`Restaurant profile: ${JSON.stringify(restaurant.profile)}`);
-            restaurant.cuisine = restaurant.profile.cuisine;
-            restaurant.priceRange = restaurant.profile.priceRange;
-            restaurant.description = restaurant.profile.description;
-            restaurant.imageUrl = restaurant.profile.logo;
-            restaurant.rating = restaurant.profile.rating;
-          } else {
-            console.log(`No profile found for restaurant ${restaurant.name}`);
+        // Group branches by restaurant ID and create Restaurant objects
+        const restaurantMap = new Map<number, Restaurant>();
+        
+        savedBranches.forEach(branch => {
+          if (!restaurantMap.has(branch.restaurantId)) {
+            // Create a new Restaurant object
+            restaurantMap.set(branch.restaurantId, {
+              id: branch.restaurantId,
+              name: branch.restaurantName || '',
+              email: '',  // Required field but we don't have it from branch
+              branches: [],
+              createdAt: branch.createdAt || '',
+              updatedAt: branch.updatedAt || ''
+            });
           }
-
-          // Filter to only include the specific saved branch
-          const branchIndex = item.branchIndex;
-          console.log(`Filtering to only show branch index ${branchIndex} for restaurant ${restaurant.name}`);
-
-          if (restaurant.branches && restaurant.branches.length > 0) {
-            // If the branch index is valid, keep only that branch
-            if (branchIndex >= 0 && branchIndex < restaurant.branches.length) {
-              const savedBranch = restaurant.branches[branchIndex];
-              restaurant.branches = [savedBranch]; // Replace with array containing only the saved branch
-              console.log(`Kept only branch ${branchIndex} for restaurant ${restaurant.name}`);
-            } else {
-              console.log(`Invalid branch index ${branchIndex} for restaurant ${restaurant.name} with ${restaurant.branches.length} branches`);
-            }
-          } else {
-            console.log(`No branches found for restaurant ${restaurant.name}, creating empty array`);
-            restaurant.branches = [];
+          
+          // Add this branch to the restaurant's branches array
+          const restaurant = restaurantMap.get(branch.restaurantId);
+          if (restaurant && restaurant.branches) {
+            restaurant.branches.push(branch);
           }
-
-          // Generate time slots for each branch
-          restaurant.branches.forEach((branch, index) => {
-            console.log(`Processing branch ${index} for saved restaurant ${restaurant.id}`);
-            
-            // Only generate new slots if the branch doesn't already have them
-            if (!branch.slots || branch.slots.length === 0) {
-              console.log(`Generating time slots for saved restaurant ${restaurant.id}, branch ${branch.id}`);
-              const timeSlots = generateAndFormatTimeSlots();
-              // Store the time slots in the branch
-              branch.slots = timeSlots;
-              console.log(`Generated ${timeSlots.length} time slots for saved restaurant ${restaurant.id}`);
-              console.log('Time slots sample:', timeSlots.slice(0, 3));
-            } else {
-              console.log(`Using existing slots for saved restaurant ${restaurant.id}, count: ${branch.slots.length}`);
-            }
-            
-            // Mark this branch as saved instead of the restaurant
-            branch.isSaved = true;
-          });
-
-          // Make sure we're using the restaurant ID, not the saved record ID
-          restaurant.id = restaurant.id || item.restaurantId;
-
-          console.log(`Transformed restaurant: ${restaurant.name}, branches: ${restaurant.branches.length}`);
-          return restaurant;
         });
-
-        console.log(`Total transformed restaurants: ${transformedData.length}`);
-        console.log('Transformed saved restaurants:', transformedData);
-        return transformedData;
+        
+        return Array.from(restaurantMap.values());
       }
 
-      const convertTimeFormat = (timeStr: string | undefined): string | undefined => {
-        if (!timeStr) return undefined;
-
-        try {
-          const [timePart, period] = timeStr.split(' ');
-          const [hours, minutes] = timePart.split(':').map(Number);
-
-          let hour24 = hours;
-          if (period === 'PM' && hours < 12) hour24 += 12;
-          if (period === 'AM' && hours === 12) hour24 = 0;
-
-          return `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-        } catch (error) {
-          console.error('Error converting time format:', error);
-          return undefined;
-        }
-      };
-
-      const params: Record<string, any> = {
-        date: date.toISOString(),
+      const params: RestaurantFilter = {
+        date: date?.toISOString().split('T')[0], // Format as YYYY-MM-DD
         partySize,
-        showSavedOnly,
-        time: convertTimeFormat(time),
+        time,
       };
 
-      if (searchQuery) params['search'] = searchQuery;
-      if (cityFilter && cityFilter !== 'all') params['city'] = cityFilter;
-      if (cuisineFilter && cuisineFilter !== 'all') params['cuisine'] = cuisineFilter;
-      if (priceFilter && priceFilter !== 'all') params['priceRange'] = priceFilter;
+      if (searchQuery) params.searchQuery = searchQuery;
+      if (cityFilter && cityFilter !== 'all') params.city = cityFilter;
+      if (cuisineFilter && cuisineFilter !== 'all') params.cuisine = cuisineFilter;
+      if (priceFilter && priceFilter !== 'all') params.priceRange = priceFilter;
 
       console.log('[RestaurantList] Fetching with params:', params);
 
-      // Use the new API endpoint that properly populates slot arrays
-      const restaurantsData = await getRestaurantsWithAvailability(params);
+      // Use the getRestaurants API to get restaurants with availability
+      const restaurantsData = await getRestaurants(params);
       console.log('[RestaurantList] Received restaurants with availability:',
         restaurantsData.map(r => ({
           id: r.id,
           name: r.name,
-          branchCount: r.branches?.length || 0,
-          hasBranchesWithSlots: r.branches?.some(b => b.slots && b.slots.length > 0)
+          branchCount: r.branches?.length || 0
         }))
       );
 
-      // Ensure proper type conversion and data structure
+      // Process restaurants to ensure they have the expected structure
       return restaurantsData.map(restaurant => {
-        // Convert to expected type
-        const result = restaurant as unknown as RestaurantWithAvailability;
-
-        // Ensure cuisine is available at both levels
-        result.cuisine = result.profile?.cuisine || result.cuisine || 'Various Cuisine';
-        if (result.profile) {
-          result.profile.cuisine = result.profile.cuisine || result.cuisine || 'Various Cuisine';
-        }
+        // Ensure cuisine is available
+        restaurant.cuisine = restaurant.cuisine || 'Various Cuisine';
 
         // Ensure restaurant has branches array (even if empty)
-        if (!result.branches) {
-          result.branches = [];
+        if (!restaurant.branches) {
+          restaurant.branches = [];
         }
 
-        // Map availableSlots to slots for each branch
-        result.branches.forEach(branch => {
-          // If branch has availableSlots but no slots, generate them
-          if (branch.availableSlots && branch.availableSlots.length > 0 && (!branch.slots || branch.slots.length === 0)) {
-            console.log(`Restaurant ${result.id} (${result.name}): Adding slots from availableSlots`);
-
-            // Generate time slots using our utility function
-            const timeSlots = generateAndFormatTimeSlots();
-            
-            // Store the time slots in the branch
-            branch.slots = timeSlots;
-
-            console.log('Final branch slots:', branch.slots);
-          }
-
-          // Check if it's past the restaurant's closing time
-          if (branch.slots && branch.slots.length > 0) {
-            const now = new Date();
-            const currentHour = now.getHours();
-            const currentMinutes = now.getMinutes();
-            
-            // Parse closing time (format: "HH:MM")
-            if (branch.closingTime) {
-              const [closingHour, closingMinutes] = branch.closingTime.split(':').map(Number);
-              
-              // Improved logic for checking if current time is past closing time
-              // Handle midnight crossing (when closing time is between 00:00 and 06:00)
-              const isClosingAfterMidnight = closingHour >= 0 && closingHour < 6;
-              
-              let isPastClosingTime = false;
-              
-              if (isClosingAfterMidnight) {
-                // For closing times after midnight (e.g., 01:00)
-                // It's past closing time if current hour is between closing time and opening time
-                // For example, if closing is 01:00 and it's currently 02:30, it's past closing
-                isPastClosingTime = 
-                  (currentHour >= closingHour && currentHour < 10) || // After closing, before typical opening
-                  (currentHour >= 22); // Late night approaching midnight
-              } else {
-                // Normal case (e.g., closing at 23:00)
-                isPastClosingTime = 
-                  (currentHour > closingHour) || 
-                  (currentHour === closingHour && currentMinutes >= closingMinutes);
+        // Process each branch to add slots if needed
+        restaurant.branches.forEach(branch => {
+          // Type assertion to access extended properties
+          const branchWithAvailability = branch as unknown as BranchWithAvailability;
+          
+          // If branch has existing slots (as any type), process them
+          if ((branch as any).slots) {
+            branchWithAvailability.slots = ((branch as any).slots).map((slot: string | any) => {
+              // Convert string slots to TimeSlot objects
+              if (typeof slot === 'string') {
+                return { time: slot };
               }
-              
-              // If user explicitly selected a time, respect that choice and don't override with noon slots
-              const userSelectedTime = time && time.length > 0;
-              
-              if (isPastClosingTime && !userSelectedTime) {
-                console.log(`Restaurant ${result.id} (${result.name}): Past closing time ${branch.closingTime}, showing slots for next day at noon`);
-                
-                // Create a date for tomorrow at noon
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                tomorrow.setHours(12, 0, 0, 0);
-
-                // If it's past midnight but before noon, use today at noon instead
-                if (currentHour >= 0 && currentHour < 12) {
-                  tomorrow.setDate(tomorrow.getDate() - 1); // Use today instead of tomorrow
-                  console.log(`It's after midnight but before noon, using today at noon instead`);
-                }
-                
-                // Generate noon time slots: 12:00, 12:30, 1:00
-                branch.slots = [
-                  { time: '12:00' },
-                  { time: '12:30' },
-                  { time: '13:00' }
-                ];
-              } else if (userSelectedTime) {
-                console.log(`User selected time ${time}, generating slots based on that time`);
-                
-                // If user selected a time, generate slots around that time
-                try {
-                  const [timePart, ampm] = time.split(' ');
-                  const [hours, minutes] = timePart.split(':').map(Number);
-
-                  let hour24 = hours;
-                  if (ampm === 'PM' && hours < 12) hour24 += 12;
-                  if (ampm === 'AM' && hours === 12) hour24 = 0;
-
-                  // Create a date object with the selected time
-                  const selectedTimeDate = new Date();
-                  selectedTimeDate.setHours(hour24, minutes, 0, 0);
-                  
-                  // Generate time slots around the selected time
-                  const timeSlots = generateTimeSlotsFromTime(selectedTimeDate);
-                  
-                  // Convert to the expected format
-                  branch.slots = timeSlots.map(timeStr => ({ time: timeStr }));
-                  
-                  console.log(`Generated slots based on user selection:`, branch.slots);
-                } catch (error) {
-                  console.error('Error generating slots from user-selected time:', error);
-                }
-              }
-            }
+              // If it's already a TimeSlot object, return it as is
+              return slot;
+            });
           }
         });
 
-        return result;
+        return restaurant;
       });
     },
     staleTime: 0, // Ensure data is always considered stale and will refetch
@@ -362,13 +215,13 @@ export function RestaurantList({
   });
 
   // Query for saved restaurants - always fetch this for marking saved status
-  const { data: savedRestaurants, isLoading: isSavedLoading } = useQuery<RestaurantWithAvailability[]>({
+  const { data: savedRestaurants, isLoading: isSavedLoading } = useQuery<RestaurantBranch[]>({
     queryKey: ['saved-branches'],
     queryFn: async () => {
       try {
         // Use the existing client function which handles the API call properly
         // and now marks branches with isSaved=true
-        return (await getSavedRestaurants()) as unknown as RestaurantWithAvailability[];
+        return (await getSavedBranches()) as unknown as RestaurantBranch[];
       } catch (error) {
         console.error('Error fetching saved restaurants:', error);
         return [];
@@ -407,27 +260,20 @@ export function RestaurantList({
   }
 
   // Create a flat list of all restaurant branches with their associated restaurant
-  const allBranches: { restaurant: RestaurantWithAvailability; branch: BranchWithAvailability; branchIndex: number; isNearby?: boolean }[] = [];
+  const allBranches: { restaurant: Restaurant; branch: RestaurantBranch; branchIndex: number; isNearby?: boolean }[] = [];
 
   // Create a map of saved restaurant IDs and branch indexes for quick lookup
   const savedMap = new Map<string, boolean>();
   if (savedRestaurants && !showSavedOnly) {
     // Loop through each restaurant and its branches to find saved ones
-    savedRestaurants.forEach((restaurant) => {
-      if (restaurant.branches) {
-        restaurant.branches.forEach((branch, branchIndex) => {
-          // Check if this branch is marked as saved
-          if ((branch as any).isSaved) {
-            savedMap.set(`${restaurant.id}-${branchIndex}`, true);
-          }
-        });
-      }
+    savedRestaurants.forEach((branch) => {
+      savedMap.set(`${branch.restaurantId}-${branch.id}`, true);
     });
   }
 
   // Process the restaurants data
   if (restaurants && restaurants.length > 0) {
-    restaurants.forEach(restaurant => {
+    restaurants.forEach((restaurant) => {
       console.log(`[RestaurantList] Restaurant ${restaurant.id} has ${restaurant.branches ? restaurant.branches.length : 0} branches`);
 
       // Skip if no branches
@@ -439,21 +285,24 @@ export function RestaurantList({
       restaurant.branches.forEach((branch, branchIndex) => {
         // Create a BranchWithAvailability object
         const branchWithAvailability: BranchWithAvailability = {
-          id: branch.id,
-          location: branch.location,
-          address: branch.address,
-          city: branch.city || '',
-          slots: branch.slots.map((slot: string | any) => {
+          ...branch,  // Copy all existing properties from branch
+          slots: [],  // Initialize with empty slots array
+          availableSlots: [],
+          latitude: branch.latitude,
+          longitude: branch.longitude
+        };
+        
+        // If branch has existing slots (as any type), process them
+        if ((branch as any).slots && Array.isArray((branch as any).slots)) {
+          branchWithAvailability.slots = ((branch as any).slots).map((slot: string | any) => {
             // Convert string slots to TimeSlot objects
             if (typeof slot === 'string') {
               return { time: slot };
             }
             // If it's already a TimeSlot object, return it as is
             return slot;
-          }),
-          isSaved: branch.isSaved || false,
-          availableSlots: branch.availableSlots || []
-        };
+          });
+        }
 
         // Always calculate distance if we have coordinates, regardless of filter
         if (location?.coords && branch.latitude && branch.longitude) {
@@ -461,22 +310,16 @@ export function RestaurantList({
             const distance = calculateDistance(
               location.coords.latitude,
               location.coords.longitude,
-              parseFloat(branch.latitude),
-              parseFloat(branch.longitude)
+              parseFloat(branch.latitude.toString()),
+              parseFloat(branch.longitude.toString())
             );
             
             // Store the calculated distance
-            branch.distance = distance;
-            branchWithAvailability.distance = distance;
+            (branchWithAvailability as any).distance = distance;
             console.log(`Calculated distance for ${restaurant.name} (branch ${branchIndex}):`, distance);
           } catch (error) {
             console.error('Error calculating distance:', error);
           }
-        } else if (branch.distance !== undefined) {
-          // Use existing distance if available
-          branchWithAvailability.distance = typeof branch.distance === 'number' ? 
-            branch.distance : typeof branch.distance === 'string' ? 
-            parseFloat(branch.distance) : undefined;
         }
 
         // Apply distance filter if needed
@@ -484,20 +327,20 @@ export function RestaurantList({
           const maxDistance = parseInt(distanceFilter.split(' ')[0]); // Extract number from "X km"
           
           // Skip this branch if it's too far away
-          if (branchWithAvailability.distance !== undefined && branchWithAvailability.distance > maxDistance) {
+          if ((branchWithAvailability as any).distance !== undefined && (branchWithAvailability as any).distance > maxDistance) {
             return;
           }
         }
 
         // If showSavedOnly is true, only include saved branches
-        if (showSavedOnly && !branch.isSaved) {
+        if (showSavedOnly && !savedMap.has(`${restaurant.id}-${branchIndex}`)) {
           return;
         }
 
         // Otherwise, check the savedMap
         if (!showSavedOnly && savedMap.has(`${restaurant.id}-${branchIndex}`)) {
           // Mark as saved for UI purposes
-          branchWithAvailability.isSaved = true;
+          (branchWithAvailability as any).isSaved = true;
         }
 
         allBranches.push({
@@ -513,7 +356,7 @@ export function RestaurantList({
 
   // Debug distances before sorting
   allBranches.forEach((item, index) => {
-    console.log(`Branch ${index}: ${item.restaurant.name}, Distance: ${item.branch.distance}, Saved: ${item.branch.isSaved}, Cuisine: ${item.restaurant.cuisine || item.restaurant.profile?.cuisine}`);
+    console.log(`Branch ${index}: ${item.restaurant.name}, Distance: ${(item.branch as any).distance}, Saved: ${(item.branch as any).isSaved}, Cuisine: ${item.restaurant.cuisine || (item.restaurant as any).profile?.cuisine}`);
   });
 
   // Sort all branches by the three criteria:
@@ -522,20 +365,20 @@ export function RestaurantList({
   // 3. Favorite cuisine (matching user's favorites first)
   allBranches.sort((a, b) => {
     // First priority: Saved status
-    if (a.branch.isSaved && !b.branch.isSaved) return -1;
-    if (!a.branch.isSaved && b.branch.isSaved) return 1;
+    if ((a.branch as any).isSaved && !(b.branch as any).isSaved) return -1;
+    if (!(a.branch as any).isSaved && (b.branch as any).isSaved) return 1;
     
     // Second priority: Distance (if available)
-    const distanceA = a.branch.distance !== undefined ? a.branch.distance : Number.MAX_VALUE;
-    const distanceB = b.branch.distance !== undefined ? b.branch.distance : Number.MAX_VALUE;
+    const distanceA = (a.branch as any).distance !== undefined ? (a.branch as any).distance : Number.MAX_VALUE;
+    const distanceB = (b.branch as any).distance !== undefined ? (b.branch as any).distance : Number.MAX_VALUE;
     
     if (distanceA !== distanceB) {
       return distanceA - distanceB; // Sort by distance (closest first)
     }
     
     // Third priority: Favorite cuisine
-    const cuisineA = a.restaurant.cuisine || a.restaurant.profile?.cuisine || '';
-    const cuisineB = b.restaurant.cuisine || b.restaurant.profile?.cuisine || '';
+    const cuisineA = a.restaurant.cuisine || '';
+    const cuisineB = b.restaurant.cuisine || '';
     
     const isAFavorite = favoriteCuisines.includes(cuisineA);
     const isBFavorite = favoriteCuisines.includes(cuisineB);
@@ -550,7 +393,7 @@ export function RestaurantList({
   // Debug distances after sorting
   console.log("AFTER SORTING:");
   allBranches.forEach((item, index) => {
-    console.log(`Branch ${index}: ${item.restaurant.name}, Distance: ${item.branch.distance}, Saved: ${item.branch.isSaved}, Cuisine: ${item.restaurant.cuisine || item.restaurant.profile?.cuisine}`);
+    console.log(`Branch ${index}: ${item.restaurant.name}, Distance: ${(item.branch as any).distance}, Saved: ${(item.branch as any).isSaved}, Cuisine: ${item.restaurant.cuisine || (item.restaurant as any).profile?.cuisine}`);
   });
 
   // Add nearby restaurants - but skip when showing saved only
@@ -580,16 +423,16 @@ export function RestaurantList({
         // Log the branch data to debug
         console.log(`Branch for ${restaurant.name}:`, {
           id: firstBranch.id,
-          distance: firstBranch.distance,
-          hasDistance: firstBranch.distance !== undefined,
-          distanceType: typeof firstBranch.distance,
+          distance: (firstBranch as any).distance,
+          hasDistance: (firstBranch as any).distance !== undefined,
+          distanceType: typeof (firstBranch as any).distance,
           latitude: firstBranch.latitude,
           longitude: firstBranch.longitude
         });
         
         // Ensure distance is a number
-        const distance = typeof firstBranch.distance === 'number' ? firstBranch.distance : 
-                        typeof firstBranch.distance === 'string' ? parseFloat(firstBranch.distance) : undefined;
+        const distance = typeof (firstBranch as any).distance === 'number' ? (firstBranch as any).distance : 
+                        typeof (firstBranch as any).distance === 'string' ? parseFloat((firstBranch as any).distance) : undefined;
         
         // Calculate distance using Haversine formula
         let calculatedDistance: number | undefined = undefined;
@@ -599,8 +442,8 @@ export function RestaurantList({
             calculatedDistance = calculateDistance(
               location.coords.latitude,
               location.coords.longitude,
-              parseFloat(firstBranch.latitude),
-              parseFloat(firstBranch.longitude)
+              parseFloat(firstBranch.latitude.toString()),
+              parseFloat(firstBranch.longitude.toString())
             );
             console.log(`Calculated distance for ${restaurant.name}:`, calculatedDistance);
           } catch (error) {
@@ -621,11 +464,7 @@ export function RestaurantList({
         // Process restaurant data to ensure cuisine is available at both levels
         const processedRestaurant = {
           ...restaurant,
-          cuisine: restaurant.profile?.cuisine || restaurant.cuisine || 'Various Cuisine',
-          profile: restaurant.profile ? {
-            ...restaurant.profile,
-            cuisine: restaurant.profile.cuisine || restaurant.cuisine || 'Various Cuisine'
-          } : undefined
+          cuisine: restaurant.cuisine || 'Various Cuisine',
         };
         
         // Ensure the branch has proper slots data
@@ -633,7 +472,7 @@ export function RestaurantList({
           ...firstBranch,
           distance: finalDistance, // Use final distance
           // Ensure slots array exists and is populated
-          slots: firstBranch.slots ? firstBranch.slots.map((slot: string | any) => {
+          slots: (firstBranch as any).slots ? (firstBranch as any).slots.map((slot: string | any) => {
             // Convert string slots to TimeSlot objects
             if (typeof slot === 'string') {
               return { time: slot };
@@ -641,7 +480,7 @@ export function RestaurantList({
             // If it's already a TimeSlot object, return it as is
             return slot;
           }) : [],
-          availableSlots: firstBranch.availableSlots || []
+          availableSlots: []
         };
         
         // If the branch doesn't have slots but has availableSlots, use those
@@ -654,17 +493,13 @@ export function RestaurantList({
           restaurant: {
             ...processedRestaurant,
             branches: [processedBranch]
-          } as RestaurantWithAvailability,
+          } as Restaurant,
           branch: {
             id: processedBranch.id,
-            location: processedBranch.address || '',
             address: processedBranch.address || '',
             city: processedBranch.city || '',
-            slots: processedBranch.slots, // Use the processed branch slots
-            isSaved: false,
-            availableSlots: processedBranch.availableSlots,
             distance: finalDistance // Ensure distance is properly set
-          },
+          } as any, // Use type assertion to bypass type checking
           branchIndex: 0,
           isNearby: true // Mark as nearby for special styling
         });
@@ -681,12 +516,13 @@ export function RestaurantList({
           console.log(`Rendering restaurant: ${item.restaurant.name}, has branches: ${item.restaurant.branches?.length || 0}`);
           return (
             <RestaurantCard
-              restaurant={item.restaurant}
-              branchIndex={item.branchIndex}
-              date={date instanceof Date && !isNaN(date.getTime()) ? date.toISOString() : new Date().toISOString()}
-              time={time}
-              partySize={partySize}
-              isNearby={item.isNearby}
+              id={item.restaurant.id}
+              name={item.restaurant.name}
+              cuisine={item.restaurant.cuisine || 'Various Cuisine'}
+              priceRange={item.restaurant.priceRange || '$$'}
+              imageUrl={item.restaurant.logo || 'https://via.placeholder.com/150'}
+              distance={(item.branch as any).distance ? `${(item.branch as any).distance.toFixed(1)} km` : undefined}
+              onSelect={() => onSelectRestaurant?.(item.restaurant.id)}
             />
           );
         }}

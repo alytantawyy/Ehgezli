@@ -9,13 +9,10 @@ interface RestaurantCardProps {
   id: number;
   name: string;
   cuisine: string;
-  rating: number;
-  reviewCount: number;
   priceRange: string;
   imageUrl: string;
   distance?: string;
-  isSaved?: boolean;
-  onToggleSave?: (id: number) => void;
+  onSelect?: () => void;
 }
 
 /**
@@ -28,22 +25,16 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
   id,
   name,
   cuisine,
-  rating,
-  reviewCount,
   priceRange,
   imageUrl,
   distance,
-  isSaved = false,
-  onToggleSave,
+  onSelect,
 }) => {
   const handlePress = () => {
-    router.push((UserRoute.restaurantDetails(id.toString())) as any);
-  };
-
-  const handleSavePress = (e: React.BaseSyntheticEvent) => {
-    e.stopPropagation();
-    if (onToggleSave) {
-      onToggleSave(id);
+    if (onSelect) {
+      onSelect();
+    } else {
+      router.push((UserRoute.restaurantDetails(id.toString())) as any);
     }
   };
 
@@ -55,27 +46,20 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
         resizeMode="cover"
       />
       
-      {onToggleSave && (
-        <TouchableOpacity 
+      <TouchableOpacity 
           style={styles.saveButton} 
-          onPress={handleSavePress}
+          onPress={handlePress}
         >
           <Ionicons 
-            name={isSaved ? "heart" : "heart-outline"} 
+            name="heart-outline" 
             size={24} 
-            color={isSaved ? "#FF385C" : "#fff"} 
+            color="#fff" 
           />
         </TouchableOpacity>
-      )}
       
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.name}>{name}</Text>
-          <View style={styles.ratingContainer}>
-            <Ionicons name="star" size={16} color="#FFD700" />
-            <Text style={styles.rating}>{rating.toFixed(1)}</Text>
-            <Text style={styles.reviewCount}>({reviewCount})</Text>
-          </View>
         </View>
         
         <View style={styles.details}>

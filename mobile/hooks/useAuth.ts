@@ -24,25 +24,25 @@ export function useAuth() {
   useEffect(() => {
     // Check if the current route is an auth route
     const isAuthRoute = [
-      'login',
+      'auth',
       'forgot-password',
       'reset-password',
       'register'
     ].includes(segments[0] || '');
     
-    const isRestaurantGroup = segments[0] === '(restaurant-tabs)';
-    const isUserGroup = segments[0] === '(tabs)';
+    const isRestaurantGroup = segments[0] === 'restaurant/(tabs)' as any;
+    const isUserGroup = segments[0] === 'user/(tabs)' as any;
 
     if (!user && !isAuthRoute) {
       // Redirect to login if not authenticated and not in auth route
-      router.replace('/login');
+      router.replace('/auth' as any);
     } else if (user) {
       if (userType === 'user' && !isUserGroup && !isAuthRoute) {
         // Redirect user to user tabs
-        router.replace('/(tabs)');
+        router.replace('/user/(tabs)' as any);
       } else if (userType === 'restaurant' && !isRestaurantGroup && !isAuthRoute) {
         // Redirect restaurant to restaurant tabs
-        router.replace('/(restaurant-tabs)');
+        router.replace('/restaurant/(tabs)' as any);
       }
     }
   }, [user, userType, segments]);

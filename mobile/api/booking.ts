@@ -4,10 +4,9 @@ import {
   BookingWithDetails, 
   CreateBookingData,
   UpdateBookingData,
-  TimeSlot,
-  BookingStatus
+  BookingStatus,
 } from '../types/booking';
-import { BookingSettings, BookingOverride } from '../types/restaurant';
+import { BookingSettings, BookingOverride, CreateBookingOverrideData } from '../types/restaurant';
 
 // Create a new booking
 export const createBooking = async (bookingData: CreateBookingData): Promise<Booking> => {
@@ -75,7 +74,7 @@ export const getBookingOverride = async (overrideId: number): Promise<BookingOve
 };
 
 // Create a booking override (restaurant owners only)
-export const createBookingOverride = async (branchId: number, override: Omit<BookingOverride, 'id' | 'branchId' | 'createdAt' | 'updatedAt'>): Promise<BookingOverride> => {
+export const createBookingOverride = async (branchId: number, override: CreateBookingOverrideData): Promise<BookingOverride> => {
   const { data } = await apiClient.post<BookingOverride>(`/booking/branch/${branchId}/override`, override);
   return data;
 };
