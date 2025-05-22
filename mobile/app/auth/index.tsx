@@ -65,6 +65,8 @@ export default function LoginScreen() {
   const [showCuisineDropdown, setShowCuisineDropdown] = React.useState(false);
   const [showPriceRangeDropdown, setShowPriceRangeDropdown] = React.useState(false);
   const [showImagePickerModal, setShowImagePickerModal] = React.useState(false);
+  const [showBirthdayPicker, setShowBirthdayPicker] = React.useState(false);
+  const [showNationalityDropdown, setShowNationalityDropdown] = React.useState(false);
   
   // Loading and error states
   const [restaurantLoading, setRestaurantLoading] = React.useState(false);
@@ -180,6 +182,10 @@ export default function LoginScreen() {
     setShowPriceRangeDropdown,
     showImagePickerModal,
     setShowImagePickerModal,
+    showBirthdayPicker,
+    setShowBirthdayPicker,
+    showNationalityDropdown,
+    setShowNationalityDropdown,
   };
 
   const authState = {
@@ -194,14 +200,24 @@ export default function LoginScreen() {
   /**
    * Handle login form submission
    */
-  const handleSubmit = async () => {
+  const handleSubmit = async (formData?: { email: string; password: string }) => {
     // Set loading state
     setIsAuthenticating(true);
     
     try {
       if (authMode === 'userLogin') {
         // Handle user login
-        await login(email, password);
+        if (!formData?.email || !formData?.password) {
+          console.error('Empty credentials in handleLogin:', { email: formData?.email || '', password: formData?.password ? '****' : '' });
+          throw new Error('Email and password are required');
+        }
+        
+        // Update state with form data
+        setEmail(formData.email);
+        setPassword(formData.password);
+        
+        // Call login API
+        await login(formData.email, formData.password);
         handleLoginSuccess();
       } else if (authMode === 'userRegister') {
         // Handle user registration
@@ -274,9 +290,10 @@ export default function LoginScreen() {
             {/* Left side image section (full width on mobile, half width on web) */}
             <View style={styles.imageSection}>
               <ImageBackground
-                source={require('../../assets/images/icon.png')}
+                source={require('../../assets/images/food.jpeg')}
                 style={styles.imageBackground}
                 resizeMode="cover"
+                imageStyle={{ opacity: 0.9 }} // Slightly adjust image opacity
               >
                 <View style={styles.imageOverlay}>
                   <Text style={styles.logoOnImage}>Ehgezli</Text>
@@ -287,16 +304,9 @@ export default function LoginScreen() {
 
             {/* Right side form section (full width on mobile, half width on web) */}
             <View style={styles.formSection}>
-              {/* Header only shown on mobile (hidden on web since it's in the image section) */}
-              <View style={styles.header}>
-                <Text style={styles.logo}>Ehgezli</Text>
-                <Text style={styles.tagline}>Find and book the best restaurants</Text>
-              </View>
 
               {/* Form container with welcome text and AuthTabs component */}
               <View style={styles.formContainer}>
-                <Text style={styles.welcomeText}>Welcome</Text>
-                <Text style={styles.subtitle}>Sign in or create an account</Text>
 
                 {/* AuthTabs component handles all the form UI and tab switching */}
                 <AuthTabs
@@ -324,9 +334,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    width: '100%',
   },
   scrollContainer: {
     flexGrow: 1,
+    width: '100%',
   },
   // Web-specific container with side-by-side layout
   webContainer: {
@@ -341,31 +353,42 @@ const styles = StyleSheet.create({
   // Image section styling
   imageSection: {
     flex: isWeb ? 1 : undefined,
-    height: isWeb ? '100%' : height * 0.3,
+    height: isWeb ? '100%' : height * 0.3, // Reduce height on mobile
+    overflow: 'hidden', // Prevent image from overflowing
+    justifyContent: 'center',
+    alignItems: 'center', 
   },
   imageBackground: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%', // Ensure full width
   },
   imageOverlay: {
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.5)', // Slightly darker overlay for better contrast
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20, // Add padding for text content
   },
   logoOnImage: {
     fontSize: 42,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 10,
+    marginBottom: 15, // Slightly more spacing
+    textShadowColor: 'rgba(0, 0, 0, 0.75)', // Add text shadow for better readability
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   taglineOnImage: {
     fontSize: 18,
     color: '#fff',
     textAlign: 'center',
     paddingHorizontal: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)', // Add text shadow for better readability
+    textShadowOffset: { width: 0.5, height: 0.5 },
+    textShadowRadius: 2,
   },
   // Form section styling
   formSection: {
@@ -384,6 +407,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FF385C',
     marginBottom: 5,
+  },
+  image: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 10,
   },
   tagline: {
     fontSize: 16,

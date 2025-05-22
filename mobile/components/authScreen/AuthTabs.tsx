@@ -71,6 +71,10 @@ interface AuthTabsProps {
     setShowPriceRangeDropdown: Dispatch<SetStateAction<boolean>>;
     showImagePickerModal: boolean;
     setShowImagePickerModal: Dispatch<SetStateAction<boolean>>;
+    showBirthdayPicker: boolean;
+    setShowBirthdayPicker: Dispatch<SetStateAction<boolean>>;
+    showNationalityDropdown: boolean;
+    setShowNationalityDropdown: Dispatch<SetStateAction<boolean>>;
   };
   
   authState?: {
@@ -141,17 +145,6 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
   const _restaurantLogo = restaurantProfile?.restaurantLogo;
   const _setRestaurantLogo = restaurantProfile?.setRestaurantLogo;
   
-  const _showCityDropdown = uiState?.showCityDropdown;
-  const _setShowCityDropdown = uiState?.setShowCityDropdown;
-  const _showGenderDropdown = uiState?.showGenderDropdown;
-  const _setShowGenderDropdown = uiState?.setShowGenderDropdown;
-  const _showCuisineDropdown = uiState?.showCuisineDropdown;
-  const _setShowCuisineDropdown = uiState?.setShowCuisineDropdown;
-  const _showPriceRangeDropdown = uiState?.showPriceRangeDropdown;
-  const _setShowPriceRangeDropdown = uiState?.setShowPriceRangeDropdown;
-  const _showImagePickerModal = uiState?.showImagePickerModal;
-  const _setShowImagePickerModal = uiState?.setShowImagePickerModal;
-  
   const _isAuthenticating = authState?.isAuthenticating;
   const _setIsAuthenticating = authState?.setIsAuthenticating;
   
@@ -166,6 +159,22 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
   const _onRestaurantModeToggle = authCallbacks?.onRestaurantModeToggle;
   const _isRestaurantLoginMode = authCallbacks?.isRestaurantLoginMode !== undefined ? 
     authCallbacks.isRestaurantLoginMode : true; // Default to login mode if not specified
+
+  // UI state variables
+  const _showCityDropdown = uiState?.showCityDropdown;
+  const _setShowCityDropdown = uiState?.setShowCityDropdown;
+  const _showGenderDropdown = uiState?.showGenderDropdown;
+  const _setShowGenderDropdown = uiState?.setShowGenderDropdown;
+  const _showCuisineDropdown = uiState?.showCuisineDropdown;
+  const _setShowCuisineDropdown = uiState?.setShowCuisineDropdown;
+  const _showPriceRangeDropdown = uiState?.showPriceRangeDropdown;
+  const _setShowPriceRangeDropdown = uiState?.setShowPriceRangeDropdown;
+  const _showImagePickerModal = uiState?.showImagePickerModal;
+  const _setShowImagePickerModal = uiState?.setShowImagePickerModal;
+  const _showBirthdayPicker = uiState?.showBirthdayPicker;
+  const _setShowBirthdayPicker = uiState?.setShowBirthdayPicker;
+  const _showNationalityDropdown = uiState?.showNationalityDropdown;
+  const _setShowNationalityDropdown = uiState?.setShowNationalityDropdown;
 
   // State to track which tab is currently active
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
@@ -191,8 +200,8 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
       <View style={styles.tabsContainer}>
         {/* Login Tab Button */}
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'login' && styles.activeTab]} // Apply active styling conditionally
-          onPress={() => handleTabChange('login')} // Change active tab on press
+          style={[styles.tab, activeTab === 'login' && styles.activeTab]}
+          onPress={() => handleTabChange('login')}
         >
           <Text style={[styles.tabText, activeTab === 'login' && styles.activeTabText]}>
             Login
@@ -229,7 +238,7 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
             onSuccess={_onLoginSuccess}
             isAuthenticating={_isAuthenticating}
             setIsAuthenticating={_setIsAuthenticating}
-            handleSubmit={_onFormSubmit}
+            onFormSubmit={_onFormSubmit}
           />
         ) : activeTab === 'register' ? (
           // Register Form - shown when activeTab is 'register'
@@ -258,14 +267,22 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
             setShowImagePickerModal={_setShowImagePickerModal}
             isAuthenticating={_isAuthenticating}
             setIsAuthenticating={_setIsAuthenticating}
-            handleSubmit={_onFormSubmit}
+            onFormSubmit={_onFormSubmit}
+            showBirthdayPicker={_showBirthdayPicker}
+            setShowBirthdayPicker={_setShowBirthdayPicker}
+            showNationalityDropdown={_showNationalityDropdown}
+            setShowNationalityDropdown={_setShowNationalityDropdown}
+            showCityDropdown={_showCityDropdown}
+            setShowCityDropdown={_setShowCityDropdown}
+            cuisines={_cuisines}
+            setCuisines={_setCuisines}
           />
         ) : _isRestaurantLoginMode ? (
           // Restaurant Login Form - shown when activeTab is 'restaurant' and in login mode
           <RestaurantLoginForm 
             onSuccess={_onRestaurantLogin}
             isAuthenticating={_isAuthenticating}
-            handleSubmit={_onFormSubmit}
+            onFormSubmit={_onFormSubmit}
             onToggleMode={() => _onRestaurantModeToggle && _onRestaurantModeToggle(false)}
           />
         ) : (
@@ -273,7 +290,7 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
           <RestaurantRegisterForm 
             onSuccess={_onRestaurantRegister}
             isAuthenticating={_isAuthenticating}
-            handleSubmit={_onFormSubmit}
+            onFormSubmit={_onFormSubmit}
             onToggleMode={() => _onRestaurantModeToggle && _onRestaurantModeToggle(true)}
             restaurantName={_restaurantName}
             setRestaurantName={_setRestaurantName}
@@ -302,33 +319,35 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
  */
 const styles = StyleSheet.create({
   container: {
-    width: '100%', // Take up full width of parent
+    width: '100%',
+    backgroundColor: '#fff',
   },
   tabsContainer: {
-    flexDirection: 'row', // Arrange tabs horizontally
-    marginBottom: 20, // Space between tabs and form
-    borderBottomWidth: 1, // Bottom border for tab container
-    borderBottomColor: '#ddd', // Light gray border
+    flexDirection: 'row',
+    marginBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   tab: {
-    paddingVertical: 10, // Vertical padding inside tabs
-    paddingHorizontal: 20, // Horizontal padding inside tabs
-    marginRight: 10, // Space between tabs
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   activeTab: {
-    borderBottomWidth: 2, // Thicker bottom border for active tab
-    borderBottomColor: '#FF385C', // Brand color for active tab indicator
+    borderBottomWidth: 2,
+    borderBottomColor: '#B01C2E',
   },
   tabText: {
-    fontSize: 16, // Font size for tab text
-    color: '#666', // Gray color for inactive tab text
+    fontSize: 16,
+    color: '#666',
   },
   activeTabText: {
-    color: '#FF385C', // Brand color for active tab text
-    fontWeight: 'bold', // Bold text for active tab
+    color: '#B01C2E',
+    fontWeight: 'bold',
   },
   formContainer: {
-    width: '100%', // Take up full width of parent
+    width: '100%',
+    backgroundColor: '#fff',
   },
 });
 

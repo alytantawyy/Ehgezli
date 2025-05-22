@@ -3,10 +3,10 @@ import { User, Restaurant } from '../types/auth';
 import { 
   login, 
   register, 
-  logout, 
   restaurantLogin,
   restaurantRegister
 } from '../api/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type UserType = 'user' | 'restaurant' | null;
 
@@ -84,7 +84,8 @@ export const useAuthStore = create<AuthState>((set: any) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
-      await logout();
+      // Clear the auth token from AsyncStorage
+      await AsyncStorage.removeItem('auth_token');
       set({ user: null, userType: null, isLoading: false });
     } catch (error) {
       set({ 

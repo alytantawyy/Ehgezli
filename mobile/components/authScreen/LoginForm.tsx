@@ -6,25 +6,30 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
+import { EhgezliButton } from '../common/EhgezliButton';
 
 interface LoginFormProps {
   onSuccess?: () => void;
   isAuthenticating?: boolean;
   setIsAuthenticating?: Dispatch<SetStateAction<boolean>>;
-  handleSubmit?: () => void;
+  onFormSubmit?: (formData?: { email: string; password: string }) => void;
   onToggleMode?: () => void;
+  setEmail?: Dispatch<SetStateAction<string>>;
+  setPassword?: Dispatch<SetStateAction<string>>;
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({
   onSuccess,
   isAuthenticating,
   setIsAuthenticating,
-  handleSubmit,
-  onToggleMode
+  onFormSubmit,
+  onToggleMode,
+  setEmail,
+  setPassword
 }) => {
   // Local state for form fields
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmailState] = useState('');
+  const [password, setPasswordState] = useState('');
   const [isLoading, setIsLoading] = useState(isAuthenticating || false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,14 +56,15 @@ const LoginForm: React.FC<LoginFormProps> = ({
     setError(null);
 
     // If external submit handler is provided, use it
-    if (handleSubmit) {
-      handleSubmit();
+    if (onFormSubmit) {
+      onFormSubmit({ email, password });
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>User Login</Text>
+      <Text style={styles.title}>Welcome Back</Text>
+      <Text style={styles.subtitle}>Login to manage your restaurant reservations</Text>
       
       {error && <Text style={styles.errorText}>{error}</Text>}
       
@@ -66,8 +72,14 @@ const LoginForm: React.FC<LoginFormProps> = ({
       <TextInput
         style={styles.input}
         placeholder="Enter your email"
+        placeholderTextColor="#999"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(text) => {
+          setEmailState(text);
+          if (setEmail) {
+            setEmail(text);
+          }
+        }}
         keyboardType="email-address"
         autoCapitalize="none"
       />
@@ -76,26 +88,31 @@ const LoginForm: React.FC<LoginFormProps> = ({
       <TextInput
         style={styles.input}
         placeholder="Enter your password"
+        placeholderTextColor="#999"
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(text) => {
+          setPasswordState(text);
+          if (setPassword) {
+            setPassword(text);
+          }
+        }}
         secureTextEntry
       />
       
-      <TouchableOpacity 
-        style={styles.button}
+      <EhgezliButton
+        title={isLoading ? 'Logging in...' : 'Login'}
         onPress={handleLogin}
         disabled={isLoading}
-      >
-        <Text style={styles.buttonText}>
-          {isLoading ? 'Logging in...' : 'Login'}
-        </Text>
-      </TouchableOpacity>
+        loading={isLoading}
+        variant="ehgezli"
+        size="md"
+        style={styles.buttonContainer}
+      />
       
       <TouchableOpacity 
-        style={styles.switchModeButton}
-        onPress={onToggleMode}
+        style={styles.forgotPasswordButton}
       >
-        <Text style={styles.switchModeText}>Don't have an account? Register</Text>
+        <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
       </TouchableOpacity>
     </View>
   );
@@ -104,49 +121,51 @@ const LoginForm: React.FC<LoginFormProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    padding: 16,
+    padding: 5,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
+    marginBottom: 8,
+    textAlign: 'left',
+    color: '#000',
+  },
+  subtitle: {
+    fontSize: 16,
+    marginBottom: 16,
+    textAlign: 'left',
+    color: '#666',
   },
   label: {
     fontSize: 16,
     marginBottom: 8,
+    color: '#333',
   },
   input: {
     height: 50,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    marginBottom: 16,
-    paddingHorizontal: 12,
+    marginBottom: 20,
+    paddingHorizontal: 16,
+    backgroundColor: '#f5f5f5',
+    color: '#333',
   },
-  button: {
-    backgroundColor: '#FF6B00',
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+  buttonContainer: {
     marginTop: 16,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    backgroundColor: '#B01C2E',
   },
   errorText: {
-    color: 'red',
+    color: '#B01C2E',
     marginBottom: 16,
   },
-  switchModeButton: {
+  forgotPasswordButton: {
     marginTop: 16,
     alignItems: 'center',
   },
-  switchModeText: {
-    color: '#FF6B00',
+  forgotPasswordText: {
+    color: '#B01C2E',
+    fontSize: 14,
   },
 });
 

@@ -11,7 +11,7 @@ interface RestaurantLoginFormProps {
   onSuccess?: () => void;
   isAuthenticating?: boolean;
   setIsAuthenticating?: Dispatch<SetStateAction<boolean>>;
-  handleSubmit?: () => void;
+  onFormSubmit?: () => void;
   onToggleMode?: () => void;
 }
 
@@ -19,7 +19,7 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
   onSuccess,
   isAuthenticating,
   setIsAuthenticating,
-  handleSubmit,
+  onFormSubmit,
   onToggleMode
 }) => {
   // Local state for form fields
@@ -51,10 +51,10 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
     setError(null);
 
     // If external submit handler is provided, use it
-    if (handleSubmit) {
+    if (onFormSubmit) {
       // Store email/password in parent component's state before submitting
       // This would typically be done via state update callbacks passed from parent
-      handleSubmit();
+      onFormSubmit();
     }
   };
 
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   button: {
-    backgroundColor: '#FF6B00',
+    backgroundColor: '#B01C2E',
     height: 50,
     borderRadius: 8,
     justifyContent: 'center',
@@ -148,7 +148,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   switchModeText: {
-    color: '#FF6B00',
+    color: '#B01C2E',
+    fontSize: 16,
   },
 });
 

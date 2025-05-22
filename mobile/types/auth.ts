@@ -56,3 +56,5 @@ export interface PasswordUpdateData {
   currentPassword: string;
   newPassword: string;
 }
+
+export { Restaurant, User };

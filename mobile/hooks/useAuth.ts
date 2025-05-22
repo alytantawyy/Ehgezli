@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAuthStore } from '../store/auth-store';
 import { useRouter, useSegments } from 'expo-router';
 import { verifyToken } from '../api/auth';
+import { AuthRoute, UserRoute, RestaurantRoute } from '../types/navigation';
 
 export function useAuth() {
   const { 
@@ -22,30 +23,19 @@ export function useAuth() {
 
   // Check if the user is authenticated and redirect if needed
   useEffect(() => {
-    // Check if the current route is an auth route
-    const isAuthRoute = [
-      'auth',
-      'forgot-password',
-      'reset-password',
-      'register'
-    ].includes(segments[0] || '');
+    // Skip redirection if still loading
+    if (isLoading) return;
     
-    const isRestaurantGroup = segments[0] === 'restaurant/(tabs)' as any;
-    const isUserGroup = segments[0] === 'user/(tabs)' as any;
-
+    // Check if the current route is an auth route
+    const isAuthRoute = segments[0] === 'auth';
+    
+    // Simple redirection logic
     if (!user && !isAuthRoute) {
-      // Redirect to login if not authenticated and not in auth route
-      router.replace('/auth' as any);
-    } else if (user) {
-      if (userType === 'user' && !isUserGroup && !isAuthRoute) {
-        // Redirect user to user tabs
-        router.replace('/user/(tabs)' as any);
-      } else if (userType === 'restaurant' && !isRestaurantGroup && !isAuthRoute) {
-        // Redirect restaurant to restaurant tabs
-        router.replace('/restaurant/(tabs)' as any);
-      }
+      // User is logged out but not on auth screen - redirect to auth
+      console.log('Redirecting to auth screen');
+      router.replace('/auth');
     }
-  }, [user, userType, segments]);
+  }, [user, isLoading, segments, router]);
 
   // Check for stored token on app start
   useEffect(() => {

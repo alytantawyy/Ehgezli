@@ -25,7 +25,7 @@ interface RestaurantRegisterFormProps {
   setShowImagePickerModal?: Dispatch<SetStateAction<boolean>>;
   isAuthenticating?: boolean;
   setIsAuthenticating?: Dispatch<SetStateAction<boolean>>;
-  handleSubmit?: () => void;
+  onFormSubmit?: () => void;
   onToggleMode?: () => void;
 }
 
@@ -47,7 +47,7 @@ const RestaurantRegisterForm: React.FC<RestaurantRegisterFormProps> = ({
   setShowImagePickerModal,
   isAuthenticating,
   setIsAuthenticating,
-  handleSubmit,
+  onFormSubmit,
   onToggleMode
 }) => {
   // Local state for form fields
@@ -85,8 +85,8 @@ const RestaurantRegisterForm: React.FC<RestaurantRegisterFormProps> = ({
     setError(null);
 
     // If external submit handler is provided, use it
-    if (handleSubmit) {
-      handleSubmit();
+    if (onFormSubmit) {
+      onFormSubmit();
     }
   };
 
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   button: {
-    backgroundColor: '#FF6B00',
+    backgroundColor: '#B01C2E',
     height: 50,
     borderRadius: 8,
     justifyContent: 'center',
@@ -222,7 +222,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   switchModeText: {
-    color: '#FF6B00',
+    color: '#B01C2E',
+    fontSize: 16,
   },
 });
 
