@@ -61,12 +61,12 @@ interface RegisterFormProps {
     lastName: string;
     email: string;
     password: string;
-    phoneNumber: string;
+    phone: string;
     gender: string;
-    birthday: Date | null;
+    birthday: string;
     city: string;
     nationality: string;
-    cuisines: string[];
+    favoriteCuisines: string[];
   }) => void;
   setEmail?: Dispatch<SetStateAction<string>>;
   setPassword?: Dispatch<SetStateAction<string>>;
@@ -125,7 +125,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
   // Handle form submission
   const handleRegister = () => {
     // Validate form fields
-    if (!firstName || !email || !password) {
+    if (!firstName || !email || !password || !phoneNumber) {
       setError('Please fill in all required fields');
       return;
     }
@@ -139,18 +139,47 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
 
     // If external submit handler is provided, use it
     if (onFormSubmit) {
-      onFormSubmit({
+      // Format the birthday as a proper ISO timestamp with time component
+      // This ensures it can be properly parsed as a timestamp by the server
+      const formattedBirthday = birthday 
+        ? new Date(birthday.getTime() - (birthday.getTimezoneOffset() * 60000)).toISOString()
+        : null;
+      
+      // Ensure phone is never null or undefined
+      const formattedPhone = phoneNumber || '';
+      const formattedEmail = email || '';
+      
+      console.log('Submitting registration with data:', {
+        firstName,
+        lastName,
+        email: formattedEmail,
+        password: '******',
+        phone: formattedPhone,
+        gender,
+        birthday: formattedBirthday,
+        city,
+        nationality,
+        favoriteCuisines: cuisines
+      });
+      
+      // Create a registration data object that exactly matches what the server expects
+      const registrationData = {
         firstName: firstName || '',
         lastName: lastName || '',
-        email: email || '',
+        email: formattedEmail,
         password: password || '',
-        phoneNumber: phoneNumber || '',
+        phone: formattedPhone,  // Ensure phone is never null
         gender: gender || '',
-        birthday: birthday || null,
+        birthday: formattedBirthday || '',
         city: city || '',
         nationality: nationality || '',
-        cuisines: cuisines || []
-      });
+        favoriteCuisines: cuisines || []
+      };
+      
+      // Log the exact data being sent to the server
+      console.log('Sending to server:', JSON.stringify(registrationData));
+      
+      onFormSubmit(registrationData);
     }
   };
 

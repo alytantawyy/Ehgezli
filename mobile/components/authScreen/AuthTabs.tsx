@@ -88,7 +88,7 @@ interface AuthTabsProps {
     onRestaurantLogin: () => void;
     onRestaurantRegister: () => void;
     onForgotPassword: () => void;
-    onFormSubmit: () => void;
+    onFormSubmit: (formData: any) => void;
     onTabChange: (tab: TabType) => void;
     onRestaurantModeToggle: (isLogin: boolean) => void;
     isRestaurantLoginMode: boolean;

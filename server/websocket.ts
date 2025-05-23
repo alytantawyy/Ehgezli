@@ -1,4 +1,5 @@
-import { WebSocketServer, WebSocket } from 'ws';
+import { WebSocketServer } from 'ws';
+import WebSocket from 'ws';
 import { Server as HttpServer } from 'http';
 import { verifyToken } from "@server/services/authService";
 
@@ -6,14 +7,14 @@ interface ClientInfo {
     userId: number;
     userType: 'user' | 'restaurant';
     isAlive: boolean;
-  }
+}
   
-  const clients = new Map<WebSocket, ClientInfo>();
+const clients = new Map<WebSocket, ClientInfo>();
 
-  interface WebSocketMessage {
+interface WebSocketMessage {
     type: string;
     data?: any;
-  }
+}
 
 let wss: WebSocketServer;
 
@@ -139,7 +140,7 @@ export function setupWebSocket(server: HttpServer) {
         ws.on('error', (error) => {
           console.error('WebSocket error:', error);
           clients.delete(ws);
-          ws.terminate();
+          ws.close();
         });
   
         // Handle WebSocket pong event

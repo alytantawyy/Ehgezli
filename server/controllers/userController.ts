@@ -110,8 +110,27 @@ export const updateUserProfileController = async (req: Request, res: Response) =
           lastLatitude,
           lastLongitude,
           locationPermissionGranted,
-          phone
+          phone,
+          birthday
         } = req.body;
+      
+        console.log('Received registration data:', {
+          email,
+          firstName,
+          lastName,
+          city,
+          gender,
+          favoriteCuisines,
+          nationality,
+          phone,
+          birthday
+        });
+      
+        // Validate required fields
+        if (!email || !password || !firstName || !lastName || !birthday || !phone) {
+          console.error('Missing required fields');
+          return res.status(400).json({ message: "Missing required fields" });
+        }
       
         // Create user data object with all fields
         const userData: any = {
@@ -129,25 +148,30 @@ export const updateUserProfileController = async (req: Request, res: Response) =
         };
 
         // Handle birthday if provided
-        if (req.body.birthday) {
-          userData.birthday = new Date(req.body.birthday);
+        try {
+          userData.birthday = new Date(birthday);
+          console.log('Parsed birthday:', userData.birthday);
+          if (isNaN(userData.birthday.getTime())) {
+            console.error('Invalid date format for birthday:', birthday);
+            return res.status(400).json({ message: "Invalid date format for birthday" });
+          }
+        } catch (error) {
+          console.error('Error parsing birthday:', error);
+          return res.status(400).json({ message: "Invalid date format for birthday" });
         }
 
         // Create the user
+        console.log('Creating user with data:', userData);
         const user = await createUser(userData);
+        console.log('User created successfully:', user);
         res.json(user);
     } catch (error) {
         console.error('Error creating user:', error);
-        res.status(500).json({ message: "Internal Server Error" });
+        res.status(500).json({ 
+          message: "Internal Server Error", 
+          details: error.message || 'Unknown error' 
+        });
     }
   };
-  
-  
 
-  
-
-
-  
-  
-  
   

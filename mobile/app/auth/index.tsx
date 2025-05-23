@@ -200,7 +200,7 @@ export default function LoginScreen() {
   /**
    * Handle login form submission
    */
-  const handleSubmit = async (formData?: { email: string; password: string }) => {
+  const handleSubmit = async (formData?: any) => {
     // Set loading state
     setIsAuthenticating(true);
     
@@ -221,18 +221,21 @@ export default function LoginScreen() {
         handleLoginSuccess();
       } else if (authMode === 'userRegister') {
         // Handle user registration
-        await register({
-          firstName,
-          lastName,
-          email,
-          password,
-          phoneNumber,
-          gender,
-          birthday,
-          nationality,
-          city,
-          favoriteCuisines: cuisines || []
-        });
+        // Use the formData passed from RegisterForm instead of component state
+        if (!formData) {
+          throw new Error('Registration data is required');
+        }
+        
+        console.log('Registration data received in auth/index.tsx:', formData);
+        
+        // Ensure all required fields are present
+        if (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.phone) {
+          console.error('Missing required fields in registration data');
+          throw new Error('All required fields must be filled');
+        }
+        
+        // Call register API with the form data
+        await register(formData);
         handleRegisterSuccess();
       } else if (authMode === 'restaurantLogin') {
         // Handle restaurant login

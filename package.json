@@ -33,6 +33,7 @@
     "nodemailer": "^6.10.0",
     "react-native-calendars": "^1.1312.0",
     "vite": "^6.3.5",
+    "ws": "^8.18.2",
     "zod": "^3.22.4",
     "zustand": "^5.0.4"
   },
