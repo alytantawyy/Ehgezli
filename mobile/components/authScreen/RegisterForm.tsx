@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EhgezliButton } from '../common/EhgezliButton';
 import BirthdayPicker from '../common/BirthdayPicker';
+import ModalPicker from '../common/ModalPicker';
+import MultiSelectModalPicker from '../common/MultiSelectModalPicker';
 
 interface RegisterFormProps {
   onSuccess?: () => void;
@@ -231,7 +233,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         style={styles.dropdown}
         onPress={() => setShowBirthdayPicker && setShowBirthdayPicker(true)}
       >
-        <Text>{birthday ? birthday.toDateString() : 'Select birthday'}</Text>
+        <Text>{birthday ? `${birthday.getDate().toString().padStart(2, '0')}/${(birthday.getMonth() + 1).toString().padStart(2, '0')}/${birthday.getFullYear()}` : 'Select birthday'}</Text>
       </TouchableOpacity>
       
       {showBirthdayPicker && (
@@ -256,52 +258,18 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
       </TouchableOpacity>
       
       {showGenderDropdown && (
-        <Modal
+        <ModalPicker
           visible={showGenderDropdown}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowGenderDropdown && setShowGenderDropdown(false)}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowGenderDropdown && setShowGenderDropdown(false)}
-          >
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select Gender</Text>
-              
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => {
-                  setGender && setGender('Male');
-                  setShowGenderDropdown && setShowGenderDropdown(false);
-                }}
-              >
-                <Text style={styles.modalItemText}>Male</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => {
-                  setGender && setGender('Female');
-                  setShowGenderDropdown && setShowGenderDropdown(false);
-                }}
-              >
-                <Text style={styles.modalItemText}>Female</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => {
-                  setGender && setGender('Prefer not to say');
-                  setShowGenderDropdown && setShowGenderDropdown(false);
-                }}
-              >
-                <Text style={styles.modalItemText}>Prefer not to say</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+          onClose={() => setShowGenderDropdown && setShowGenderDropdown(false)}
+          title="Select Gender"
+          options={[
+            { label: 'Male', value: 'Male' },
+            { label: 'Female', value: 'Female' },
+            { label: 'Prefer not to say', value: 'Prefer not to say' }
+          ]}
+          selectedValue={gender}
+          onSelect={(value) => setGender && setGender(value)}
+        />
       )}
       
       <Text style={styles.label}>City</Text>
@@ -314,42 +282,17 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
       </TouchableOpacity> 
 
       {showCityDropdown && (
-        <Modal
+        <ModalPicker
           visible={showCityDropdown}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowCityDropdown && setShowCityDropdown(false)}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowCityDropdown && setShowCityDropdown(false)}
-          >
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select City</Text>
-              
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => {
-                  setCity && setCity('Alexandria');
-                  setShowCityDropdown && setShowCityDropdown(false);
-                }}
-              >
-                <Text style={styles.modalItemText}>Alexandria</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => {
-                  setCity && setCity('Cairo');
-                  setShowCityDropdown && setShowCityDropdown(false);
-                }}
-              >
-                <Text style={styles.modalItemText}>Cairo</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+          onClose={() => setShowCityDropdown && setShowCityDropdown(false)}
+          title="Select City"
+          options={[
+            { label: 'Alexandria', value: 'Alexandria' },
+            { label: 'Cairo', value: 'Cairo' }
+          ]}
+          selectedValue={city}
+          onSelect={(value) => setCity && setCity(value)}
+        />
       )}
       
       <Text style={styles.label}>Nationality</Text>
@@ -360,68 +303,25 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         <Text>{nationality || 'Select Nationality'}</Text>
         <Text style={styles.dropdownArrow}>▼</Text>
       </TouchableOpacity>
-
+      
       {showNationalityDropdown && (
-        <Modal
+        <ModalPicker
           visible={showNationalityDropdown}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowNationalityDropdown && setShowNationalityDropdown(false)}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowNationalityDropdown && setShowNationalityDropdown(false)}
-          >
-            <View style={[styles.modalContent, styles.countryModalContent]}>
-              <Text style={styles.modalTitle}>Select Nationality</Text>
-              
-              <FlatList
-                data={[
-                  'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria',
-                  'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan',
-                  'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cambodia',
-                  'Cameroon', 'Canada', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica',
-                  'Croatia', 'Cuba', 'Cyprus', 'Czech Republic', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic', 'East Timor', 'Ecuador',
-                  'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia', 'Fiji', 'Finland', 'France',
-                  'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau',
-                  'Guyana', 'Haiti', 'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland',
-                  'Israel', 'Italy', 'Jamaica', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Korea, North', 'Korea, South',
-                  'Kosovo', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein',
-                  'Lithuania', 'Luxembourg', 'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania',
-                  'Mauritius', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar',
-                  'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Macedonia', 'Norway',
-                  'Oman', 'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland',
-                  'Portugal', 'Qatar', 'Romania', 'Russia', 'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino',
-                  'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands',
-                  'Somalia', 'South Africa', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria',
-                  'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan',
-                  'Tuvalu', 'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City',
-                  'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe'
-                ]}
-                keyExtractor={(item) => item}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setNationality && setNationality(item);
-                      setShowNationalityDropdown && setShowNationalityDropdown(false);
-                    }}
-                  >
-                    <Text style={styles.modalItemText}>{item}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-              
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setShowNationalityDropdown && setShowNationalityDropdown(false)}
-              >
-                <Text style={styles.closeButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+          onClose={() => setShowNationalityDropdown && setShowNationalityDropdown(false)}
+          title="Select Nationality"
+          options={[
+            { label: 'Egyptian', value: 'Egyptian' },
+            { label: 'American', value: 'American' },
+            { label: 'British', value: 'British' },
+            { label: 'French', value: 'French' },
+            { label: 'German', value: 'German' },
+            { label: 'Italian', value: 'Italian' },
+            { label: 'Spanish', value: 'Spanish' },
+            { label: 'Other', value: 'Other' }
+          ]}
+          selectedValue={nationality}
+          onSelect={(value) => setNationality && setNationality(value)}
+        />
       )}
       
       <Text style={styles.label}>Cuisines</Text>
@@ -434,58 +334,15 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
       </TouchableOpacity>
       
       {showCuisineDropdown && (
-        <Modal
+        <MultiSelectModalPicker
           visible={showCuisineDropdown}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowCuisineDropdown && setShowCuisineDropdown(false)}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowCuisineDropdown && setShowCuisineDropdown(false)}
-          >
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select Cuisines (Max 3)</Text>
-              
-              <FlatList
-                data={availableCuisines || []}
-                keyExtractor={(item) => item}
-                renderItem={({ item }) => {
-                  const isSelected = cuisines && cuisines.includes(item);
-                  return (
-                    <TouchableOpacity
-                      style={[styles.modalItem, styles.checkboxItem]}
-                      onPress={() => {
-                        if (setCuisines) {
-                          if (isSelected) {
-                            // Remove if already selected
-                            setCuisines(cuisines.filter(cuisine => cuisine !== item));
-                          } else if (!cuisines || cuisines.length < 3) {
-                            // Add if less than 3 are selected
-                            setCuisines([...(cuisines || []), item]);
-                          }
-                        }
-                      }}
-                    >
-                      <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                        {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                      </View>
-                      <Text style={styles.modalItemText}>{item}</Text>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-              
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setShowCuisineDropdown && setShowCuisineDropdown(false)}
-              >
-                <Text style={styles.closeButtonText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+          onClose={() => setShowCuisineDropdown && setShowCuisineDropdown(false)}
+          title="Select Cuisines (Max 3)"
+          options={availableCuisines || []}
+          selectedValues={cuisines || []}
+          onSelect={(values) => setCuisines && setCuisines(values)}
+          maxSelections={3}
+        />
       )}
       
       <EhgezliButton
