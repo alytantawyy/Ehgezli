@@ -1,24 +1,32 @@
 import { Request, Response } from "express";
-import { createRestaurantBranch, deleteRestaurantBranch, getAllRestaurantBranches, getBranchById, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, updateRestaurantBranch } from "@server/services/branchService";
+import { createRestaurantBranch, deleteRestaurantBranch, getAllBranches, getBranchById, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, updateRestaurantBranch } from "@server/services/branchService";
 import { getDetailedRestaurant } from "@server/services/restaurantService";
 import {deleteBookingSettings, deleteTimeSlots, deleteBooking, deleteBookingOverride} from "@server/services/bookingService";
 
 //--Get All Branches--
 
-export const getAllRestaurantBranchesController = async (req: Request, res: Response) => {
-  const branches = await getAllRestaurantBranches();
+export const getAllBranchesController = async (req: Request, res: Response) => {
+  const branches = await getAllBranches();
   res.json(branches);
 };
 
 //--- Get Restaurant Branches ---
 
 export const getRestaurantBranchesController = async (req: Request, res: Response) => {
-  const restaurantId = req.params.restaurantId;
-  if (!restaurantId) return res.status(400).json({ message: "Restaurant ID is required" });
-  
-  const branches = await getRestaurantBranches(Number(restaurantId));
-  if (!branches) return res.status(404).json({ message: "Branches not found" });
-  res.json(branches);
+  try {
+    const restaurantId = req.params.restaurantId;
+    
+    // Validate restaurantId is a valid number
+    if (!restaurantId || isNaN(Number(restaurantId))) {
+      return res.status(400).json({ message: "Valid restaurant ID is required" });
+    }
+    
+    const branches = await getRestaurantBranches(Number(restaurantId));
+    res.json(branches);
+  } catch (error) {
+    console.error('Error fetching restaurant branches:', error);
+    res.status(500).json({ message: "Failed to fetch restaurant branches" });
+  }
 };
 
 //--- Get Restaurant Branch by ID ---

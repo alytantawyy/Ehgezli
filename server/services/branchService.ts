@@ -11,7 +11,7 @@
 
 import { db } from "@server/db/db";
 import { eq, and, inArray, count } from "drizzle-orm";
-import { restaurantBranches, RestaurantBranch, InsertRestaurantBranch, timeSlots, bookings, bookingSettings, BookingSettings, InsertBookingSettings } from "@server/db/schema"; 
+import { restaurantBranches, RestaurantBranch, InsertRestaurantBranch, timeSlots, bookings, bookingSettings, BookingSettings, InsertBookingSettings, restaurantProfiles, RestaurantProfile, restaurantUsers } from "@server/db/schema"; 
 import { getBookingSettings, generateTimeSlots, generateTimeSlotsForDays, createBookingSettings } from "./bookingService";
 import { formatTime } from "@server/utils/date";
 
@@ -29,8 +29,35 @@ export const getRestaurantBranches = async (restaurantId: number): Promise<Resta
 
 //--Get All Branches--
 
-export const getAllRestaurantBranches = async (): Promise<RestaurantBranch[]> => {
-  const branches = await db.select().from(restaurantBranches);
+export const getAllBranches = async (): Promise<any[]> => {
+  const branches = await db
+    .select({
+      // Branch fields
+      branchId: restaurantBranches.id,
+      address: restaurantBranches.address,
+      city: restaurantBranches.city,
+      latitude: restaurantBranches.latitude,
+      longitude: restaurantBranches.longitude,
+      
+      // Restaurant user fields
+      restaurantId: restaurantUsers.id,
+      restaurantName: restaurantUsers.name,
+      
+      // Restaurant profile fields
+      cuisine: restaurantProfiles.cuisine,
+      priceRange: restaurantProfiles.priceRange,
+      logo: restaurantProfiles.logo
+    })
+    .from(restaurantBranches)
+    .innerJoin(
+      restaurantUsers,
+      eq(restaurantBranches.restaurantId, restaurantUsers.id)
+    )
+    .innerJoin(
+      restaurantProfiles,
+      eq(restaurantUsers.id, restaurantProfiles.restaurantId)
+    );
+  
   return branches;
 };
 
@@ -54,35 +81,37 @@ export const getRestaurantBranchById = async (branchId: number, restaurantId: nu
 
 //--- Get Branch By Id (Public) ---
 
-export const getBranchById = async (branchId: number): Promise<RestaurantBranch | undefined> => {
-  try {
-    console.log(`Fetching branch with id ${branchId}`);
-    
-    // First check if the branch exists
-    const branchCount = await db
-      .select({ count: count() })
+export const getBranchById = async (branchId: number): Promise<any | undefined> => {
+
+    const branch = await db
+      .select({
+        // Branch fields
+        branchId: restaurantBranches.id,
+        address: restaurantBranches.address,
+        city: restaurantBranches.city,
+        latitude: restaurantBranches.latitude,
+        longitude: restaurantBranches.longitude,
+      
+        // Restaurant user fields
+        restaurantName: restaurantUsers.name,
+        
+        // Restaurant profile fields
+        about: restaurantProfiles.about,
+        description: restaurantProfiles.description,
+        cuisine: restaurantProfiles.cuisine,
+        priceRange: restaurantProfiles.priceRange,
+        logo: restaurantProfiles.logo
+    })
       .from(restaurantBranches)
+      .innerJoin(restaurantUsers, eq(restaurantBranches.restaurantId, restaurantUsers.id))
+      .innerJoin(restaurantProfiles, eq(restaurantUsers.id, restaurantProfiles.restaurantId))
       .where(eq(restaurantBranches.id, branchId));
-    
-    console.log(`Branch count for id ${branchId}:`, branchCount[0]?.count);
-    
-    if (branchCount[0]?.count === 0) {
-      console.log(`No branch found with id ${branchId}`);
-      return undefined;
+      
+    if (!branch) {
+      throw new Error(`Branch with id ${branchId} not found`);
     }
     
-    // Now get the branch data
-    const [branch] = await db
-      .select()
-      .from(restaurantBranches)
-      .where(eq(restaurantBranches.id, branchId));
-    
-    console.log('Branch data:', branch);
     return branch;
-  } catch (error) {
-    console.error(`Error fetching branch with id ${branchId}:`, error);
-    throw new Error(`Failed to fetch branch details`);
-  }
 };
 
 //--- Create Restaurant Branch ---
