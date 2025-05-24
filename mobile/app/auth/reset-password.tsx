@@ -16,6 +16,7 @@ import { EhgezliButton } from '../../components/common/EhgezliButton';
 import Colors from '../../constants/Colors';
 import { resetPassword, validateResetToken } from '../../api/auth';
 import * as Linking from 'expo-linking';
+import { AuthRoute } from '@/types/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -115,7 +116,7 @@ export default function ResetPasswordScreen() {
       // Navigate to login with a small delay
       setTimeout(() => {
         console.log('Navigating to login screen');
-        router.replace('./login');
+        router.replace(AuthRoute.login);
       }, 500);
     } catch (err) {
       console.error('Password reset error:', err);
@@ -174,7 +175,7 @@ export default function ResetPasswordScreen() {
               
               <TouchableOpacity 
                 style={styles.backButton}
-                onPress={() => router.push('/login' as any)}
+                onPress={() => router.push(AuthRoute.login)}
               >
                 <Text style={styles.backButtonText}>Back to Login</Text>
               </TouchableOpacity>

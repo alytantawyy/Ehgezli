@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { EhgezliButton } from '../../components/common/EhgezliButton';
 import Colors from '../../constants/Colors';
 import { forgotPassword } from '../../api/auth';
+import { AuthRoute } from '@/types/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -97,7 +98,7 @@ export default function ForgotPasswordScreen() {
               
               <TouchableOpacity 
                 style={styles.backButton}
-                onPress={() => router.push('./login')}
+                onPress={() => router.push(AuthRoute.login)}
               >
                 <Text style={styles.backButtonText}>Back to Login</Text>
               </TouchableOpacity>

@@ -33,9 +33,8 @@ export default function LoginScreen() {
   // Authentication mode - single state to track all auth flows
   const [authMode, setAuthMode] = React.useState<'userLogin' | 'userRegister' | 'restaurantLogin' | 'restaurantRegister'>('userLogin');
   
-  // User credentials for login/registration
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
+  // Loading and error states
+  const [isAuthenticating, setIsAuthenticating] = React.useState(false);
   
   // User profile information for registration
   const [firstName, setFirstName] = React.useState('');
@@ -65,14 +64,12 @@ export default function LoginScreen() {
   const [showGenderDropdown, setShowGenderDropdown] = React.useState(false);
   const [showCuisineDropdown, setShowCuisineDropdown] = React.useState(false);
   const [showPriceRangeDropdown, setShowPriceRangeDropdown] = React.useState(false);
+  const [showNationalityDropdown, setShowNationalityDropdown] = React.useState(false);
   const [showImagePickerModal, setShowImagePickerModal] = React.useState(false);
   const [showBirthdayPicker, setShowBirthdayPicker] = React.useState(false);
-  const [showNationalityDropdown, setShowNationalityDropdown] = React.useState(false);
 
   
-  const [isAuthenticating, setIsAuthenticating] = React.useState(false);
-  
-    /**
+  /**
    * Handle successful login
    * Redirects user to the main tabs screen
    */
@@ -218,10 +215,6 @@ export default function LoginScreen() {
           console.error('Empty credentials in handleLogin:', { email: formData?.email || '', password: formData?.password ? '****' : '' });
           throw new Error('Email and password are required');
         }
-        
-        // Update state with form data
-        setEmail(formData.email);
-        setPassword(formData.password);
         
         // Call login API
         await login(formData.email, formData.password);
