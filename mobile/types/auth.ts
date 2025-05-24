@@ -40,8 +40,6 @@ export interface RestaurantRegisterData {
   cuisine?: string;
   priceRange?: string;
   logo?: string;
-  firstName: string;
-  lastName: string;
 }
 
 export interface ForgotPasswordData {
