@@ -8,7 +8,8 @@ export interface AuthResponse {
 }
 
 export interface RestaurantAuthResponse {
-  restaurant: RestaurantUser;
+  restaurantUser: RestaurantUser;
+  restaurantProfile?: any;
   token: string;
 }
 

@@ -1,15 +1,13 @@
 import { Express } from "express";
 import * as authController from "@server/controllers/authController";
-import { createUserController } from "@server/controllers/userController";
-import { createRestaurantController } from "@server/controllers/restaurantController";
 import { authenticate } from "@server/middleware/authMiddleware";
 
 export function registerAuthRoutes(app: Express) {
     //Public Routes
-  app.post("/api/auth/login", authController.verifyUserLoginController);
-  app.post("/api/auth/restaurant-login", authController.verifyRestaurantLoginController);
-  app.post("/api/auth/register", createUserController);
-  app.post("/api/auth/restaurant-register", createRestaurantController);
+  app.post("/api/auth/login", authController.loginUserController);
+  app.post("/api/auth/restaurant-login", authController.loginRestaurantController);
+  app.post("/api/auth/register", authController.registerUserController);
+  app.post("/api/auth/restaurant-register", authController.registerRestaurantUserController);
   //Public Password Reset Routes
   app.post("/api/auth/password-reset", authController.createPasswordResetTokenController);
   app.post("/api/auth/restaurant-password-reset", authController.createRestaurantPasswordResetTokenController);

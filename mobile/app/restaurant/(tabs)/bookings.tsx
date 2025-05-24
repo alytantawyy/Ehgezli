@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { StyleSheet, View, FlatList, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Text } from '../../../components/common/Themed';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../context/auth-context';
+import { useAuth } from '../../../hooks/useAuth';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingsForBranch } from '../../../api/booking';

@@ -20,7 +20,8 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthTabs from '../../components/authScreen/AuthTabs';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../context/auth-context';
+import { useAuth } from '../../hooks/useAuth';
+import { AuthRoute, UserRoute, RestaurantRoute } from '../../types/navigation';
 
 // Get screen dimensions for responsive layout
 const { height } = Dimensions.get('window');
@@ -67,10 +68,8 @@ export default function LoginScreen() {
   const [showImagePickerModal, setShowImagePickerModal] = React.useState(false);
   const [showBirthdayPicker, setShowBirthdayPicker] = React.useState(false);
   const [showNationalityDropdown, setShowNationalityDropdown] = React.useState(false);
+
   
-  // Loading and error states
-  const [restaurantLoading, setRestaurantLoading] = React.useState(false);
-  const [restaurantError, setRestaurantError] = React.useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = React.useState(false);
   
     /**
@@ -78,7 +77,7 @@ export default function LoginScreen() {
    * Redirects user to the main tabs screen
    */
     const handleLoginSuccess = () => {
-      router.replace('/user/(tabs)' as any);
+      router.replace(UserRoute.tabs as any);
     };
   
     /**
@@ -86,7 +85,11 @@ export default function LoginScreen() {
      * Redirects user to the main tabs screen
      */
     const handleRegisterSuccess = () => {
-      router.replace('/user/(tabs)' as any);
+      console.log('Registration successful, navigating to user tabs...');
+      // Add a small delay to ensure auth state is updated before navigation
+      setTimeout(() => {
+        router.replace(UserRoute.tabs as any);
+      }, 500); // Increased delay to give more time for auth state to update
     };
   
     /**
@@ -94,7 +97,7 @@ export default function LoginScreen() {
      * Redirects restaurant owner to the restaurant dashboard
      */
     const handleRestaurantLoginSuccess = () => {
-      router.replace('/restaurant/(tabs)' as any);
+      router.replace(RestaurantRoute.tabs as any);
     };
   
     /**
@@ -102,18 +105,22 @@ export default function LoginScreen() {
      * Redirects restaurant owner to the restaurant dashboard
      */
     const handleRestaurantRegisterSuccess = () => {
-      router.replace('/restaurant/(tabs)' as any);
+      console.log('Restaurant registration success, redirecting to restaurant tabs');
+      // Force a small delay to ensure state is updated before navigation
+      setTimeout(() => {
+        router.replace(RestaurantRoute.tabs as any);
+      }, 100);
     };
   
     /**
      * Navigate to forgot password screen
      */
     const handleForgotPassword = () => {
-      router.push('/auth/forgot-password' as any);
+      router.push(AuthRoute.forgotPassword as any);
     };
   
     const handleRestaurantForgotPassword = () => {
-      router.push('/auth/forgot-password' as any);
+      router.push(AuthRoute.forgotPassword as any);
     };
 
   /**
@@ -234,24 +241,23 @@ export default function LoginScreen() {
           throw new Error('All required fields must be filled');
         }
         
-        // Call register API with the form data
-        await register(formData);
-        handleRegisterSuccess();
+        try {
+          // Call register API with the form data
+          await register(formData);
+          // If registration is successful, redirect to user dashboard
+          handleRegisterSuccess();
+        } catch (registrationError) {
+          console.error('Registration error:', registrationError);
+          // Show error to user but don't throw, so we can still handle cleanup
+          // You could add a state variable for registration error and display it in the UI
+        }
       } else if (authMode === 'restaurantLogin') {
         // Handle restaurant login
-        await restaurantLogin({ email, password });
+        await restaurantLogin(formData.email, formData.password);
         handleRestaurantLoginSuccess();
       } else if (authMode === 'restaurantRegister') {
         // Handle restaurant registration
-        await restaurantRegister({
-          name: restaurantName,
-          email,
-          password,
-          cuisine: restaurantCuisine || '',
-          priceRange: priceRange || '',
-          logo: restaurantLogo || ''
-        });
-        handleRestaurantRegisterSuccess();
+        handleRestaurantRegister(formData);
       }
     } catch (error) {
       console.error('Authentication error:', error);
@@ -259,6 +265,46 @@ export default function LoginScreen() {
       // setAuthError(error.message);
     } finally {
       setIsAuthenticating(false);
+    }
+  };
+
+  /**
+   * Handle restaurant registration form submission
+   */
+  const handleRestaurantRegister = async (formData: any) => {
+    console.log('Handling restaurant registration with data:', formData);
+    try {
+      // Validate required fields
+      if (!formData.email || !formData.password || !formData.restaurantName || 
+          !formData.restaurantCuisine || !formData.priceRange || 
+          !formData.restaurantLogo || !formData.aboutLocal || !formData.descriptionLocal) {
+        throw new Error('All required fields must be filled');
+      }
+      
+      // Prepare the data for API
+      const registrationData = {
+        email: formData.email,
+        password: formData.password,
+        name: formData.restaurantName,
+        cuisine: formData.restaurantCuisine,
+        priceRange: formData.priceRange,
+        logo: formData.restaurantLogo,
+        about: formData.aboutLocal,
+        description: formData.descriptionLocal
+      };
+      
+      console.log('Submitting restaurant registration with data:', registrationData);
+      await restaurantRegister(registrationData);
+      
+      // Add a delay to ensure state updates before navigation
+      setTimeout(() => {
+        console.log('Restaurant registration successful, navigating to dashboard');
+        handleRestaurantRegisterSuccess();
+      }, 300);
+    } catch (error) {
+      console.error('Restaurant registration error:', error);
+      setIsAuthenticating(false);
+      // You could add error handling UI here
     }
   };
 

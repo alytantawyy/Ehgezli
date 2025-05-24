@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { Text } from '../../../components/common/Themed';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../context/auth-context';
+import { useAuth } from '../../../hooks/useAuth';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';

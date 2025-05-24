@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView, Alert, Switch, Image } from 'react-native';
 import { Text } from '../../../components/common/Themed';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../context/auth-context';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { updateRestaurantProfile } from '../../../api/restaurant';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../../hooks/useAuth';
 
 /**
  * Restaurant Profile Tab Screen

@@ -1,4 +1,5 @@
-import { getUser, updateUserProfile, deleteUser, getUserLocation, updateUserLocation, createUser } from "@server/services/userService";
+import { generateToken } from "@server/services/authService";
+import { getUser, updateUserProfile, deleteUser, getUserLocation, updateUserLocation } from "@server/services/userService";
 import { Request, Response } from "express";
 
 // userController.ts
@@ -93,85 +94,4 @@ export const updateUserProfileController = async (req: Request, res: Response) =
     }
   };
 
-  //--Create User--
-
-  export const createUserController = async (req: Request, res: Response) => {
-    try {
-        // Extract all fields from the request body
-        const { 
-          email, 
-          password, 
-          firstName, 
-          lastName, 
-          city, 
-          gender, 
-          favoriteCuisines,
-          nationality,  
-          lastLatitude,
-          lastLongitude,
-          locationPermissionGranted,
-          phone,
-          birthday
-        } = req.body;
-      
-        console.log('Received registration data:', {
-          email,
-          firstName,
-          lastName,
-          city,
-          gender,
-          favoriteCuisines,
-          nationality,
-          phone,
-          birthday
-        });
-      
-        // Validate required fields
-        if (!email || !password || !firstName || !lastName || !birthday || !phone) {
-          console.error('Missing required fields');
-          return res.status(400).json({ message: "Missing required fields" });
-        }
-      
-        // Create user data object with all fields
-        const userData: any = {
-          email, 
-          password, 
-          firstName, 
-          lastName, 
-          city, 
-          gender, 
-          favoriteCuisines,
-          nationality: nationality || "", 
-          locationPermissionGranted: locationPermissionGranted || false,
-          locationUpdatedAt: new Date(),
-          phone
-        };
-
-        // Handle birthday if provided
-        try {
-          userData.birthday = new Date(birthday);
-          console.log('Parsed birthday:', userData.birthday);
-          if (isNaN(userData.birthday.getTime())) {
-            console.error('Invalid date format for birthday:', birthday);
-            return res.status(400).json({ message: "Invalid date format for birthday" });
-          }
-        } catch (error) {
-          console.error('Error parsing birthday:', error);
-          return res.status(400).json({ message: "Invalid date format for birthday" });
-        }
-
-        // Create the user
-        console.log('Creating user with data:', userData);
-        const user = await createUser(userData);
-        console.log('User created successfully:', user);
-        res.json(user);
-    } catch (error) {
-        console.error('Error creating user:', error);
-        res.status(500).json({ 
-          message: "Internal Server Error", 
-          details: error.message || 'Unknown error' 
-        });
-    }
-  };
-
-  
+ 

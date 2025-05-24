@@ -1,6 +1,6 @@
 import React from 'react';
 import { Redirect } from 'expo-router';
-import { useAuth } from '../context/auth-context';
+import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { AuthRoute, UserRoute, RestaurantRoute } from '../types/navigation';
 
@@ -11,7 +11,7 @@ import { AuthRoute, UserRoute, RestaurantRoute } from '../types/navigation';
  * Redirects to the appropriate section of the app
  */
 export default function Index() {
-  const { user, isLoading } = useAuth();
+  const { user, userType, isLoading } = useAuth();
 
   // Show loading indicator while auth state is being determined
   if (isLoading) {
@@ -28,7 +28,7 @@ export default function Index() {
   }
 
   // If user is a restaurant owner, redirect to restaurant dashboard
-  if (user.isRestaurant) {
+  if (userType === 'restaurant') {
     return <Redirect href={RestaurantRoute.tabs as any} />;
   }
 

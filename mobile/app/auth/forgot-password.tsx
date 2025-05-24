@@ -9,9 +9,7 @@ import {
   Platform,
   ScrollView,
   Alert,
-  ImageBackground,
   Dimensions,
-  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { EhgezliButton } from '../../components/common/EhgezliButton';

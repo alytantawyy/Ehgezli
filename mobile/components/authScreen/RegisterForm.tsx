@@ -14,6 +14,7 @@ import { EhgezliButton } from '../common/EhgezliButton';
 import BirthdayPicker from '../common/BirthdayPicker';
 import ModalPicker from '../common/ModalPicker';
 import MultiSelectModalPicker from '../common/MultiSelectModalPicker';
+import { MaterialIcons } from '@expo/vector-icons';
 
 interface RegisterFormProps {
   onSuccess?: () => void;
@@ -263,6 +264,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         onPress={() => setShowBirthdayPicker && setShowBirthdayPicker(true)}
       >
         <Text>{birthday ? `${birthday.getDate().toString().padStart(2, '0')}/${(birthday.getMonth() + 1).toString().padStart(2, '0')}/${birthday.getFullYear()}` : 'Select birthday'}</Text>
+        <MaterialIcons name="calendar-today" size={16} color="black" style={styles.dropdownIcon} />
       </TouchableOpacity>
       
       {showBirthdayPicker && (
@@ -275,7 +277,6 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
           }}
         />
       )}
-      
       
       <Text style={styles.label}>Gender</Text>
       <TouchableOpacity 
@@ -436,6 +437,12 @@ const styles = StyleSheet.create({
   },
   calendarIcon: {
     fontSize: 24,
+  },
+  dropdownIcon: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+
   },
   buttonContainer: {
     marginTop: 16,

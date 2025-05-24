@@ -1,4 +1,4 @@
-import { createRestaurantUser, deleteRestaurantUser, getRestaurantUser, updateRestaurantUserDetails } from "@server/services/restaurantUserService";
+import { deleteRestaurantUser, getRestaurantUser, updateRestaurantUserDetails } from "@server/services/restaurantUserService";
 import { Request, Response } from "express";
 
 //--- Get Restaurant User ---
@@ -22,13 +22,7 @@ export const getRestaurantUserController = async (req: Request, res: Response) =
   }
 };
 
-//--- Create Restaurant User ---
 
-export const createRestaurantUserController = async (req: Request, res: Response) => {
-  const { email, password, name } = req.body;
-  const restaurantUser = await createRestaurantUser({ email, password, name });
-  res.json(restaurantUser);
-};
 
 //--- Update Restaurant User ---
 

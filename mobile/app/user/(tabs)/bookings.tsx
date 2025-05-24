@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Text } from '../../../components/common/Themed';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../context/auth-context';
+import { useAuth } from '../../../hooks/useAuth';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { getUserBookings } from '../../../api/booking';

@@ -12,7 +12,7 @@ import { db } from "@server/db/db";
 import { restaurantProfiles, InsertRestaurantProfile, RestaurantProfile, restaurantBranches, restaurantUsers, RestaurantUser, restaurantPasswordResetTokens, Restaurant, RestaurantSearchFilter, timeSlots, CreateRestaurantInput } from "@server/db/schema";
 import { getDistance } from "@server/utils/location";
 import { eq, and } from "drizzle-orm";
-import { createRestaurantUser, updateRestaurantUser } from "./restaurantUserService";
+import { registerRestaurantUser } from "./authService";
 
 // ==================== Restaurant Service ====================
 
@@ -49,7 +49,7 @@ export const createRestaurantProfile = async (profile: InsertRestaurantProfile):
 
 export const createRestaurant = async (restaurant: CreateRestaurantInput): Promise<RestaurantProfile> => {
 
-    const restaurantUser = await createRestaurantUser({ email: restaurant.email, password: restaurant.password, name: restaurant.name });
+    const restaurantUser = await registerRestaurantUser({ email: restaurant.email, password: restaurant.password, name: restaurant.name });
     const restaurantProfile = await createRestaurantProfile({ restaurantId: restaurantUser.id, about: restaurant.about, description: restaurant.description, cuisine: restaurant.cuisine, priceRange: restaurant.priceRange, logo: restaurant.logo });
     
     return restaurantProfile;
@@ -89,7 +89,7 @@ export const updateRestaurant = async (restaurantId: number, restaurantData: {
   password: string;
   name: string;
 }): Promise<{ user: RestaurantUser; profile: RestaurantProfile }> => {
-  const updatedUser = await updateRestaurantUser(restaurantId, restaurantData);
+  const updatedUser = await registerRestaurantUser(restaurantData);
   const updatedProfile = await updateRestaurantProfile(restaurantId, restaurantData);
   
   return { user: updatedUser, profile: updatedProfile };

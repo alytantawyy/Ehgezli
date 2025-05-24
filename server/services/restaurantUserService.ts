@@ -36,20 +36,7 @@ export const getRestaurantUserByEmail = async (email: string): Promise<Restauran
   return restaurantUser;
 };
 
-//--- Create Restaurant User ---
 
-export const createRestaurantUser = async (restaurantUser: InsertRestaurantUser): Promise<RestaurantUser> => {
-  // Hash the password before storing it
-  if (restaurantUser.password) {
-    restaurantUser.password = await hashPassword(restaurantUser.password);
-  }
-  
-  const [createdRestaurantUser] = await db.insert(restaurantUsers).values(restaurantUser).returning();
-  if (!createdRestaurantUser) {
-    throw new Error('Failed to create restaurant user');
-  }
-  return createdRestaurantUser;
-};
 
 //--- Update Restaurant User ---
 

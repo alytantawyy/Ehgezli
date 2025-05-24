@@ -40,17 +40,6 @@ export const getUserByEmail = async (email: string): Promise<User | undefined> =
   return user;
 };
 
-//--- Create User ---
-
-export const createUser = async (user: InsertUser): Promise<User> => {
-  user.password = await hashPassword(user.password);
-  const [createdUser] = await db.insert(users).values(user).returning();
-  if (!createdUser) {
-    throw new Error('Failed to create user');
-  }
-  return createdUser;
-};
-
 //--- Update User Profile ---
 
 export const updateUserProfile = async (

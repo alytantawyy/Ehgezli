@@ -7,7 +7,7 @@ import { FilterDrawer } from '../../../components/userScreen/FilterDrawer';
 import { Avatar } from '../../../components/common/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
-import { useAuth } from '../../../context/auth-context';
+import { useAuth } from '../../../hooks/useAuth';
 import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getDefaultTimeForDisplay, getBaseTime, generateTimeSlotsFromTime } from '../../../app/utils/time-slots';

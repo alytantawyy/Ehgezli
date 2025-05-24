@@ -69,11 +69,16 @@ export const useAuthStore = create<AuthState>((set: any) => ({
   },
 
   restaurantRegister: async (restaurantData: any) => {
+    console.log('Attempting to register restaurant with data:', restaurantData);
     set({ isLoading: true, error: null });
     try {
       const restaurant = await restaurantRegister(restaurantData);
+      console.log('Restaurant registration successful, received data:', restaurant);
+      console.log('Setting user state to:', { user: restaurant, userType: 'restaurant' });
       set({ user: restaurant, userType: 'restaurant', isLoading: false });
     } catch (error) {
+      console.error('Restaurant registration error:', error);
+      console.error('Error details:', error as Error);
       set({ 
         error: error instanceof Error ? error.message : 'Restaurant registration failed', 
         isLoading: false 

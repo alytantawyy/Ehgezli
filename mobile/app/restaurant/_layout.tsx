@@ -1,6 +1,6 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-import { useAuth } from '../../context/auth-context';
+import { useAuth } from '../../hooks/useAuth';
 import { Redirect } from 'expo-router';
 
 /**
@@ -10,10 +10,10 @@ import { Redirect } from 'expo-router';
  * Handles authentication checking and navigation structure
  */
 export default function RestaurantLayout() {
-  const { user, isLoading } = useAuth();
+  const { user, userType, isLoading } = useAuth();
 
   // If the user is not authenticated or not a restaurant owner, redirect to the login screen
-  if (!isLoading && (!user || !user.isRestaurant)) {
+  if (!isLoading && (!user || userType !== 'restaurant')) {
     // Using type assertion to bypass route validation during restructuring
     const loginPath: any = "/auth/login";
     return <Redirect href={loginPath} />;

@@ -6,7 +6,7 @@ import { Restaurant, RestaurantBranch, BranchWithAvailability, RestaurantFilter 
 import { getRestaurants } from '../../api/restaurant';
 import { getSavedBranches } from '../../api/savedBranch';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../context/auth-context';
+import { useAuth } from '../../hooks/useAuth';
 import { useLocation } from '../../context/location-context';
 import { generateLocalTimeSlots, generateTimeSlotsFromTime } from '../../app/utils/time-slots';
 import { User } from '../../types/user';

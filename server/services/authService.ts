@@ -12,7 +12,7 @@
 
 import { db } from "@server/db/db";
 import { eq, and, gt } from "drizzle-orm";
-import { userPasswordResetTokens, users, restaurantPasswordResetTokens, restaurantUsers, User, RestaurantUser } from "@server/db/schema"; 
+import { userPasswordResetTokens, users, restaurantPasswordResetTokens, restaurantUsers, User, RestaurantUser, InsertUser, InsertRestaurantUser } from "@server/db/schema"; 
 import * as crypto from 'crypto';  // For generating secure tokens
 import { EmailResponse } from "@server/services/emailService";  
 import { sendPasswordResetEmail as sendEmail } from "@server/services/emailService";
@@ -129,8 +129,8 @@ export const sendPasswordResetEmail = async (email: string, token: string, isRes
   return await sendEmail(email, token, isRestaurant);
 };
 
-//--verify user login--
-export const verifyUserLogin = async (email: string, password: string): Promise<User | null> => {
+//--User Login--
+export const loginUser = async (email: string, password: string): Promise<User | null> => {
   const user = await db
     .select()
     .from(users)
@@ -141,8 +141,21 @@ export const verifyUserLogin = async (email: string, password: string): Promise<
   return user[0];
 };
 
-//--verify restaurant login--
-export const verifyRestaurantLogin = async (email: string, password: string): Promise<RestaurantUser | null> => {
+
+//--- Create User ---
+
+export const registerUser = async (user: InsertUser): Promise<User> => {
+  user.password = await hashPassword(user.password);
+  const [createdUser] = await db.insert(users).values(user).returning();
+  if (!createdUser) {
+    throw new Error('Failed to create user');
+  }
+  return createdUser;
+};
+
+
+//--Restaurant Login--
+export const loginRestaurant = async (email: string, password: string): Promise<RestaurantUser | null> => {
     const restaurant = await db
       .select()
       .from(restaurantUsers)
@@ -156,6 +169,22 @@ export const verifyRestaurantLogin = async (email: string, password: string): Pr
 function comparePasswords(password: string, password1: string) {
   return bcrypt.compareSync(password, password1);   
 }
+
+
+//--- Create Restaurant User ---
+
+export const registerRestaurantUser = async (restaurantUser: InsertRestaurantUser): Promise<RestaurantUser> => {
+  // Hash the password before storing it
+  if (restaurantUser.password) {
+    restaurantUser.password = await hashPassword(restaurantUser.password);
+  }
+  
+  const [createdRestaurantUser] = await db.insert(restaurantUsers).values(restaurantUser).returning();
+  if (!createdRestaurantUser) {
+    throw new Error('Failed to create restaurant user');
+  }
+  return createdRestaurantUser;
+};
 
 //--hash password--
 export const hashPassword = async (password: string): Promise<string> => {

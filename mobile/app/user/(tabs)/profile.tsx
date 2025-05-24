@@ -3,12 +3,12 @@ import { StyleSheet, View, TouchableOpacity, ScrollView, Alert, Switch } from 'r
 import { Text } from '../../../components/common/Themed';
 import { Avatar } from '../../../components/common/Avatar';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../context/auth-context';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { updateUserProfile } from '../../../api/user';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../../hooks/useAuth';
 
 /**
  * Profile Tab Screen

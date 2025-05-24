@@ -1,6 +1,6 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-import { useAuth } from '../../context/auth-context';
+import { useAuth } from '../../hooks/useAuth';
 import { Redirect } from 'expo-router';
 
 /**
@@ -14,7 +14,7 @@ export default function UserLayout() {
 
   // If the user is not authenticated, redirect to the login screen
   if (!isLoading && !user) {
-    return <Redirect href={("/auth/login") as any} />;
+    return <Redirect href={("/auth") as any} />;
   }
 
   return (

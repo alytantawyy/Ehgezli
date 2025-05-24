@@ -51,13 +51,13 @@ export const updateUserPassword = async (passwordData: PasswordUpdateData): Prom
 export const restaurantLogin = async (credentials: LoginCredentials): Promise<RestaurantUser> => {
   const { data } = await apiClient.post<RestaurantAuthResponse>('/auth/restaurant-login', credentials);
   await AsyncStorage.setItem('auth_token', data.token);
-  return data.restaurant;
+  return data.restaurantUser;
 };
 
 export const restaurantRegister = async (restaurantData: RestaurantRegisterData): Promise<RestaurantUser> => {
   const { data } = await apiClient.post<RestaurantAuthResponse>('/auth/restaurant-register', restaurantData);
   await AsyncStorage.setItem('auth_token', data.token);
-  return data.restaurant;
+  return data.restaurantUser;
 };
 
 // Password reset flow for restaurants

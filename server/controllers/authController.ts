@@ -1,4 +1,5 @@
-import { createPasswordResetToken, createRestaurantPasswordResetToken, generateToken, hashPassword, markPasswordResetTokenAsUsed, markRestaurantPasswordResetTokenAsUsed, updateRestaurantPassword, updateUserPassword, validatePasswordResetToken, validateRestaurantPasswordResetToken, verifyRestaurantLogin, verifyUserLogin } from "@server/services/authService";
+import { createPasswordResetToken, createRestaurantPasswordResetToken, generateToken, hashPassword, markPasswordResetTokenAsUsed, markRestaurantPasswordResetTokenAsUsed, registerUser, registerRestaurantUser, updateRestaurantPassword, updateUserPassword, validatePasswordResetToken, validateRestaurantPasswordResetToken, loginUser, loginRestaurant } from "@server/services/authService";
+import { createRestaurantProfile } from "@server/services/restaurantService";
 import { Request, Response } from "express";
 
 //--- Create Password Reset Token ---
@@ -94,13 +95,13 @@ export const updateRestaurantPasswordController = async (req: Request, res: Resp
   res.json({ message: "Password updated successfully" });
 };
 
-//--- Verify User Login ---
+//--- User Login ---
 
-export const verifyUserLoginController = async (req: Request, res: Response) => {
+export const loginUserController = async (req: Request, res: Response) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: "Email and password are required" });
   
-    const user = await verifyUserLogin(email, password);
+    const user = await loginUser(email, password);
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
@@ -108,16 +109,117 @@ export const verifyUserLoginController = async (req: Request, res: Response) => 
     res.json({ user, token });
   };
 
-//--- Verify Restaurant Login ---
+//--- Restaurant Login ---
 
-export const verifyRestaurantLoginController = async (req: Request, res: Response) => {
+export const loginRestaurantController = async (req: Request, res: Response) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ message: "Email and password are required" });
   
-  const restaurant = await verifyRestaurantLogin(email, password);
+  const restaurant = await loginRestaurant(email, password);
   if (!restaurant) {
     return res.status(401).json({ message: "Invalid email or password" });
   }
   const token = generateToken(restaurant, 'restaurant');
   res.json({ restaurant, token });
+};
+
+//--- Register User ---
+
+export const registerUserController = async (req: Request, res: Response) => {
+  try {
+      // Extract all fields from the request body
+      const { 
+        email, 
+        password, 
+        firstName, 
+        lastName, 
+        city, 
+        gender, 
+        favoriteCuisines,
+        nationality,  
+        locationPermissionGranted,
+        phone,
+        birthday
+      } = req.body;
+    
+      console.log('Received registration data:', {
+        email,
+        firstName,
+        lastName,
+        city,
+        gender,
+        favoriteCuisines,
+        nationality,
+        phone,
+        birthday
+      });
+    
+      // Validate required fields
+      if (!email || !password || !firstName || !lastName || !birthday || !phone) {
+        console.error('Missing required fields');
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+    
+      // Create user data object with all fields
+      const userData: any = {
+        email, 
+        password, 
+        firstName, 
+        lastName, 
+        city, 
+        gender, 
+        favoriteCuisines,
+        nationality: nationality || "", 
+        locationPermissionGranted: locationPermissionGranted || false,
+        locationUpdatedAt: new Date(),
+        phone
+      };
+
+      // Handle birthday if provided
+      try {
+        userData.birthday = new Date(birthday);
+        console.log('Parsed birthday:', userData.birthday);
+        if (isNaN(userData.birthday.getTime())) {
+          console.error('Invalid date format for birthday:', birthday);
+          return res.status(400).json({ message: "Invalid date format for birthday" });
+        }
+      } catch (error) {
+        console.error('Error parsing birthday:', error);
+        return res.status(400).json({ message: "Invalid date format for birthday" });
+      }
+
+      // Create the user
+      console.log('Creating user with data:', userData);
+      const user = await registerUser(userData);
+      console.log('User created successfully:', user);
+      
+      // Generate a JWT token for the new user
+      const token = generateToken(user, 'user');
+      
+      // Return both user and token
+      res.json({ user, token });
+  } catch (error) {
+      console.error('Error creating user:', error);
+      res.status(500).json({ 
+        message: "There is an error", 
+      });
+  }
+};
+
+
+//--- Create Restaurant User ---
+
+export const registerRestaurantUserController = async (req: Request, res: Response) => {
+  const { email, password, name, logo, cuisine, priceRange, about, description } = req.body;
+  const restaurantUser = await registerRestaurantUser({ email, password, name });
+  const restaurantProfile = await createRestaurantProfile({
+    about,
+    description,
+    cuisine,
+    priceRange,
+    logo,
+    restaurantId: restaurantUser.id,
+  });
+  const token = generateToken(restaurantUser, 'restaurant');
+  res.json({ restaurantUser, restaurantProfile, token });
 };

@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from 'react-native';
 import { format } from 'date-fns';
-import { useAuth } from '../../context/auth-context';
+import { useAuth } from '../../hooks/useAuth';
 import { useLocation } from '../../context/location-context';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
