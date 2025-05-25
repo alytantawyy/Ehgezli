@@ -1,17 +1,13 @@
 import apiClient from './api-client';
-import { Restaurant, RestaurantFilter, DetailedRestaurantResponse, RestaurantSearchResponse } from '../types/restaurant';
+import { Restaurant, DetailedRestaurantResponse } from '../types/restaurant';
 
 // Get all restaurants with optional filtering
-export const getRestaurants = async (filters?: RestaurantFilter) => {
-  const { data } = await apiClient.get<Restaurant[]>('/restaurants', { params: filters });
+export const getRestaurants = async () => {
+  const { data } = await apiClient.get<Restaurant[]>('/restaurants');
   return data;
 };
 
-// Search restaurants
-export const searchRestaurants = async (searchParams: any) => {
-  const { data } = await apiClient.post<RestaurantSearchResponse[]>('/restaurant/search', searchParams);
-  return data;
-};
+
 
 // Get detailed restaurant by ID
 export const getDetailedRestaurant = async (restaurantId: number) => {

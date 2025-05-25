@@ -14,11 +14,9 @@ export const getBaseTime = (currentTime?: Date): Date => {
   
   if (currentHour >= 22 || currentHour < 6) {
     // If it's late night, use noon the next day as the base time instead of now + 2 hours
-    console.log('Current time:', now.toISOString(), 'Current date:', now.getDate());
     
     // Create a new date for tomorrow at noon
     const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 12, 0, 0);
-    console.log('Tomorrow at noon:', tomorrow.toISOString(), 'Tomorrow date:', tomorrow.getDate());
     
     baseTime = tomorrow;
   } else {

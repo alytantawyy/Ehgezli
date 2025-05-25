@@ -84,6 +84,13 @@ export default function UserLayout() {
           title: 'Privacy Policy',
         }}
       />
+      <Stack.Screen
+        name="branch-details"
+        options={{
+          title: 'Branch Details',
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

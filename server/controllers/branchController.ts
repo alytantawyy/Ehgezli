@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createRestaurantBranch, deleteRestaurantBranch, getAllBranches, getBranchById, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, updateRestaurantBranch } from "@server/services/branchService";
+import { createRestaurantBranch, deleteRestaurantBranch, getAllBranches, getBranchById, getRestaurantBranchAvailability, getRestaurantBranchById, getRestaurantBranches, searchBranches, updateRestaurantBranch } from "@server/services/branchService";
 import { getDetailedRestaurant } from "@server/services/restaurantService";
 import {deleteBookingSettings, deleteTimeSlots, deleteBooking, deleteBookingOverride} from "@server/services/bookingService";
 
@@ -153,3 +153,11 @@ export const getBranchByIdController = async (req: Request, res: Response) => {
   }
 }
   
+
+//-- Search Branches --
+
+export const searchBranchesController = async (req: Request, res: Response) => {
+  const branches = await searchBranches(req.body);
+  if (!branches) return res.status(404).json({ message: "Branches not found" });
+  res.json(branches);
+};

@@ -10,4 +10,6 @@ export function registerBranchRoutes(app: Express) {
   app.delete("/api/branch/:branchId", authenticate, branchController.deleteRestaurantBranchController);
   app.get("/api/branch/:branchId/availability/:date", branchController.getRestaurantBranchAvailabilityController);
   app.get("/api/branch/:branchId", branchController.getBranchByIdController);
+  app.post("/api/branch/search", branchController.searchBranchesController);
+
 }

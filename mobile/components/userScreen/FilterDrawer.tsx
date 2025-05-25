@@ -1,5 +1,5 @@
 // Importing React and other required components, libraries, and styles from React Native and Expo.
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // For using icon components (in this case, a close icon)
 import Colors from '@/constants/Colors'; // Custom color constants based on your app's theme
@@ -7,48 +7,35 @@ import { EhgezliButton } from '@/components/common/EhgezliButton'; // Custom but
 
 // Define the component's props interface using TypeScript.
 // This describes what properties the FilterDrawer expects.
-interface FilterDrawerProps {
+export interface FilterDrawerProps {
   isVisible: boolean;                // Determines if the FilterDrawer should be displayed
   onClose: () => void;               // Function to call when the drawer is closed
-  selectedDate?: Date;               // Currently selected date
-  onDateChange: (event: any, selectedDate?: Date) => void; // Function to update the selected date
-  selectedTime?: Date;               // Currently selected time
-  onTimeChange: (event: any, selectedTime?: Date) => void; // Function to update the selected time
-  partySize: number;                 // Current party size
-  onPartySizeChange: (size: number) => void; // Function to update the party size
-  cityFilter?: string;                // Current selected city filter value
-  setCityFilter?: (city: string) => void;       // Function to update the selected city
-  cuisineFilter?: string;             // Current selected cuisine filter value
-  setCuisineFilter?: (cuisine: string) => void; // Function to update the selected cuisine
-  priceFilter?: string;               // Current selected price filter value
-  setPriceFilter?: (price: string) => void;     // Function to update the selected price range
-  distanceFilter?: string;            // Current selected distance filter value
-  setDistanceFilter?: (distance: string) => void; // Function to update the selected distance range
-  onApplyFilters?: () => void;        // Function to apply filters and update the display (e.g., list of restaurants)
+  onApplyFilters: () => void;        // Function to apply filters and update the display
+  onResetFilters: () => void;        // Function to reset all filters
+  cities: string[];                  // List of available cities
+  cuisines: string[];                // List of available cuisines
+  priceRanges: string[];             // List of available price ranges
+  onSelectCity: (city: string | null) => void;       // Function to update the selected city
+  onSelectCuisine: (cuisine: string | null) => void; // Function to update the selected cuisine
+  onSelectPriceRange: (price: string | null) => void; // Function to update the selected price range
+  onSortByDistance?: () => void;     // Optional function to sort results by distance
+  
+  // Optional legacy props for backward compatibility
+  selectedDate?: Date;               
+  onDateChange?: (event: any, selectedDate?: Date) => void; 
+  selectedTime?: Date;               
+  onTimeChange?: (event: any, selectedTime?: Date) => void; 
+  partySize?: number;                
+  onPartySizeChange?: (size: number) => void; 
+  cityFilter?: string;               
+  setCityFilter?: (city: string) => void;      
+  cuisineFilter?: string;            
+  setCuisineFilter?: (cuisine: string) => void; 
+  priceFilter?: string;              
+  setPriceFilter?: (price: string) => void;     
+  distanceFilter?: string;           
+  setDistanceFilter?: (distance: string) => void; 
 }
-
-// Constants for available filters.
-// CUISINES: list of cuisine options available for filtering.
-const CUISINES = [
-  "American",
-  "Egyptian",
-  "Italian",
-  "Japanese",
-  "Chinese",
-  "Indian",
-  "Mexican",
-  "French",
-  "Thai",
-  "Mediterranean",
-  "Lebanese",
-];
-
-// CITIES: list of cities available for filtering.
-const CITIES = ["Cairo", "Alexandria"];
-// PRICE_RANGES: different price ranges denoted by symbols.
-const PRICE_RANGES = ["$", "$$", "$$$", "$$$$"];
-// DISTANCE_RANGES: different distance ranges in kilometers
-const DISTANCE_RANGES = ["1 km", "5 km", "10 km", "20 km"];
 
 // Get screen dimensions for responsive sizing
 const { height } = Dimensions.get('window');
@@ -58,12 +45,16 @@ const { height } = Dimensions.get('window');
 export function FilterDrawer({
   isVisible,
   onClose,
-  selectedDate,
-  onDateChange,
-  selectedTime,
-  onTimeChange,
-  partySize,
-  onPartySizeChange,
+  onApplyFilters,
+  onResetFilters,
+  cities = [],
+  cuisines = [],
+  priceRanges = [],
+  onSelectCity,
+  onSelectCuisine,
+  onSelectPriceRange,
+  onSortByDistance,
+  // Legacy props
   cityFilter,
   setCityFilter,
   cuisineFilter,
@@ -71,24 +62,49 @@ export function FilterDrawer({
   priceFilter,
   setPriceFilter,
   distanceFilter,
-  setDistanceFilter,
-  onApplyFilters
+  setDistanceFilter
 }: FilterDrawerProps) {
   // Use Colors directly
   const colors = Colors;
+  
+  // Local state for selected filters
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [selectedCuisine, setSelectedCuisine] = useState<string | null>(null);
+  const [selectedPrice, setSelectedPrice] = useState<string | null>(null);
 
   // If the drawer is not visible, don't render anything.
   if (!isVisible) return null;
 
-  // Reset function that resets all the filters to their default state ('all').
-  const handleReset = () => {
-    setCityFilter && setCityFilter('all');
-    setCuisineFilter && setCuisineFilter('all');
-    setPriceFilter && setPriceFilter('all');
-    setDistanceFilter && setDistanceFilter('all');
+  // Handle city selection
+  const handleCitySelect = (city: string) => {
+    const newValue = selectedCity === city ? null : city;
+    setSelectedCity(newValue);
+    onSelectCity(newValue);
+  };
+
+  // Handle cuisine selection
+  const handleCuisineSelect = (cuisine: string) => {
+    const newValue = selectedCuisine === cuisine ? null : cuisine;
+    setSelectedCuisine(newValue);
+    onSelectCuisine(newValue);
+  };
+
+  // Handle price range selection
+  const handlePriceSelect = (price: string) => {
+    const newValue = selectedPrice === price ? null : price;
+    setSelectedPrice(newValue);
+    onSelectPriceRange(newValue);
+  };
+
+  // Legacy reset function for backward compatibility
+  const handleLegacyReset = () => {
+    if (setCityFilter) setCityFilter('all');
+    if (setCuisineFilter) setCuisineFilter('all');
+    if (setPriceFilter) setPriceFilter('all');
+    if (setDistanceFilter) setDistanceFilter('all');
     
     // Apply the reset filters immediately
-    onApplyFilters && onApplyFilters();
+    if (onApplyFilters) onApplyFilters();
   };
 
   return (
@@ -106,45 +122,44 @@ export function FilterDrawer({
           </TouchableOpacity>
         </View>
 
-        {/* Scrollable section containing filter options */}
+        {/* Scrollable content area containing filter sections */}
         <ScrollView style={styles.content}>
           {/* City Filter Section */}
-          <View style={styles.filterSection}>
+          <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>City</Text>
-            <View style={styles.optionsGrid}>
-              {/* "All" option for city filter */}
+            <View style={styles.optionsContainer}>
+              {/* All Cities option */}
               <TouchableOpacity
                 style={[
                   styles.optionButton,
-                  // If "all" is selected, change button background to highlight selection.
-                  cityFilter === 'all' && { backgroundColor: colors.primary }
+                  selectedCity === null && styles.selectedOption,
                 ]}
-                onPress={() => setCityFilter && setCityFilter('all')}
+                onPress={() => handleCitySelect(null as any)}
               >
-                <Text 
+                <Text
                   style={[
-                    styles.optionText, 
-                    cityFilter === 'all' && styles.selectedOptionText
+                    styles.optionText,
+                    selectedCity === null && styles.selectedOptionText,
                   ]}
                 >
-                  All
+                  All Cities
                 </Text>
               </TouchableOpacity>
 
-              {/* Render city options using the CITIES array */}
-              {CITIES.map((city) => (
+              {/* Render city options using the cities array */}
+              {cities.map((city) => (
                 <TouchableOpacity
                   key={city}
                   style={[
                     styles.optionButton,
-                    cityFilter === city && { backgroundColor: colors.primary }
+                    selectedCity === city && styles.selectedOption,
                   ]}
-                  onPress={() => setCityFilter && setCityFilter(city === cityFilter ? 'all' : city)}
+                  onPress={() => handleCitySelect(city)}
                 >
-                  <Text 
+                  <Text
                     style={[
-                      styles.optionText, 
-                      cityFilter === city && styles.selectedOptionText
+                      styles.optionText,
+                      selectedCity === city && styles.selectedOptionText,
                     ]}
                   >
                     {city}
@@ -154,87 +169,42 @@ export function FilterDrawer({
             </View>
           </View>
 
-          {/* Distance Filter Section */}
-          <View style={styles.filterSection}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Distance</Text>
-            <View style={styles.optionsGrid}>
-              {/* "All" option for distance filter */}
-              <TouchableOpacity
-                style={[
-                  styles.optionButton,
-                  distanceFilter === 'all' && { backgroundColor: colors.primary }
-                ]}
-                onPress={() => setDistanceFilter && setDistanceFilter('all')}
-              >
-                <Text 
-                  style={[
-                    styles.optionText, 
-                    distanceFilter === 'all' && styles.selectedOptionText
-                  ]}
-                >
-                  All
-                </Text>
-              </TouchableOpacity>
-
-              {/* Render distance range options */}
-              {DISTANCE_RANGES.map((distance) => (
-                <TouchableOpacity
-                  key={distance}
-                  style={[
-                    styles.optionButton,
-                    distanceFilter === distance && { backgroundColor: colors.primary }
-                  ]}
-                  onPress={() => setDistanceFilter && setDistanceFilter(distance === distanceFilter ? 'all' : distance)}
-                >
-                  <Text 
-                    style={[
-                      styles.optionText, 
-                      distanceFilter === distance && styles.selectedOptionText
-                    ]}
-                  >
-                    {distance}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
           {/* Cuisine Filter Section */}
-          <View style={styles.filterSection}>
+          <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Cuisine</Text>
-            <View style={styles.optionsGrid}>
-              {/* "All" option for cuisine filter */}
+            <View style={styles.optionsContainer}>
+              {/* All Cuisines option */}
               <TouchableOpacity
                 style={[
                   styles.optionButton,
-                  cuisineFilter === 'all' && { backgroundColor: colors.primary }
+                  selectedCuisine === null && styles.selectedOption,
                 ]}
-                onPress={() => setCuisineFilter && setCuisineFilter('all')}
+                onPress={() => handleCuisineSelect(null as any)}
               >
-                <Text 
+                <Text
                   style={[
-                    styles.optionText, 
-                    cuisineFilter === 'all' && styles.selectedOptionText
+                    styles.optionText,
+                    selectedCuisine === null && styles.selectedOptionText,
                   ]}
                 >
-                  All
+                  All Cuisines
                 </Text>
               </TouchableOpacity>
 
-              {/* Render cuisine options using the CUISINES array */}
-              {CUISINES.map((cuisine) => (
+              {/* Render cuisine options using the cuisines array */}
+              {cuisines.map((cuisine) => (
                 <TouchableOpacity
                   key={cuisine}
                   style={[
                     styles.optionButton,
-                    cuisineFilter === cuisine && { backgroundColor: colors.primary }
+                    selectedCuisine === cuisine && styles.selectedOption,
                   ]}
-                  onPress={() => setCuisineFilter && setCuisineFilter(cuisine === cuisineFilter ? 'all' : cuisine)}
+                  onPress={() => handleCuisineSelect(cuisine)}
                 >
-                  <Text 
+                  <Text
                     style={[
-                      styles.optionText, 
-                      cuisineFilter === cuisine && styles.selectedOptionText
+                      styles.optionText,
+                      selectedCuisine === cuisine && styles.selectedOptionText,
                     ]}
                   >
                     {cuisine}
@@ -245,41 +215,41 @@ export function FilterDrawer({
           </View>
 
           {/* Price Range Filter Section */}
-          <View style={styles.filterSection}>
+          <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Price Range</Text>
-            <View style={styles.optionsGrid}>
-              {/* "All" option for price filter */}
+            <View style={styles.optionsContainer}>
+              {/* All Price Ranges option */}
               <TouchableOpacity
                 style={[
                   styles.optionButton,
-                  priceFilter === 'all' && { backgroundColor: colors.primary }
+                  selectedPrice === null && styles.selectedOption,
                 ]}
-                onPress={() => setPriceFilter && setPriceFilter('all')}
+                onPress={() => handlePriceSelect(null as any)}
               >
-                <Text 
+                <Text
                   style={[
-                    styles.optionText, 
-                    priceFilter === 'all' && styles.selectedOptionText
+                    styles.optionText,
+                    selectedPrice === null && styles.selectedOptionText,
                   ]}
                 >
-                  All
+                  All Prices
                 </Text>
               </TouchableOpacity>
 
-              {/* Render price range options using the PRICE_RANGES array */}
-              {PRICE_RANGES.map((price) => (
+              {/* Render price range options using the priceRanges array */}
+              {priceRanges.map((price) => (
                 <TouchableOpacity
                   key={price}
                   style={[
                     styles.optionButton,
-                    priceFilter === price && { backgroundColor: colors.primary }
+                    selectedPrice === price && styles.selectedOption,
                   ]}
-                  onPress={() => setPriceFilter && setPriceFilter(price === priceFilter ? 'all' : price)}
+                  onPress={() => handlePriceSelect(price)}
                 >
-                  <Text 
+                  <Text
                     style={[
-                      styles.optionText, 
-                      priceFilter === price && styles.selectedOptionText
+                      styles.optionText,
+                      selectedPrice === price && styles.selectedOptionText,
                     ]}
                   >
                     {price}
@@ -288,6 +258,17 @@ export function FilterDrawer({
               ))}
             </View>
           </View>
+
+          {/* Sort by Distance option */}
+          {onSortByDistance && (
+            <TouchableOpacity 
+              style={styles.sortButton}
+              onPress={onSortByDistance}
+            >
+              <Ionicons name="location-outline" size={20} color={colors.primary} />
+              <Text style={styles.sortButtonText}>Sort by Distance</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
         {/* Footer containing reset and apply buttons */}
@@ -296,7 +277,7 @@ export function FilterDrawer({
           <EhgezliButton
             title="Reset"
             variant="outline"
-            onPress={handleReset}
+            onPress={onResetFilters || handleLegacyReset}
             style={styles.footerButton}
           />
           {/* Apply Filters button: applies the selected filters and closes the drawer */}
@@ -304,7 +285,7 @@ export function FilterDrawer({
             title="Apply Filters"
             variant="ehgezli"
             onPress={() => {
-              onApplyFilters && onApplyFilters();
+              onApplyFilters();
               onClose();
             }}
             style={styles.footerButton}
@@ -333,72 +314,85 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-end', // Align to bottom of screen
   },
-  // Header styling containing the filter title and navigation buttons.
+  // Header section styling
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    padding: 16,
     borderBottomWidth: 1,
   },
-  // Title text styling for the header.
   title: {
     fontSize: 18,
     fontWeight: 'bold',
   },
-  // Styling for the close button.
   closeButton: {
     padding: 4,
   },
-  // Scrollable content area where filter options are rendered.
+  // Content area styling
   content: {
     flex: 1,
     padding: 16,
   },
-  // General styling for each filter section (City, Cuisine, Price).
-  filterSection: {
-    marginBottom: 20,
+  // Section styling (City, Cuisine, Price Range)
+  section: {
+    marginBottom: 24,
   },
-  // Section title styling inside each filter section.
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 10,
+    fontWeight: 'bold',
+    marginBottom: 12,
   },
-  // Grid style for options, enabling wrapping if they overflow horizontally.
-  optionsGrid: {
+  // Container for filter options
+  optionsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -4,
+    marginHorizontal: -4, // Compensate for option button margin
   },
-  // Styling for each individual option button.
+  // Individual option button styling
   optionButton: {
+    backgroundColor: '#f0f0f0',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: '#f0f0f0',
     margin: 4,
   },
-  // Text styling for options.
+  // Selected option styling
+  selectedOption: {
+    backgroundColor: '#5A67F2',
+  },
+  // Option text styling
   optionText: {
+    color: '#333',
     fontSize: 14,
   },
-  // Text styling for selected options.
+  // Selected option text styling
   selectedOptionText: {
     color: '#fff',
     fontWeight: '500',
   },
-  // Footer area styling containing the action buttons.
+  // Sort by distance button styling
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  sortButtonText: {
+    marginLeft: 8,
+    color: '#5A67F2',
+    fontWeight: '500',
+  },
+  // Footer section styling
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 16,
     borderTopWidth: 1,
   },
-  // Styling for individual buttons in the footer.
+  // Footer button styling
   footerButton: {
     flex: 1,
     marginHorizontal: 8,

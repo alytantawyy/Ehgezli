@@ -15,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getBranchById } from '@/api/branch';
 import { createBooking } from '@/api/booking';
-import { DetailedRestaurantResponse, RestaurantBranch } from '@/types/restaurant';
+import { DetailedRestaurantResponse } from '@/types/restaurant';
+import { BranchWithDetails, RestaurantBranch } from '@/types/branch';
 import { Branch, CreateBookingData } from '@/types/booking';
 import { RestaurantMap } from '@/components/restaurantScreen/RestaurantMap';
 
@@ -71,7 +72,7 @@ export default function RestaurantDetailScreen() {
   });
   
   // Query restaurant branch with user's coordinates for distance calculation
-  const { data: locationData, isLoading: isLocationLoading } = useQuery<RestaurantBranch>({  
+  const { data: locationData, isLoading: isLocationLoading } = useQuery<BranchWithDetails>({  
     queryKey: ['branch', branchId, location?.coords.latitude, location?.coords.longitude],
     queryFn: () => getBranchById(Number(branchId)),
     enabled: !!branchId && !!location,

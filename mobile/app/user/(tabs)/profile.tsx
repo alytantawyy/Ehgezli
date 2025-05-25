@@ -1,14 +1,13 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView, Alert, Switch } from 'react-native';
-import { Text } from '../../../components/common/Themed';
-import { Avatar } from '../../../components/common/Avatar';
+import React from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
-import { updateUserProfile } from '../../../api/user';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Avatar } from '../../../components/common/Avatar';
 import { useAuth } from '../../../hooks/useAuth';
+import { User } from '../../../types/user';
+import { format } from 'date-fns'; 
+import { AuthRoute } from '../../../types/navigation';
 
 /**
  * Profile Tab Screen
@@ -16,165 +15,133 @@ import { useAuth } from '../../../hooks/useAuth';
  * Displays user profile information and settings
  */
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
-  const queryClient = useQueryClient();
+  const { user, userType, logout } = useAuth();
   
-  // Settings state
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [locationEnabled, setLocationEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  // Check if the user is a regular user (not a restaurant)
+  const isRegularUser = userType === 'user';
   
-  // Profile update mutation
-  const updateProfileMutation = useMutation({
-    mutationFn: updateUserProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user'] });
-      Alert.alert('Success', 'Profile updated successfully');
-    },
-    onError: (error) => {
-      Alert.alert('Error', 'Failed to update profile');
-      console.error('Update profile error:', error);
-    }
-  });
-
-  // Handle profile picture selection
-  const handleSelectProfilePicture = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (!permissionResult.granted) {
-      Alert.alert('Permission Required', 'Please allow access to your photo library to change your profile picture.');
-      return;
-    }
-    
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      updateProfileMutation.mutate({
-        ...user
-      });
-    }
+  // Type guard function to check if user is a User type
+  const isUserType = (user: any): user is User => {
+    return user && 'firstName' in user;
   };
 
   // Handle logout
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/auth' as any);
-          }
-        }
-      ]
-    );
+    logout();
+    router.replace(AuthRoute.login);
   };
 
-  // Render settings section
-  const renderSettingsSection = (title: string, items: { 
-    icon: any; 
-    title: string; 
-    onPress: () => void;
-    hasSwitch?: boolean;
-    switchValue?: boolean;
-    onToggle?: (value: boolean) => void;
-  }[]) => (
-    <View style={styles.settingsSection}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {items.map((item, index) => (
-        <TouchableOpacity 
-          key={index}
-          style={styles.settingsItem}
-          onPress={item.onPress}
-        >
-          <View style={styles.settingsItemLeft}>
-            <Ionicons name={item.icon} size={24} color="#666" />
-            <Text style={styles.settingsItemText}>{item.title}</Text>
+  // Handle edit profile
+  const handleEditProfile = () => {
+    // Navigate to edit profile screen
+    // This would be implemented in a future update
+    console.log('Navigate to edit profile');
+  };
+
+  // If not a regular user or user data doesn't have the right shape, show limited profile
+  if (!isRegularUser || !isUserType(user)) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={styles.header}>
+            <Text style={styles.title}>My Profile</Text>
+            <Text style={styles.subtitle}>View and manage your account information</Text>
           </View>
           
-          {item.hasSwitch ? (
-            <Switch
-              value={item.switchValue}
-              onValueChange={item.onToggle}
-              trackColor={{ false: '#ccc', true: '#FF385C' }}
-              thumbColor="#fff"
-            />
-          ) : (
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          )}
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+          <View style={styles.profileCard}>
+            <View style={styles.userInfoSection}>
+              <Avatar size={80} firstName="" lastName="" />
+              <View style={styles.userDetails}>
+                <Text style={styles.greeting}>Hi there!</Text>
+                <Text style={styles.memberSince}>Welcome to Ehgezli</Text>
+              </View>
+            </View>
+          </View>
+          
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color="#B22222" />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <TouchableOpacity onPress={handleSelectProfilePicture}>
-            <Avatar size={100} />
-            <View style={styles.editIconContainer}>
-              <Ionicons name="camera" size={16} color="#fff" />
-            </View>
-          </TouchableOpacity>
-          
-          <Text style={styles.userName}>
-            {user ? (('firstName' in user) ? 
-              `${user.firstName} ${user.lastName}` : 
-              user.name) : 'Guest User'}
-          </Text>
-          <Text style={styles.userEmail}>
-            {user?.email || 'guest@example.com'}
-          </Text>
-          
-          <TouchableOpacity 
-            style={styles.editProfileButton}
-            onPress={() => router.push('/user/edit-profile' as any)}
-          >
-            <Text style={styles.editProfileText}>Edit Profile</Text>
-          </TouchableOpacity>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>My Profile</Text>
+          <Text style={styles.subtitle}>View and manage your account information</Text>
         </View>
-        
-        {/* Account Settings */}
-        {renderSettingsSection('Account', [
-          {
-            icon: 'person',
-            title: 'Personal Information',
-            onPress: () => router.push('/user/edit-profile' as any),
-          },
-          {
-            icon: 'star',
-            title: 'Saved Restaurants',
-            onPress: () => router.push('/user/saved-restaurants' as any),
-          },
-          {
-            icon: 'card',
-            title: 'Payment Methods',
-            onPress: () => router.push('/user/payment-methods' as any),
-          },
-        ])}
-        
-        
+
+        {/* Profile Card */}
+        <View style={styles.profileCard}>
+          {/* User Info Section */}
+          <View style={styles.userInfoSection}>
+            <Avatar 
+              size={80} 
+              firstName={user.firstName} 
+              lastName={user.lastName} 
+            />
+            <View style={styles.userDetails}>
+              <Text style={styles.greeting}>Hi, {user.firstName}!</Text>
+              <Text style={styles.memberSince}>Member since {format(user.createdAt, 'MMMM yyyy')}</Text>
+            </View>
+          </View>
+
+          {/* Personal Information */}
+          <View style={styles.infoSection}>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Full Name</Text>
+              <Text style={styles.infoValue}>{`${user.firstName} ${user.lastName}`}</Text>
+            </View>
+
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Email</Text>
+              <Text style={styles.infoValue}>{user.email}</Text>
+            </View>
+
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>City</Text>
+              <View style={styles.cityContainer}>
+                <Ionicons name="location-outline" size={16} color="#666" />
+                <Text style={styles.infoValue}>{user.city}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Favorite Cuisines */}
+          <View style={styles.cuisineSection}>
+            <Text style={styles.sectionTitle}>Favorite Cuisines</Text>
+            <View style={styles.cuisineContainer}>
+              <View style={styles.cuisineItem}>
+                <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />
+                <Text style={styles.cuisineName}>{user.favoriteCuisines?.[0]}</Text>
+              </View>
+              <View style={styles.cuisineItem}>
+                <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />
+                <Text style={styles.cuisineName}>{user.favoriteCuisines?.[1]}</Text>
+              </View>
+              <View style={styles.cuisineItem}>
+                <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />
+                <Text style={styles.cuisineName}>{user.favoriteCuisines?.[2]}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Edit Profile Button */}
+        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+          <Text style={styles.editButtonText}>Edit Profile</Text>
+        </TouchableOpacity>
+
         {/* Logout Button */}
-        <TouchableOpacity 
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Ionicons name="log-out" size={20} color="#FF385C" />
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color="#B22222" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
-        
-        <Text style={styles.versionText}>Version 1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -185,98 +152,131 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f8f8',
   },
-  scrollContent: {
-    paddingBottom: 40,
+  header: {
+    padding: 20,
+    paddingBottom: 10,
   },
-  profileHeader: {
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  userName: {
-    fontSize: 24,
+  title: {
+    fontSize: 28,
     fontWeight: 'bold',
-    marginTop: 16,
+    color: '#333',
   },
-  userEmail: {
+  subtitle: {
     fontSize: 16,
     color: '#666',
-    marginTop: 4,
+    marginTop: 5,
   },
-  editIconContainer: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#FF385C',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  editProfileButton: {
-    marginTop: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+  profileCard: {
+    backgroundColor: '#fff',
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#FF385C',
+    margin: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  editProfileText: {
-    color: '#FF385C',
-    fontWeight: '600',
-  },
-  settingsSection: {
-    marginTop: 16,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    marginHorizontal: 16,
-    overflow: 'hidden',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#666',
-    marginVertical: 8,
-    marginHorizontal: 16,
-  },
-  settingsItem: {
+  userInfoSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    marginBottom: 20,
+    paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  settingsItemLeft: {
+  userDetails: {
+    marginLeft: 20,
+  },
+  greeting: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  memberSince: {
+    fontSize: 14,
+    color: '#888',
+    marginTop: 5,
+  },
+  infoSection: {
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  infoItem: {
+    marginBottom: 15,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 5,
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#333',
+  },
+  cityContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  settingsItemText: {
+  cuisineSection: {
+    marginBottom: 10,
+  },
+  sectionTitle: {
     fontSize: 16,
-    marginLeft: 12,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
+  },
+  cuisineContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 5,
+  },
+  cuisineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    marginRight: 10,
+    marginBottom: 10,
+  },
+  cuisineIcon: {
+    marginRight: 5,
+  },
+  cuisineName: {
+    fontSize: 14,
+    color: '#333',
+  },
+  editButton: {
+    backgroundColor: '#B22222',
+    borderRadius: 10,
+    padding: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 24,
-    marginHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    padding: 15,
+    marginBottom: 30,
   },
   logoutText: {
-    marginLeft: 8,
+    color: '#B22222',
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FF385C',
-  },
-  versionText: {
-    textAlign: 'center',
-    marginTop: 16,
-    color: '#999',
-    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 5,
   },
 });

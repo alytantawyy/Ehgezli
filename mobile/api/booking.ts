@@ -6,7 +6,7 @@ import {
   UpdateBookingData,
   BookingStatus,
 } from '../types/booking';
-import { BookingSettings, BookingOverride, CreateBookingOverrideData } from '../types/restaurant';
+import { BookingSettings, BookingOverride, CreateBookingOverrideData } from '../types/branch';
 
 // Create a new booking
 export const createBooking = async (bookingData: CreateBookingData): Promise<Booking> => {

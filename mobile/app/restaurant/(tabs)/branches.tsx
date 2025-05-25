@@ -39,17 +39,13 @@ export default function BranchesScreen() {
    */
   const branches: Branch[] = useMemo(() => {
     return rawBranches.map(branch => ({
-        id: branch.id,
+        id: branch.branchId,
         restaurantId: branch.restaurantId,
         name: branch.restaurantName,
         address: branch.address,
         city: branch.city,
-        phone: branch.phone,
-        openingHours: branch.openingHours,
         latitude: branch.latitude,
         longitude: branch.longitude,
-        createdAt: branch.createdAt,
-        updatedAt: branch.updatedAt
     }) as unknown as Branch); // Type assertion to handle optional fields
   }, [rawBranches]);
 

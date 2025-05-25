@@ -11,9 +11,10 @@
 
 import { db } from "@server/db/db";
 import { eq, and, inArray, count } from "drizzle-orm";
-import { restaurantBranches, RestaurantBranch, InsertRestaurantBranch, timeSlots, bookings, bookingSettings, BookingSettings, InsertBookingSettings, restaurantProfiles, RestaurantProfile, restaurantUsers } from "@server/db/schema"; 
+import { restaurantBranches, RestaurantBranch, InsertRestaurantBranch, timeSlots, bookings, bookingSettings, BookingSettings, InsertBookingSettings, restaurantProfiles, RestaurantProfile, restaurantUsers, RestaurantSearchFilter } from "@server/db/schema"; 
 import { getBookingSettings, generateTimeSlots, generateTimeSlotsForDays, createBookingSettings } from "./bookingService";
 import { formatTime } from "@server/utils/date";
+import { getDistance } from "@server/utils/location";
 
 // ==================== Branch Service ====================
 
@@ -236,3 +237,79 @@ export const getRestaurantBranchAvailability = async (branchId: number, date: Da
 
     return availability;
   };
+
+  //--Search Branches with Filters--
+
+export const searchBranches = async (
+  filters: RestaurantSearchFilter
+) => {
+  const conditions = [];
+
+  if (filters.city) {
+    conditions.push(eq(restaurantBranches.city, filters.city));
+  }
+
+  if (filters.cuisine) {
+    conditions.push(eq(restaurantProfiles.cuisine, filters.cuisine));
+  }
+
+  if (filters.priceRange) {
+    conditions.push(eq(restaurantProfiles.priceRange, filters.priceRange));
+  }
+
+  // Start building base query with profile + branches + users
+  const results = await db
+    .select()
+    .from(restaurantProfiles)
+    .innerJoin(restaurantUsers, eq(restaurantProfiles.restaurantId, restaurantUsers.id))
+    .innerJoin(restaurantBranches, eq(restaurantProfiles.restaurantId, restaurantBranches.restaurantId))
+    .where(and(...conditions));
+
+  // If date + time + partySize are provided, filter by availability
+  let filteredResults = results;
+
+  if (filters.date && filters.time && filters.partySize) {
+    const date = new Date(`${filters.date}T00:00:00`);
+
+    const slots = await db
+      .select()
+      .from(timeSlots)
+      .where(
+        and(
+          eq(timeSlots.date, date),
+          eq(timeSlots.startTime, new Date(`${filters.date}T${filters.time}`))
+        )
+      );
+
+    const availableBranchIds = slots
+      .filter(slot => (slot.maxSeats ?? 0) >= (filters.partySize ?? 0))
+      .map(slot => slot.branchId);
+
+    filteredResults = filteredResults.filter(r =>
+      availableBranchIds.includes(r.restaurant_branches.id)
+    );
+  }
+
+  // Optional: sort by distance if user location is available
+  if (filters.userLatitude && filters.userLongitude) {
+    filteredResults.sort((a, b) => {
+      const distA = getDistance(
+        filters.userLatitude!,
+        filters.userLongitude!,
+        parseFloat(String(a.restaurant_branches.latitude ?? "0")),
+        parseFloat(String(a.restaurant_branches.longitude ?? "0"))
+      );
+
+      const distB = getDistance(
+        filters.userLatitude!,
+        filters.userLongitude!,
+        parseFloat(String(b.restaurant_branches.latitude ?? "0")),
+        parseFloat(String(b.restaurant_branches.longitude ?? "0"))
+      );
+
+      return distA - distB;
+    });
+  }
+
+  return filteredResults;
+};

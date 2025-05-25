@@ -11,14 +11,13 @@ interface SearchBarProps {
   containerStyle?: ViewStyle;
 }
 
-export function SearchBar({
+export const SearchBar = React.memo(function SearchBar({
   onSearch,
   initialValue = '',
   placeholder = 'Search restaurants, cuisines or cities...',
   debounceTime = 300,
   containerStyle
 }: SearchBarProps) {
-  console.log('[SearchBar] rendering');
   const [searchQuery, setSearchQuery] = useState(initialValue);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Use Colors directly
@@ -61,11 +60,11 @@ export function SearchBar({
       <Ionicons name="search" size={20} color={colors.text} style={styles.searchIcon} />
       <TextInput
         style={[styles.input, { color: colors.text }]}
-        placeholder={placeholder}
-        placeholderTextColor="#999"
         value={searchQuery}
         onChangeText={setSearchQuery}
         returnKeyType="search"
+        placeholder={placeholder}
+        placeholderTextColor="#999"
       />
       {searchQuery.length > 0 && (
         <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
@@ -74,7 +73,7 @@ export function SearchBar({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

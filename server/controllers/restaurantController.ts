@@ -1,4 +1,4 @@
-import { createRestaurant, getDetailedRestaurant, getRestaurantProfile, getRestaurants, searchRestaurants, updateRestaurant } from "@server/services/restaurantService";
+import { createRestaurant, getDetailedRestaurant, getRestaurantProfile, getRestaurants, updateRestaurant } from "@server/services/restaurantService";
 import { Request, Response } from "express";
 
 //--Get All Restaurants --
@@ -82,10 +82,3 @@ export const getDetailedRestaurantController = async (req: Request, res: Respons
   res.json(restaurant);
 };
 
-//-- Search Restaurants --
-
-export const searchRestaurantsController = async (req: Request, res: Response) => {
-  const restaurants = await searchRestaurants(req.body);
-  if (!restaurants) return res.status(404).json({ message: "Restaurants not found" });
-  res.json(restaurants);
-};

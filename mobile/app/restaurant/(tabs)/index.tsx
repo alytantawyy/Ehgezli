@@ -44,7 +44,7 @@ export default function DashboardScreen() {
   
   useEffect(() => {
     if (branches.length > 0 && !selectedBranch) {
-      setSelectedBranch(branches[0].id.toString());
+      setSelectedBranch(branches[0].branchId.toString());
     }
   }, [branches, selectedBranch]);
 
@@ -156,17 +156,17 @@ export default function DashboardScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {branches.map((branch) => (
                 <TouchableOpacity 
-                  key={branch.id}
+                  key={branch.branchId}
                   style={[
                     styles.branchButton,
-                    selectedBranch === branch.id.toString() && styles.selectedBranchButton
+                    selectedBranch === branch.branchId.toString() && styles.selectedBranchButton
                   ]}
-                  onPress={() => setSelectedBranch(branch.id.toString())}
+                  onPress={() => setSelectedBranch(branch.branchId.toString())}
                 >
                   <Text 
                     style={[
                       styles.branchButtonText,
-                      selectedBranch === branch.id.toString() && styles.selectedBranchButtonText
+                      selectedBranch === branch.branchId.toString() && styles.selectedBranchButtonText
                     ]}
                   >
                     {branch.restaurantName}
