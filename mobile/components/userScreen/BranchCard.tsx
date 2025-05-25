@@ -25,11 +25,18 @@ export const BranchCard = ({ branch, onPress }: BranchCardProps) => {
       activeOpacity={0.7}
     >
       {/* Restaurant Logo */}
-      <Image 
-        source={{ uri: branch.logo }} 
-        style={styles.logo} 
-        resizeMode="cover"
-      />
+      <View style={styles.logoContainer}>
+        <Image 
+          source={{ uri: branch.logo }} 
+          style={styles.logo} 
+          resizeMode="cover"
+        />
+        
+        {/* Favorite Button */}
+        <TouchableOpacity style={styles.favoriteButton}>
+          <Ionicons name="star-outline" size={24} color="#000" />
+        </TouchableOpacity>
+      </View>
       
       {/* Restaurant Name */}
       <Text style={styles.name}>{branch.restaurantName}</Text>
@@ -40,10 +47,11 @@ export const BranchCard = ({ branch, onPress }: BranchCardProps) => {
         <Text style={styles.dot}>•</Text>
         {/* Cuisine */}
         <Text style={styles.cuisine}>{branch.cuisine}</Text>
+        {/* Location */}
+      <Text style={styles.location}>{branch.city}</Text>
       </View>
       
-      {/* Location */}
-      <Text style={styles.location}>{branch.city}</Text>
+      
       
       {/* Time Slots */}
       <View style={styles.timeSlotContainer}>
@@ -74,14 +82,31 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: 'hidden',
   },
-  logo: {
+  logoContainer: {
+    position: 'relative',
     width: '100%',
     height: 150,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
   },
+  favoriteButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
   name: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
     marginTop: 16,
@@ -91,7 +116,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
-    marginTop: 4,
+    marginTop: 2,
   },
   priceRange: {
     fontSize: 16,
@@ -100,7 +125,7 @@ const styles = StyleSheet.create({
   dot: {
     fontSize: 16,
     color: '#666',
-    marginHorizontal: 8,
+    marginHorizontal: 6,
   },
   cuisine: {
     fontSize: 16,
@@ -111,26 +136,32 @@ const styles = StyleSheet.create({
     color: '#666',
     marginHorizontal: 16,
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 8,
+    textAlign: 'right',
+    marginLeft: 'auto',
+    
   },
   timeSlotContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 20,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    justifyContent: 'center',
+    gap: 10,
+    alignItems: 'center',
   },
   timeSlot: {
     backgroundColor: '#B22222',
-    paddingVertical: 12,
+    borderRadius: 8,
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 6,
+    justifyContent: 'center',
     alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
+    minWidth: 80,
   },
   timeSlotText: {
-    color: '#fff',
-    fontWeight: '500',
-    fontSize: 16,
-  },
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
+  }
 });

@@ -64,6 +64,7 @@ interface BranchState {
   
   // Filters
   filter: BranchFilter;
+  _lastSearchKey: string | null;
   
   // Actions
   fetchBranches: () => Promise<void>;
@@ -100,6 +101,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
     userLatitude: undefined,
     userLongitude: undefined
   },
+  _lastSearchKey: null,
   
   // Fetch all branches
   fetchBranches: async () => {
@@ -170,24 +172,23 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   // Search branches with filters
   searchBranchesByFilter: async (newFilter: Partial<BranchFilter>) => {
     try {
-      // Check if this is the same as the last search to prevent duplicate calls
-      const currentFilter = get().filter;
-      const isSameSearch = Object.keys(newFilter).every(key => {
-        // @ts-ignore - Dynamic key access
-        return newFilter[key] === currentFilter[key];
-      });
-      
-      // Skip the search if it's the same as the last one
-      if (isSameSearch && get().filteredBranches.length > 0) {
-        // Silently skip duplicate searches
-        return;
-      }
-      
       // Update filter first
       get().updateFilter(newFilter);
       const updatedFilter = get().filter;
       
-      set({ loading: true, error: null });
+      // Check if this is the same as the last search to prevent duplicate calls
+      // We need to compare the actual search values, not the object references
+      const currentState = get();
+      const lastSearchKey = JSON.stringify(updatedFilter);
+      
+      // Store the last search key in a ref to prevent infinite loops
+      if (lastSearchKey === currentState._lastSearchKey) {
+        // Skip duplicate searches
+        return;
+      }
+      
+      // Update the last search key
+      set({ _lastSearchKey: lastSearchKey, loading: true, error: null });
       
       // Add user location to filter if available
       const { userLocation } = get();

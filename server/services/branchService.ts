@@ -10,7 +10,7 @@
  */
 
 import { db } from "@server/db/db";
-import { eq, and, inArray, count } from "drizzle-orm";
+import { eq, and, inArray, count, or, like, sql } from "drizzle-orm";
 import { restaurantBranches, RestaurantBranch, InsertRestaurantBranch, timeSlots, bookings, bookingSettings, BookingSettings, InsertBookingSettings, restaurantProfiles, RestaurantProfile, restaurantUsers, RestaurantSearchFilter } from "@server/db/schema"; 
 import { getBookingSettings, generateTimeSlots, generateTimeSlotsForDays, createBookingSettings } from "./bookingService";
 import { formatTime } from "@server/utils/date";
@@ -245,6 +245,20 @@ export const searchBranches = async (
 ) => {
   const conditions = [];
 
+  // Text search handling - search across multiple fields
+  if (filters.searchQuery || filters.name) {
+    const searchTerm = `%${(filters.searchQuery || filters.name || '').toLowerCase()}%`;
+    conditions.push(
+      or(
+        like(sql`lower(${restaurantUsers.name})`, searchTerm),
+        like(sql`lower(${restaurantBranches.address})`, searchTerm),
+        like(sql`lower(${restaurantBranches.city})`, searchTerm),
+        like(sql`lower(${restaurantProfiles.cuisine})`, searchTerm)
+      )
+    );
+  }
+
+  // Specific filters
   if (filters.city) {
     conditions.push(eq(restaurantBranches.city, filters.city));
   }

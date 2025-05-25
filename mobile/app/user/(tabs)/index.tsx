@@ -5,7 +5,8 @@ import {
   Text, 
   TouchableOpacity, 
   Modal, 
-  SafeAreaView
+  SafeAreaView,
+  Platform
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,10 +14,13 @@ import { format } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Components
-import { SearchBar } from '../../../components/userScreen/SearchBar';
-import { FilterDrawer } from '../../../components/userScreen/FilterDrawer';
-import { BranchList } from '../../../components/userScreen/BranchList';
-import { Avatar } from '../../../components/common/Avatar';
+import { SearchBar } from '@/components/userScreen/SearchBar';
+import { BranchList } from '@/components/userScreen/BranchList';
+import { FilterDrawer } from '@/components/userScreen/FilterDrawer';
+import DatePickerModal from '@/components/common/DatePickerModal';
+import TimePickerModal from '../../../components/common/TimePickerModal';
+import PartySizePickerModal from '@/components/common/PartySizePickerModal';
+import { Avatar } from '@/components/common/Avatar';
 
 // Hooks
 import { useAuth } from '../../../hooks/useAuth';
@@ -233,70 +237,33 @@ export default function HomeScreen() {
       
       {/* Date Picker Modal */}
       {isDatePickerVisible && (
-        <DateTimePicker
-          value={date}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-          minimumDate={new Date()}
+        <DatePickerModal
+          visible={isDatePickerVisible}
+          onClose={() => setIsDatePickerVisible(false)}
+          onSelect={handleDateChange}
+          selectedDate={date}
+          minDate={new Date()}
         />
       )}
 
       {/* Time Picker Modal */}
       {isTimePickerVisible && (
-        <DateTimePicker
-          value={getTimePickerValue()}
-          mode="time"
-          display="default"
-          onChange={handleTimeChange}
-          minuteInterval={30}
-          minimumDate={getMinimumTime()}
+        <TimePickerModal
+          visible={isTimePickerVisible}
+          onClose={() => setIsTimePickerVisible(false)}
+          onSelect={handleTimeChange}
+          selectedTime={getTimePickerValue()}
         />
       )}
 
       {/* Party Size Picker Modal */}
       {isPartySizePickerVisible && (
-        <Modal
+        <PartySizePickerModal
           visible={isPartySizePickerVisible}
-          transparent={true}
-          onRequestClose={() => setIsPartySizePickerVisible(false)}
-        >
-          <View style={styles.partySizePickerContainer}>
-            <View style={styles.partySizePickerContent}>
-              <Text style={styles.partySizePickerTitle}>Party Size</Text>
-              <TouchableOpacity
-                style={styles.partySizePickerButton}
-                onPress={() => handlePartySizeSelect(1)}
-              >
-                <Text style={styles.partySizePickerButtonText}>1 person</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.partySizePickerButton}
-                onPress={() => handlePartySizeSelect(2)}
-              >
-                <Text style={styles.partySizePickerButtonText}>2 people</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.partySizePickerButton}
-                onPress={() => handlePartySizeSelect(3)}
-              >
-                <Text style={styles.partySizePickerButtonText}>3 people</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.partySizePickerButton}
-                onPress={() => handlePartySizeSelect(4)}
-              >
-                <Text style={styles.partySizePickerButtonText}>4 people</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.partySizePickerButton}
-                onPress={() => handlePartySizeSelect(5)}
-              >
-                <Text style={styles.partySizePickerButtonText}>5 people</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setIsPartySizePickerVisible(false)}
+          onSelect={handlePartySizeSelect}
+          selectedSize={partySize}
+        />
       )}
 
       {/* Filter Drawer */}
@@ -400,6 +367,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: '500',
     fontSize: 13,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    alignItems: 'center',
   },
   noResultsContainer: {
     flex: 1,
@@ -410,29 +381,52 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#666',
   },
-  partySizePickerContainer: {
+  modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  partySizePickerContent: {
+  pickerModalContent: {
     backgroundColor: '#fff',
     borderRadius: 8,
     padding: 16,
     width: '80%',
   },
-  partySizePickerTitle: {
+  modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 8,
   },
-  partySizePickerButton: {
+  optionsList: {
+    maxHeight: 200,
+  },
+  optionItem: {
     padding: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
   },
-  partySizePickerButtonText: {
+  selectedOption: {
+    backgroundColor: '#B22222',
+  },
+  optionText: {
+    fontSize: 16,
+  },
+  selectedOptionText: {
+    color: '#fff',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+  },
+  cancelButton: {
+    padding: 8,
+    backgroundColor: '#B22222',
+    borderRadius: 8,
+  },
+  cancelButtonText: {
+    color: '#fff',
     fontSize: 16,
   },
 });

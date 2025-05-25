@@ -140,8 +140,8 @@ export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),              // Who made the booking
   guestName: text("guest_name"),
-guestPhone: text("guest_phone"),
-guestEmail: text("guest_email"),
+  guestPhone: text("guest_phone"),
+  guestEmail: text("guest_email"),
   timeSlotId: integer("time_slot_id").notNull().references(() => timeSlots.id, { onDelete: 'cascade' }),    // Which time slot
   partySize: integer("party_size").notNull(),        // How many people
   status: text("status", {enum: ["pending", "confirmed", "arrived", "cancelled", "completed"]}).notNull(),
@@ -427,6 +427,8 @@ export interface RestaurantSearchFilter {
   city?: string;
   cuisine?: string;
   priceRange?: string;
+  searchQuery?: string;    // Text search query
+  name?: string;          // Alternative property for text search
   date?: string;       // YYYY-MM-DD
   time?: string;       // HH:mm (24-hour)
   partySize?: number;

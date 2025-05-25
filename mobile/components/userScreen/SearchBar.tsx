@@ -23,14 +23,14 @@ export const SearchBar = React.memo(function SearchBar({
   // Use Colors directly
   const colors = Colors;
 
-  // Implement debounced search as mentioned in memories
+  // Implement debounced search
   useEffect(() => {
     // Clear any existing timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Set a new timer
+    // Always set the timer, even for empty queries (to handle clearing)
     debounceTimerRef.current = setTimeout(() => {
       onSearch(searchQuery);
     }, debounceTime);

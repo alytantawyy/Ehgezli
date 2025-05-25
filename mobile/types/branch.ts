@@ -148,6 +148,7 @@ export interface BranchFilter {
   cuisine?: string;
   priceRange?: string;
   searchQuery?: string;
+  name?: string;
   date?: string;
   time?: string;
   partySize?: number;
