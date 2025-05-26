@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../../../constants/Colors';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, Image } from 'react-native';
 
 /**
  * Tabs Layout for User Screens
@@ -17,8 +17,8 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors.tint,
         tabBarStyle: { 
-          height: 60,
-          paddingBottom: 10,
+          height: 70,
+          paddingBottom: 20,
           paddingTop: 5,
         },
         headerShown: false,
@@ -30,10 +30,10 @@ export default function TabLayout() {
         options={{
           title: 'Discover',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'search' : 'search-outline'} 
-              size={24} 
-              color={color} 
+            <Image 
+              source={require('../../../assets/Ehgezli-logo-white.png')}
+              style={{ width: 28, height: 28 }}
+              resizeMode="contain"
             />
           ),
         }}

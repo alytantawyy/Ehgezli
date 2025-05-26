@@ -24,11 +24,11 @@ export default function TimePickerModal({
   onClose,
   onSelect,
   selectedTime,
-  startHour = 12,
-  endHour = 22,
+  startHour = 0,
+  endHour = 24,
   interval = 30,
 }: TimePickerModalProps) {
-  // Generate time slots
+  // Generate time slots for all 24 hours
   const generateTimeSlots = () => {
     const slots = [];
     const baseDate = new Date();

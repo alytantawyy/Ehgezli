@@ -1,6 +1,6 @@
 // Importing React and other required components, libraries, and styles from React Native and Expo.
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // For using icon components (in this case, a close icon)
 import Colors from '@/constants/Colors'; // Custom color constants based on your app's theme
 import { EhgezliButton } from '@/components/common/EhgezliButton'; // Custom button component used in the footer
@@ -108,191 +108,197 @@ export function FilterDrawer({
   };
 
   return (
-    // Main container view for the FilterDrawer with a semi-transparent background overlay
-    <View style={styles.modalOverlay}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        
-        {/* Header section containing the title and close button */}
-        <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.title, { color: colors.text }]}>Filters</Text>
+    <Modal
+      visible={isVisible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
           
-          {/* Close button wrapped in TouchableOpacity */}
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Scrollable content area containing filter sections */}
-        <ScrollView style={styles.content}>
-          {/* City Filter Section */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>City</Text>
-            <View style={styles.optionsContainer}>
-              {/* All Cities option */}
-              <TouchableOpacity
-                style={[
-                  styles.optionButton,
-                  selectedCity === null && styles.selectedOption,
-                ]}
-                onPress={() => handleCitySelect(null as any)}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    selectedCity === null && styles.selectedOptionText,
-                  ]}
-                >
-                  All Cities
-                </Text>
-              </TouchableOpacity>
-
-              {/* Render city options using the cities array */}
-              {cities.map((city) => (
-                <TouchableOpacity
-                  key={city}
-                  style={[
-                    styles.optionButton,
-                    selectedCity === city && styles.selectedOption,
-                  ]}
-                  onPress={() => handleCitySelect(city)}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      selectedCity === city && styles.selectedOptionText,
-                    ]}
-                  >
-                    {city}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Cuisine Filter Section */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Cuisine</Text>
-            <View style={styles.optionsContainer}>
-              {/* All Cuisines option */}
-              <TouchableOpacity
-                style={[
-                  styles.optionButton,
-                  selectedCuisine === null && styles.selectedOption,
-                ]}
-                onPress={() => handleCuisineSelect(null as any)}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    selectedCuisine === null && styles.selectedOptionText,
-                  ]}
-                >
-                  All Cuisines
-                </Text>
-              </TouchableOpacity>
-
-              {/* Render cuisine options using the cuisines array */}
-              {cuisines.map((cuisine) => (
-                <TouchableOpacity
-                  key={cuisine}
-                  style={[
-                    styles.optionButton,
-                    selectedCuisine === cuisine && styles.selectedOption,
-                  ]}
-                  onPress={() => handleCuisineSelect(cuisine)}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      selectedCuisine === cuisine && styles.selectedOptionText,
-                    ]}
-                  >
-                    {cuisine}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Price Range Filter Section */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Price Range</Text>
-            <View style={styles.optionsContainer}>
-              {/* All Price Ranges option */}
-              <TouchableOpacity
-                style={[
-                  styles.optionButton,
-                  selectedPrice === null && styles.selectedOption,
-                ]}
-                onPress={() => handlePriceSelect(null as any)}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    selectedPrice === null && styles.selectedOptionText,
-                  ]}
-                >
-                  All Prices
-                </Text>
-              </TouchableOpacity>
-
-              {/* Render price range options using the priceRanges array */}
-              {priceRanges.map((price) => (
-                <TouchableOpacity
-                  key={price}
-                  style={[
-                    styles.optionButton,
-                    selectedPrice === price && styles.selectedOption,
-                  ]}
-                  onPress={() => handlePriceSelect(price)}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      selectedPrice === price && styles.selectedOptionText,
-                    ]}
-                  >
-                    {price}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Sort by Distance option */}
-          {onSortByDistance && (
-            <TouchableOpacity 
-              style={styles.sortButton}
-              onPress={onSortByDistance}
-            >
-              <Ionicons name="location-outline" size={20} color={colors.primary} />
-              <Text style={styles.sortButtonText}>Sort by Distance</Text>
+          {/* Header section containing the title and close button */}
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.title, { color: colors.text }]}>Filters</Text>
+            
+            {/* Close button wrapped in TouchableOpacity */}
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
-          )}
-        </ScrollView>
+          </View>
 
-        {/* Footer containing reset and apply buttons */}
-        <View style={[styles.footer, { borderTopColor: colors.border }]}>
-          {/* Reset button: resets all filters to default when pressed */}
-          <EhgezliButton
-            title="Reset"
-            variant="outline"
-            onPress={onResetFilters || handleLegacyReset}
-            style={styles.footerButton}
-          />
-          {/* Apply Filters button: applies the selected filters and closes the drawer */}
-          <EhgezliButton
-            title="Apply Filters"
-            variant="ehgezli"
-            onPress={() => {
-              onApplyFilters();
-              onClose();
-            }}
-            style={styles.footerButton}
-          />
+          {/* Scrollable content area containing filter sections */}
+          <ScrollView style={styles.content}>
+            {/* City Filter Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>City</Text>
+              <View style={styles.optionsContainer}>
+                {/* All Cities option */}
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    selectedCity === null && styles.selectedOption,
+                  ]}
+                  onPress={() => handleCitySelect(null as any)}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      selectedCity === null && styles.selectedOptionText,
+                    ]}
+                  >
+                    All Cities
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Render city options using the cities array */}
+                {cities.map((city) => (
+                  <TouchableOpacity
+                    key={city}
+                    style={[
+                      styles.optionButton,
+                      selectedCity === city && styles.selectedOption,
+                    ]}
+                    onPress={() => handleCitySelect(city)}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        selectedCity === city && styles.selectedOptionText,
+                      ]}
+                    >
+                      {city}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Cuisine Filter Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Cuisine</Text>
+              <View style={styles.optionsContainer}>
+                {/* All Cuisines option */}
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    selectedCuisine === null && styles.selectedOption,
+                  ]}
+                  onPress={() => handleCuisineSelect(null as any)}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      selectedCuisine === null && styles.selectedOptionText,
+                    ]}
+                  >
+                    All Cuisines
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Render cuisine options using the cuisines array */}
+                {cuisines.map((cuisine) => (
+                  <TouchableOpacity
+                    key={cuisine}
+                    style={[
+                      styles.optionButton,
+                      selectedCuisine === cuisine && styles.selectedOption,
+                    ]}
+                    onPress={() => handleCuisineSelect(cuisine)}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        selectedCuisine === cuisine && styles.selectedOptionText,
+                      ]}
+                    >
+                      {cuisine}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Price Range Filter Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Price Range</Text>
+              <View style={styles.optionsContainer}>
+                {/* All Price Ranges option */}
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    selectedPrice === null && styles.selectedOption,
+                  ]}
+                  onPress={() => handlePriceSelect(null as any)}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      selectedPrice === null && styles.selectedOptionText,
+                    ]}
+                  >
+                    All Prices
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Render price range options using the priceRanges array */}
+                {priceRanges.map((price) => (
+                  <TouchableOpacity
+                    key={price}
+                    style={[
+                      styles.optionButton,
+                      selectedPrice === price && styles.selectedOption,
+                    ]}
+                    onPress={() => handlePriceSelect(price)}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        selectedPrice === price && styles.selectedOptionText,
+                      ]}
+                    >
+                      {price}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Sort by Distance option */}
+            {onSortByDistance && (
+              <TouchableOpacity 
+                style={styles.sortButton}
+                onPress={onSortByDistance}
+              >
+                <Ionicons name="location-outline" size={20} color="#B22222" />
+                <Text style={styles.sortButtonText}>Sort by Distance</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+
+          {/* Footer containing reset and apply buttons */}
+          <View style={[styles.footer, { borderTopColor: colors.border }]}>
+            {/* Reset button: resets all filters to default when pressed */}
+            <EhgezliButton
+              title="Reset"
+              variant="outline"
+              onPress={onResetFilters || handleLegacyReset}
+              style={styles.footerButton}
+            />
+            {/* Apply Filters button: applies the selected filters and closes the drawer */}
+            <EhgezliButton
+              title="Apply Filters"
+              variant="ehgezli"
+              onPress={() => {
+                onApplyFilters();
+                onClose();
+              }}
+              style={styles.footerButton}
+            />
+          </View>
         </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 
@@ -349,40 +355,39 @@ const styles = StyleSheet.create({
   optionsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -4, // Compensate for option button margin
+    gap: 8,
   },
   // Individual option button styling
   optionButton: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 16,
-    margin: 4,
+    paddingHorizontal: 16,
+    borderRadius: 50,
+    backgroundColor: '#f5f5f5',
+    marginBottom: 8,
   },
   // Selected option styling
   selectedOption: {
-    backgroundColor: '#5A67F2',
+    backgroundColor: '#B22222', // Ehgezli primary color
   },
   // Option text styling
   optionText: {
-    color: '#333',
     fontSize: 14,
+    color: '#333',
   },
   // Selected option text styling
   selectedOptionText: {
-    color: '#fff',
+    color: 'white',
     fontWeight: '500',
   },
-  // Sort by distance button styling
+  // Sort button styling
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    marginBottom: 16,
+    marginTop: 8,
   },
   sortButtonText: {
     marginLeft: 8,
-    color: '#5A67F2',
+    color: '#B22222', // Ehgezli primary color
     fontWeight: '500',
   },
   // Footer section styling

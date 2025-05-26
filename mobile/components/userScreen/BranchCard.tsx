@@ -7,9 +7,11 @@ import timeSlots, { formatTimeWithAMPM } from '@/app/utils/time-slots';
 interface BranchCardProps {
   branch: BranchListItem;
   onPress: (branchId: number) => void;
+  isSaved?: boolean;
+  onToggleSave?: (branchId: number) => void;
 }
 
-export const BranchCard = ({ branch, onPress }: BranchCardProps) => {
+export const BranchCard = ({ branch, onPress, isSaved = false, onToggleSave }: BranchCardProps) => {
   // Format distance to show in km or m
   const formatDistance = (distance: number | null | undefined) => {
     if (distance === null || distance === undefined) return 'Distance unknown';
@@ -17,6 +19,12 @@ export const BranchCard = ({ branch, onPress }: BranchCardProps) => {
     return `${distance.toFixed(1)}km`;
   };
 
+  const handleToggleSave = (e: any) => {
+    e.stopPropagation(); // Prevent triggering the card's onPress
+    if (onToggleSave) {
+      onToggleSave(branch.branchId);
+    }
+  };
 
   return (
     <TouchableOpacity 
@@ -31,27 +39,37 @@ export const BranchCard = ({ branch, onPress }: BranchCardProps) => {
           style={styles.logo} 
           resizeMode="cover"
         />
+      </View>
+      
+      {/* Restaurant Info Container */}
+      <View style={styles.infoContainer}>
+        {/* Restaurant Name and Favorite Icon */}
+        <View style={styles.headerRow}>
+          <Text style={styles.name}>{branch.restaurantName}</Text>
+          
+          {/* Favorite Button */}
+          <TouchableOpacity 
+            style={styles.favoriteButton}
+            onPress={handleToggleSave}
+          >
+            <Ionicons 
+              name={isSaved ? "star" : "star-outline"} 
+              size={24} 
+              color={isSaved ? "#FFD700" : "#000"} 
+            />
+          </TouchableOpacity>
+        </View>
         
-        {/* Favorite Button */}
-        <TouchableOpacity style={styles.favoriteButton}>
-          <Ionicons name="star-outline" size={24} color="#000" />
-        </TouchableOpacity>
+        <View style={styles.infoRow}>
+          {/* Price Range */}
+          <Text style={styles.priceRange}>{branch.priceRange}</Text>
+          <Text style={styles.dot}>•</Text>
+          {/* Cuisine */}
+          <Text style={styles.cuisine}>{branch.cuisine}</Text>
+          {/* Location */}
+          <Text style={styles.location}>{branch.city}</Text>
+        </View>
       </View>
-      
-      {/* Restaurant Name */}
-      <Text style={styles.name}>{branch.restaurantName}</Text>
-      
-      <View style={styles.infoRow}>
-        {/* Price Range */}
-        <Text style={styles.priceRange}>{branch.priceRange}</Text>
-        <Text style={styles.dot}>•</Text>
-        {/* Cuisine */}
-        <Text style={styles.cuisine}>{branch.cuisine}</Text>
-        {/* Location */}
-      <Text style={styles.location}>{branch.city}</Text>
-      </View>
-      
-      
       
       {/* Time Slots */}
       <View style={styles.timeSlotContainer}>
@@ -77,13 +95,14 @@ const styles = StyleSheet.create({
     padding: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 4,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   logoContainer: {
-    position: 'relative',
     width: '100%',
     height: 150,
   },
@@ -93,30 +112,38 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
   },
-  favoriteButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 18,
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
+  infoContainer: {
+    padding: 12,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    zIndex: 10,
+    marginBottom: 4,
+  },
+  favoriteButton: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: '#eee',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   name: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
-    marginTop: 16,
-    marginHorizontal: 16,
+    flex: 1,
+    marginRight: 8,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 2,
+    flexWrap: 'wrap',
   },
   priceRange: {
     fontSize: 16,
@@ -134,20 +161,14 @@ const styles = StyleSheet.create({
   location: {
     fontSize: 16,
     color: '#666',
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 8,
-    textAlign: 'right',
     marginLeft: 'auto',
-    
   },
   timeSlotContainer: {
     flexDirection: 'row',
-    marginTop: 16,
-    marginBottom: 20,
+    marginTop: 12,
+    marginBottom: 16,
     paddingHorizontal: 16,
     justifyContent: 'center',
-    gap: 10,
     alignItems: 'center',
   },
   timeSlot: {
@@ -155,13 +176,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 16,
+    marginRight: 8,
+    marginBottom: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    minWidth: 80,
   },
   timeSlotText: {
     color: 'white',
     fontWeight: '600',
     fontSize: 14,
-  }
+  },
 });

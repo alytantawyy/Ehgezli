@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -25,11 +25,18 @@ import { Avatar } from '@/components/common/Avatar';
 // Hooks
 import { useAuth } from '../../../hooks/useAuth';
 import { useBranches } from '../../../hooks/useBranches';
+import { useSavedBranches } from '@/hooks/useSavedBranches';
 
 // Types
 import { User } from '../../../types/auth';
 import { Restaurant } from '@/types/restaurant';
 import { UserRoute } from '@/types/navigation';
+
+// Constants
+import { CITY_OPTIONS, CUISINE_OPTIONS, PRICE_RANGE_OPTIONS } from '@/constants/FilterOptions';
+import { BranchCard } from '@/components/userScreen/BranchCard';
+import { BranchListItem } from '@/types/branch';
+import { AuthRoute } from '@/types/navigation';
 
 /**
  * Home Screen
@@ -55,12 +62,14 @@ export default function HomeScreen() {
     clearError
   } = useBranches();
   
+  // Saved branches
+  const { toggleSavedBranch, isBranchSaved } = useSavedBranches();
+  
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [date, setDate] = useState(new Date());
   const [time, setTime] = useState('18:00');
   const [partySize, setPartySize] = useState(2);
-  const [showSavedOnly, setShowSavedOnly] = useState(false);
   
   // Filter state
   const [cityFilter, setCityFilter] = useState('all');
@@ -74,10 +83,31 @@ export default function HomeScreen() {
   const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
   const [isPartySizePickerVisible, setIsPartySizePickerVisible] = useState(false);
   
+  // State for showing saved branches only
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  
+  // Format time from 24-hour to AM/PM format for display
+  const formatDisplayTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0);
+    return format(date, 'h:mm a'); // Format as 1:30 PM
+  };
+  
   // Handle search
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     searchBranches(query);
+  };
+  
+  // Handle star button press
+  const handleStarButtonPress = () => {
+    if (!user) {
+      // If user is not logged in, redirect to auth screen
+      router.push(AuthRoute.login);
+      return;
+    }
+    setShowSavedOnly(prev => !prev);
   };
   
   // Toggle saved restaurants filter
@@ -101,8 +131,7 @@ export default function HomeScreen() {
   };
   
   // Date picker handlers
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setIsDatePickerVisible(false);
+  const handleDateChange = (selectedDate: Date) => {
     if (selectedDate) {
       setDate(selectedDate);
     }
@@ -115,14 +144,8 @@ export default function HomeScreen() {
     date.setHours(hours, minutes, 0);
     return date;
   };
-  
-  const getMinimumTime = () => {
-    const now = new Date();
-    return now;
-  };
-  
-  const handleTimeChange = (event: any, selectedTime?: Date) => {
-    setIsTimePickerVisible(false);
+
+  const handleTimeChange = (selectedTime: Date) => {
     if (selectedTime) {
       const hours = selectedTime.getHours().toString().padStart(2, '0');
       const minutes = selectedTime.getMinutes().toString().padStart(2, '0');
@@ -135,6 +158,14 @@ export default function HomeScreen() {
     setPartySize(size);
     setIsPartySizePickerVisible(false);
   };
+  
+  // Filter branches based on saved status if needed
+  const displayedBranches = useMemo(() => {
+    if (showSavedOnly) {
+      return filteredBranches.filter(branch => isBranchSaved(branch.branchId));
+    }
+    return filteredBranches;
+  }, [filteredBranches, showSavedOnly, isBranchSaved]);
   
   return (
     <SafeAreaView style={styles.container}>
@@ -168,7 +199,6 @@ export default function HomeScreen() {
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBarWrapper}>
-          <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
           <SearchBar
             onSearch={handleSearch}
             initialValue={searchQuery}
@@ -176,8 +206,11 @@ export default function HomeScreen() {
             containerStyle={styles.searchBar}
           />
         </View>
-        <TouchableOpacity style={styles.favoriteButton}>
-          <Ionicons name="star-outline" size={24} color="#fff" />
+        <TouchableOpacity 
+          style={[styles.favoriteButton, showSavedOnly && styles.favoriteButtonActive]}
+          onPress={handleStarButtonPress}
+        >
+          <Ionicons name="star" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
       
@@ -200,7 +233,7 @@ export default function HomeScreen() {
           onPress={() => setIsTimePickerVisible(true)}
         >
           <Ionicons name="time-outline" size={18} color="#fff" />
-          <Text style={styles.filterButtonText}>{time}</Text>
+          <Text style={styles.filterButtonText}>{formatDisplayTime(time)}</Text>
         </TouchableOpacity>
 
         {/* Party Size Button */}
@@ -223,17 +256,31 @@ export default function HomeScreen() {
       </View>
       
       {/* Restaurant List or No Results Message */}
-      {filteredBranches.length > 0 ? (
-        <BranchList
-          branches={filteredBranches}
-          loading={branchesLoading}
-          onBranchPress={(branchId: number) => router.push({pathname: '/user/branch-details', params: {id: branchId.toString()}})}
-        />
-      ) : (
-        <View style={styles.noResultsContainer}>
-          <Text style={styles.noResultsText}>No restaurants found matching your criteria.</Text>
-        </View>
-      )}
+      <View style={styles.contentContainer}>
+        {displayedBranches.length > 0 ? (
+          <BranchList
+            branches={displayedBranches}
+            loading={branchesLoading}
+            onBranchPress={(branchId: number) => router.push({pathname: '/user/branch-details', params: {id: branchId.toString()}})}
+            renderBranchCard={(branch: BranchListItem) => (
+              <BranchCard
+                branch={branch}
+                onPress={(branchId: number) => router.push({pathname: '/user/branch-details', params: {id: branchId.toString()}})}
+                isSaved={isBranchSaved(branch.branchId)}
+                onToggleSave={toggleSavedBranch}
+              />
+            )}
+          />
+        ) : (
+          <View style={styles.noResultsContainer}>
+            <Text style={styles.noResultsText}>
+              {showSavedOnly 
+                ? "You don't have any saved restaurants yet." 
+                : "No restaurants found matching your criteria."}
+            </Text>
+          </View>
+        )}
+      </View>
       
       {/* Date Picker Modal */}
       {isDatePickerVisible && (
@@ -267,19 +314,21 @@ export default function HomeScreen() {
       )}
 
       {/* Filter Drawer */}
-      <FilterDrawer
-        isVisible={isFilterDrawerVisible}
-        onClose={() => setIsFilterDrawerVisible(false)}
-        onApplyFilters={applyFilters}
-        onResetFilters={resetAllFilters}
-        cities={[]}
-        cuisines={[]}
-        priceRanges={[]}
-        onSelectCity={(city) => setCityFilter(city || '')}
-        onSelectCuisine={(cuisine) => setCuisineFilter(cuisine || '')}
-        onSelectPriceRange={(priceRange) => setPriceFilter(priceRange || '')}
-        onSortByDistance={() => setDistanceFilter('nearby')}
-      />
+      {isFilterDrawerVisible && (
+        <FilterDrawer
+          isVisible={isFilterDrawerVisible}
+          onClose={() => setIsFilterDrawerVisible(false)}
+          onApplyFilters={applyFilters}
+          onResetFilters={resetAllFilters}
+          cities={CITY_OPTIONS}
+          cuisines={CUISINE_OPTIONS}
+          priceRanges={PRICE_RANGE_OPTIONS}
+          onSelectCity={(city) => setCityFilter(city || '')}
+          onSelectCuisine={(cuisine) => setCuisineFilter(cuisine || '')}
+          onSelectPriceRange={(priceRange) => setPriceFilter(priceRange || '')}
+          onSortByDistance={() => setDistanceFilter('nearby')}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -287,7 +336,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f7f7f7',
   },
   header: {
     flexDirection: 'row',
@@ -327,9 +376,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     height: 40,
   },
-  searchIcon: {
-    marginRight: 6,
-  },
   searchBar: {
     flex: 1,
     height: 36,
@@ -344,6 +390,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  favoriteButtonActive: {
+    backgroundColor: '#8B0000', // Darker red to indicate active state
   },
   filtersContainer: {
     flexDirection: 'row',
@@ -428,5 +477,9 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: '#fff',
     fontSize: 16,
+  },
+  contentContainer: {
+    flex: 1,
+    paddingVertical: 8,
   },
 });

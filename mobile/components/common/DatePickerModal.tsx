@@ -24,9 +24,9 @@ export default function DatePickerModal({
   onSelect,
   selectedDate,
   minDate = new Date(),
-  maxDays = 7,
+  maxDays = 60,
 }: DatePickerModalProps) {
-  // Generate dates for the next week
+  // Generate dates for the next two months
   const generateDates = () => {
     const dates = [];
     for (let i = 0; i < maxDays; i++) {
