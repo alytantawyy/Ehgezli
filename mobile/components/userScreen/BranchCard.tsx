@@ -21,8 +21,11 @@ export const BranchCard = ({ branch, onPress, isSaved = false, onToggleSave }: B
 
   const handleToggleSave = (e: any) => {
     e.stopPropagation(); // Prevent triggering the card's onPress
+    console.log('Toggle save for branch:', branch.branchId, 'Current saved status:', isSaved);
     if (onToggleSave) {
       onToggleSave(branch.branchId);
+    } else {
+      console.log('onToggleSave function is not provided');
     }
   };
 
@@ -51,11 +54,12 @@ export const BranchCard = ({ branch, onPress, isSaved = false, onToggleSave }: B
           <TouchableOpacity 
             style={styles.favoriteButton}
             onPress={handleToggleSave}
+            activeOpacity={0.7}
           >
             <Ionicons 
               name={isSaved ? "star" : "star-outline"} 
               size={24} 
-              color={isSaved ? "#FFD700" : "#000"} 
+              color={isSaved ? "hsl(355,79%,36%)" : "#000"} 
             />
           </TouchableOpacity>
         </View>

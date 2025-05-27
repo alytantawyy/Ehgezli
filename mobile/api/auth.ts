@@ -18,9 +18,18 @@ import { RestaurantUser } from '@/types/restaurantUser';
 
 // User authentication
 export const login = async (credentials: LoginCredentials): Promise<User> => {
-  const { data } = await apiClient.post<AuthResponse>('/auth/login', credentials);
-  await AsyncStorage.setItem('auth_token', data.token);
-  return data.user;
+  try {
+    const { data } = await apiClient.post<AuthResponse>('/auth/login', credentials);
+    
+    if (data && data.token) {
+      await AsyncStorage.setItem('auth_token', data.token);
+      return data.user;
+    } else {
+      throw new Error('Invalid login response');
+    }
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const register = async (userData: RegisterData): Promise<User> => {
@@ -49,9 +58,18 @@ export const updateUserPassword = async (passwordData: PasswordUpdateData): Prom
 
 // Restaurant authentication
 export const restaurantLogin = async (credentials: LoginCredentials): Promise<RestaurantUser> => {
-  const { data } = await apiClient.post<RestaurantAuthResponse>('/auth/restaurant-login', credentials);
-  await AsyncStorage.setItem('auth_token', data.token);
-  return data.restaurantUser;
+  try {
+    const { data } = await apiClient.post<RestaurantAuthResponse>('/auth/restaurant-login', credentials);
+    
+    if (data && data.token) {
+      await AsyncStorage.setItem('auth_token', data.token);
+      return data.restaurantUser;
+    } else {
+      throw new Error('Invalid login response');
+    }
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const restaurantRegister = async (restaurantData: RestaurantRegisterData): Promise<RestaurantUser> => {
@@ -78,13 +96,4 @@ export const updateRestaurantPassword = async (passwordData: PasswordUpdateData)
   await apiClient.post('/auth/update-restaurant-password', passwordData);
 };
 
-// Verify token is valid
-export const verifyToken = async (): Promise<boolean> => {
-  try {
-    await apiClient.get('/auth/verify-token');
-    return true;
-  } catch (error) {
-    await AsyncStorage.removeItem('auth_token');
-    return false;
-  }
-};
+

@@ -107,11 +107,7 @@ export default function HomeScreen() {
       router.push(AuthRoute.login);
       return;
     }
-    setShowSavedOnly(prev => !prev);
-  };
-  
-  // Toggle saved restaurants filter
-  const toggleSavedOnly = () => {
+    // Toggle saved only filter
     setShowSavedOnly(!showSavedOnly);
   };
   
@@ -167,6 +163,11 @@ export default function HomeScreen() {
     return filteredBranches;
   }, [filteredBranches, showSavedOnly, isBranchSaved]);
   
+  useEffect(() => {
+    if (showSavedOnly) {
+    }
+  }, [showSavedOnly]);
+  
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -209,8 +210,13 @@ export default function HomeScreen() {
         <TouchableOpacity 
           style={[styles.favoriteButton, showSavedOnly && styles.favoriteButtonActive]}
           onPress={handleStarButtonPress}
+          activeOpacity={0.7}
         >
-          <Ionicons name="star" size={24} color="#fff" />
+          <Ionicons 
+            name={showSavedOnly ? "star" : "star-outline"} 
+            size={24} 
+            color="#fff" 
+          />
         </TouchableOpacity>
       </View>
       
@@ -266,8 +272,14 @@ export default function HomeScreen() {
               <BranchCard
                 branch={branch}
                 onPress={(branchId: number) => router.push({pathname: '/user/branch-details', params: {id: branchId.toString()}})}
-                isSaved={isBranchSaved(branch.branchId)}
-                onToggleSave={toggleSavedBranch}
+                isSaved={user ? isBranchSaved(branch.branchId) : false}
+                onToggleSave={(branchId: number) => {
+                  if (!user) {
+                    router.push(AuthRoute.login);
+                    return;
+                  }
+                  toggleSavedBranch(branchId);
+                }}
               />
             )}
           />

@@ -33,25 +33,27 @@ export const useSavedBranchStore = create<SavedBranchState>((set, get) => ({
   fetchSavedBranches: async () => {
     set({ loading: true, error: null });
     const branches = await getSavedBranches();
+    console.log('Fetched saved branches:', branches.length);
     set({ savedBranches: branches, loading: false });
-    // Note: Error handling is now in the API function
   },
   
   // Fetch just the IDs of saved branches (more efficient)
   fetchSavedBranchIds: async () => {
     set({ loading: true, error: null });
     const ids = await getSavedBranchIds();
+    console.log('Fetched saved branch IDs:', ids.length, ids);
     set({ savedBranchIds: ids, loading: false });
-    // Note: Error handling is now in the API function
   },
   
   // Toggle a branch as saved/unsaved
   toggleSavedBranch: async (branchId: number) => {
     const { savedBranchIds, savedBranches } = get();
     const isSaved = savedBranchIds.includes(branchId);
+    console.log(`Toggling branch ${branchId}, current status:`, isSaved ? 'saved' : 'not saved');
     
     // Optimistically update UI
     if (isSaved) {
+      // Remove from saved
       set({
         savedBranchIds: savedBranchIds.filter(id => id !== branchId),
         savedBranches: savedBranches.filter(branch => branch.branchId !== branchId)
@@ -59,19 +61,26 @@ export const useSavedBranchStore = create<SavedBranchState>((set, get) => ({
       
       // Then perform API call
       const success = await removeSavedBranch(branchId);
+      console.log(`Remove branch ${branchId} result:`, success ? 'success' : 'failed');
+      
       if (!success) {
         // Revert on failure
+        console.log('Reverting optimistic update after failure');
         get().fetchSavedBranchIds();
       }
     } else {
+      // Add to saved
       set({
         savedBranchIds: [...savedBranchIds, branchId]
       });
       
       // Then perform API call
       const success = await saveBranch(branchId);
+      console.log(`Save branch ${branchId} result:`, success ? 'success' : 'failed');
+      
       if (!success) {
         // Revert on failure
+        console.log('Reverting optimistic update after failure');
         get().fetchSavedBranchIds();
       } else {
         // Refresh the full list to get the complete branch data

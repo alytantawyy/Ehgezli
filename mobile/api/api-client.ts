@@ -21,14 +21,17 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(async (config) => {
   // Don't retry auth endpoints if we've had multiple failures
   if (config.url?.includes('/auth/verify-token') && authFailureCount >= MAX_AUTH_FAILURES) {
-    console.log('Skipping auth verification due to multiple failures');
     return Promise.reject(new Error('Auth verification disabled after multiple failures'));
   }
   
-  const token = await AsyncStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  try {
+    const token = await AsyncStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (error) {
   }
+  
   return config;
 });
 
@@ -39,10 +42,8 @@ apiClient.interceptors.response.use(
     // Track auth failures
     if (error.config?.url?.includes('/auth/verify-token') || error.response?.status === 401) {
       authFailureCount++;
-      console.log(`Auth failure count: ${authFailureCount}`);
       
       if (authFailureCount >= MAX_AUTH_FAILURES) {
-        console.log('Maximum auth failures reached, disabling auth verification');
         AsyncStorage.removeItem('auth_token');
       }
     }

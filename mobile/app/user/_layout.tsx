@@ -33,64 +33,6 @@ export default function UserLayout() {
           headerShown: false,
         }}
       />
-      <Stack.Screen
-        name="restaurant-details"
-        options={{
-          title: 'Restaurant Details',
-          presentation: 'card',
-        }}
-      />
-      <Stack.Screen
-        name="booking-details"
-        options={{
-          title: 'Booking Details',
-          presentation: 'card',
-        }}
-      />
-      <Stack.Screen
-        name="edit-profile"
-        options={{
-          title: 'Edit Profile',
-          presentation: 'modal',
-        }}
-      />
-      <Stack.Screen
-        name="saved-restaurants"
-        options={{
-          title: 'Saved Restaurants',
-        }}
-      />
-      <Stack.Screen
-        name="payment-methods"
-        options={{
-          title: 'Payment Methods',
-        }}
-      />
-      <Stack.Screen
-        name="help-center"
-        options={{
-          title: 'Help Center',
-        }}
-      />
-      <Stack.Screen
-        name="about"
-        options={{
-          title: 'About',
-        }}
-      />
-      <Stack.Screen
-        name="privacy-policy"
-        options={{
-          title: 'Privacy Policy',
-        }}
-      />
-      <Stack.Screen
-        name="branch-details"
-        options={{
-          title: 'Branch Details',
-          headerShown: false,
-        }}
-      />
     </Stack>
   );
 }

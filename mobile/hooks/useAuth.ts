@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '../store/auth-store';
 import { useRouter, useSegments } from 'expo-router';
-import { verifyToken } from '../api/auth';
+import { getUserProfile } from '../api/user';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthRoute, UserRoute, RestaurantRoute } from '../types/navigation';
 
 export function useAuth() {
@@ -15,7 +16,8 @@ export function useAuth() {
     logout, 
     isLoading, 
     error, 
-    clearError 
+    clearError,
+    fetchProfile 
   } = useAuthStore();
   
   const router = useRouter();
@@ -52,21 +54,20 @@ export function useAuth() {
   useEffect(() => {
     const checkToken = async () => {
       try {
-        const isValid = await verifyToken();
-        if (isValid) {
-          // Token is valid, but we need to fetch the user data
-          // This should be implemented in the auth store
-          console.log('Valid token found, fetching user profile...');
-          // Call a function to fetch the user profile based on the token
-          // For example: await authStore.fetchUserProfile();
+        const token = await AsyncStorage.getItem('auth_token');
+        
+        if (token) {
+          // Fetch the user profile using the token
+          await getUserProfile();
+        } else {
         }
       } catch (error) {
-        console.error('Failed to check auth token', error);
+        await AsyncStorage.removeItem('auth_token');
       }
     };
     
     checkToken();
-  }, []);
+  }, [fetchProfile]);
 
   return {
     user,
@@ -80,5 +81,6 @@ export function useAuth() {
     restaurantRegister,
     logout,
     clearError,
+    fetchProfile
   };
 }

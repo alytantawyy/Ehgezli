@@ -65,6 +65,7 @@ interface BranchState {
   // Filters
   filter: BranchFilter;
   _lastSearchKey: string | null;
+  _lastSearchTime: number | null;
   
   // Actions
   fetchBranches: () => Promise<void>;
@@ -102,6 +103,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
     userLongitude: undefined
   },
   _lastSearchKey: null,
+  _lastSearchTime: null,
   
   // Fetch all branches
   fetchBranches: async () => {
@@ -136,7 +138,6 @@ export const useBranchStore = create<BranchState>((set, get) => ({
         get().calculateDistances();
       }
     } catch (error) {
-      console.error('Error fetching branches:', error);
       set({ 
         error: 'Failed to fetch branches. Please try again.', 
         loading: false 
@@ -161,7 +162,6 @@ export const useBranchStore = create<BranchState>((set, get) => ({
         });
       }
     } catch (error) {
-      console.error('Error fetching branch details:', error);
       set({ 
         error: 'Failed to fetch branch details. Please try again.', 
         loading: false 
@@ -172,23 +172,40 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   // Search branches with filters
   searchBranchesByFilter: async (newFilter: Partial<BranchFilter>) => {
     try {
+      // Get current state before any updates
+      const currentState = get();
+      
+      // Check if we're already loading - if so, don't start another search
+      if (currentState.loading) {
+        return;
+      }
+      
       // Update filter first
       get().updateFilter(newFilter);
       const updatedFilter = get().filter;
       
       // Check if this is the same as the last search to prevent duplicate calls
-      // We need to compare the actual search values, not the object references
-      const currentState = get();
       const lastSearchKey = JSON.stringify(updatedFilter);
       
-      // Store the last search key in a ref to prevent infinite loops
+      // Skip if this is exactly the same search as before
       if (lastSearchKey === currentState._lastSearchKey) {
-        // Skip duplicate searches
         return;
       }
       
-      // Update the last search key
-      set({ _lastSearchKey: lastSearchKey, loading: true, error: null });
+      // Prevent rapid consecutive searches with debouncing
+      const now = Date.now();
+      if (currentState._lastSearchTime && now - currentState._lastSearchTime < 1000) {
+        return;
+      }
+      
+      // Set loading state and update tracking variables BEFORE the async operation
+      // This is crucial to prevent race conditions
+      set({ 
+        _lastSearchKey: lastSearchKey, 
+        _lastSearchTime: now,
+        loading: true, 
+        error: null 
+      });
       
       // Add user location to filter if available
       const { userLocation } = get();
@@ -197,6 +214,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
         updatedFilter.userLongitude = userLocation.longitude;
       }
       
+      // Perform the actual API call
       const data = await searchBranches(updatedFilter);
       const branchItems = transformBranchData(data);
       
@@ -212,12 +230,15 @@ export const useBranchStore = create<BranchState>((set, get) => ({
         });
       }
       
-      set({ 
-        filteredBranches: branchItems,
-        loading: false 
-      });
+      // Make sure we're still the most recent search before updating state
+      // This prevents race conditions where a newer search completes before an older one
+      if (get()._lastSearchKey === lastSearchKey) {
+        set({ 
+          filteredBranches: branchItems,
+          loading: false 
+        });
+      }
     } catch (error) {
-      console.error('Error searching branches:', error);
       set({ 
         error: 'Failed to search branches. Please try again.', 
         loading: false 
@@ -262,7 +283,6 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       const { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status !== 'granted') {
-        console.log('Location permission denied');
         // Set userLocation to null to indicate we've tried and failed
         set({ userLocation: null });
         return;
@@ -279,7 +299,6 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       // Calculate distances for branches
       get().calculateDistances();
     } catch (error) {
-      console.error('Error getting location:', error);
       // Set userLocation to null to indicate we've tried and failed
       set({ userLocation: null });
     }

@@ -1,7 +1,8 @@
 // /hooks/useSavedBranches.ts
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useSavedBranchStore } from '../store/saved-branch-store';
 import { useAuth } from './useAuth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const useSavedBranches = () => {
   const { 
@@ -15,46 +16,76 @@ export const useSavedBranches = () => {
     clearError 
   } = useSavedBranchStore();
   
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const initialized = useRef(false);
   
-  // Initialize on component mount
+  // Initialize on component mount or when user changes
   useEffect(() => {
+    // Skip initialization if already done for this user
+    if (initialized.current && user) {
+      return;
+    }
+    
     const init = async () => {
-      // Mark as initialized immediately to prevent multiple calls
-      initialized.current = true;
+      // Check if we have a token before trying to fetch
+      const token = await AsyncStorage.getItem('auth_token');
       
-      // Only fetch if user is logged in
-      if (user) {
+      // Only fetch if user is logged in AND we have a token
+      if (user && token) {
         // Fetch IDs first (faster)
         await fetchSavedBranchIds();
         // Then fetch full branch data
         await fetchSavedBranches();
+        // Mark as initialized after successful fetch
+        initialized.current = true;
+      } else {
+        // If we have no user or token, make sure saved branches are empty
+        if (savedBranchIds.length > 0 || savedBranches.length > 0) {
+          useSavedBranchStore.setState({ savedBranchIds: [], savedBranches: [] });
+        }
       }
     };
     
-    // Only initialize once
-    if (!initialized.current) {
-      init();
-    }
+    // Initialize if not already done or if user changed
+    init();
     
-    // Reset when user changes
+    // Reset initialization flag when user changes
     return () => {
-      initialized.current = false;
+      if (user === null) {
+        initialized.current = false;
+      }
     };
-  }, [user, fetchSavedBranchIds, fetchSavedBranches]);
+  }, [user, fetchSavedBranchIds, fetchSavedBranches, savedBranchIds.length, savedBranches.length]);
   
   // Helper function to check if a branch is saved
-  const isBranchSaved = (branchId: number): boolean => {
+  const isBranchSaved = useCallback((branchId: number): boolean => {
+    // If user is not logged in, nothing is saved
+    if (!user) return false;
     return savedBranchIds.includes(branchId);
-  };
+  }, [savedBranchIds, user]);
+  
+  // Wrapper for toggleSavedBranch that ensures proper UI updates
+  const handleToggleSave = useCallback(async (branchId: number) => {
+    // If user is not logged in, don't try to toggle
+    if (!user) {
+      return;
+    }
+    
+    // Double check token existence before trying to toggle
+    const token = await AsyncStorage.getItem('auth_token');
+    if (!token) {
+      return;
+    }
+    
+    await toggleSavedBranch(branchId);
+  }, [toggleSavedBranch, user]);
   
   return {
     savedBranches,
     savedBranchIds,
     loading,
     error,
-    toggleSavedBranch,
+    toggleSavedBranch: handleToggleSave,
     isBranchSaved,
     refreshSavedBranches: fetchSavedBranches,
     clearError
