@@ -25,18 +25,8 @@ export const useTimeSlots = () => {
       // Format date as YYYY-MM-DD
       const formattedDate = format(date, 'yyyy-MM-dd');
       
-      // DEBUG: Log request parameters
-      console.log('🔍 Fetching time slots with params:', { 
-        branchId, 
-        date: formattedDate, 
-        time 
-      });
-      
       // Fetch available slots from backend
       const slots = await fetchAvailableTimeSlots(branchId, formattedDate, time);
-      
-      // DEBUG: Log the result
-      console.log('✨ Fetched slots:', slots);
       
       setAvailableSlots(slots);
       return slots;

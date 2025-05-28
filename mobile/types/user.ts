@@ -9,17 +9,12 @@ export interface User {
   favoriteCuisines: string[];
   birthday: string;
   nationality: string;
-  lastLatitude: number | null;
-  lastLongitude: number | null;
-  locationUpdatedAt: string;
   locationPermissionGranted: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface UserLocation {
-  lastLatitude: number | null;
-  lastLongitude: number | null;
   locationUpdatedAt: string;
   locationPermissionGranted: boolean;
 }

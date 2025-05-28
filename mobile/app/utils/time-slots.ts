@@ -160,20 +160,14 @@ export const fetchAvailableTimeSlots = async (
   selectedTime?: string
 ): Promise<string[]> => {
   try {
-    // DEBUG: Log request parameters
-    console.log('🔍 Fetching time slots with params:', { branchId, date, selectedTime });
-    
     // Import dynamically to avoid circular dependencies
     const { getBranchAvailability } = await import('@/api/branch');
     
     // Fetch all available slots for this branch and date
     const availability = await getBranchAvailability(branchId, date);
     
-    // DEBUG: Log response data
-    
     // If no slots are available, return empty array
     if (!availability.hasAvailability || !availability.availableSlots || availability.availableSlots.length === 0) {
-      console.log('❌ No available slots found');
       return [];
     }
     
@@ -182,27 +176,23 @@ export const fetchAvailableTimeSlots = async (
       .filter(slot => slot.isAvailable)
       .map(slot => slot.time);
     
-    console.log('✅ Available times:', availableTimes);
+    
     
     // If no available times after filtering, return empty array
     if (availableTimes.length === 0) {
-      console.log('❌ No available slots after filtering');
       return [];
     }
     
     // If no selected time, return the first 3 available slots (or fewer if less than 3)
     if (!selectedTime) {
       const result = availableTimes.slice(0, 3);
-      console.log('🕒 Returning first 3 available slots:', result);
       return result;
     }
     
     // Find the 3 closest available slots to the selected time
     const result = findClosestTimeSlots(availableTimes, selectedTime, 3);
-    console.log('🕒 Returning', result.length, 'closest slots to', selectedTime, ':', result);
     return result;
   } catch (error) {
-    console.error('❌ Error fetching available time slots:', error);
     return [];
   }
 };

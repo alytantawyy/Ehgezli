@@ -6,29 +6,32 @@ import {
   TouchableOpacity, 
   Modal, 
   SafeAreaView,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { getSmartDefaultDateTime, formatDisplayTime, getMinSelectableDate } from '@/app/utils/date-time';
+import * as Location from 'expo-location';
+import { useBranchStore } from '../../../store/branch-store';
 
 // Components
 import { SearchBar } from '@/components/userScreen/SearchBar';
 import { BranchList } from '@/components/userScreen/BranchList';
 import { FilterDrawer } from '@/components/userScreen/FilterDrawer';
 import DatePickerModal from '@/components/common/DatePickerModal';
-import TimePickerModal from '../../../components/common/TimePickerModal';
+import TimePickerModal from '@/components/common/TimePickerModal';
 import PartySizePickerModal from '@/components/common/PartySizePickerModal';
 import { Avatar } from '@/components/common/Avatar';
 
 // Hooks
-import { useAuth } from '../../../hooks/useAuth';
-import { useBranches } from '../../../hooks/useBranches';
+import { useAuth } from '@/hooks/useAuth';
+import { useBranches } from '@/hooks/useBranches';
 import { useSavedBranches } from '@/hooks/useSavedBranches';
 
 // Types
-import { User } from '../../../types/auth';
+import { User } from '@/types/auth';
 import { Restaurant } from '@/types/restaurant';
 import { UserRoute } from '@/types/navigation';
 
@@ -82,19 +85,17 @@ export default function HomeScreen() {
   
   // Debug log function to show current date and time
   const logDateTimeState = () => {
-    console.log(`CURRENT STATE: Date=${format(date, 'yyyy-MM-dd')}, Time=${time}, Current time=${new Date().toTimeString().slice(0, 5)}`);
+    console.log(`CURRENT STATE: Date=${format(date, 'yyyy-MM-dd')}, Time=${time}, Real time=${new Date().toTimeString().slice(0, 5)}`);
   };
-
-  // Log initial state
-  useEffect(() => {
-    logDateTimeState();
-  }, []);
 
   // Log whenever date or time changes
   useEffect(() => {
     logDateTimeState();
   }, [date, time]);
 
+  // Track if we've just mounted the component to avoid initial refresh
+  const isInitialMount = useRef(true);
+  
   // Store references to branch cards
   const branchCardsRef = useRef(new Map());
   
@@ -123,6 +124,13 @@ export default function HomeScreen() {
 
   // Refresh time slots when date or time changes
   useEffect(() => {
+    // Skip the first run to avoid refreshing immediately after mount
+    // This prevents duplicate API calls since BranchCards fetch on their own mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
     // Use a debounce to avoid too many refreshes
     const timer = setTimeout(() => {
       // Only refresh if we have branches to display
@@ -306,6 +314,81 @@ export default function HomeScreen() {
   const getFilterButtonText = useMemo(() => {
     // Always return 'Filters' regardless of which filters are active
     return 'Filters';
+  }, []);
+  
+  // Track if we've shown the location permission dialog
+  const [hasRequestedLocationPermission, setHasRequestedLocationPermission] = useState(false);
+  const [isCheckingPermission, setIsCheckingPermission] = useState(false);
+  
+  // Function to request location permission with a custom dialog
+  const requestLocationPermission = async () => {
+    if (hasRequestedLocationPermission || isCheckingPermission) return;
+    
+    setIsCheckingPermission(true);
+    
+    try {
+      // First check if permission was already granted in a previous session
+      const permissionGranted = await useBranchStore.getState().checkLocationPermission();
+      
+      if (permissionGranted) {
+        // Permission was already granted, the branch store has handled getting the location
+        setHasRequestedLocationPermission(true);
+        setIsCheckingPermission(false);
+        return;
+      }
+      
+      // If not previously granted, show the custom dialog
+      setHasRequestedLocationPermission(true);
+      useBranchStore.getState().setHasRequestedLocationPermission(true);
+      
+      // Show custom alert to explain why we need location
+      Alert.alert(
+        "Location Access",
+        "Ehgezli would like to access your location to show you the distance to restaurants. Would you like to grant permission?",
+        [
+          {
+            text: "Don't Allow",
+            onPress: () => {
+              console.log("Location permission denied by user via custom dialog");
+              // We'll set userLocation to null in the branch store
+              useBranchStore.getState().setUserLocationNull();
+            },
+            style: "cancel"
+          },
+          {
+            text: "Allow",
+            onPress: async () => {
+              console.log("User agreed to location permission via custom dialog");
+              // Now we'll request the actual system permission
+              const { status } = await Location.requestForegroundPermissionsAsync();
+              
+              if (status === 'granted') {
+                // Get the user's location
+                useBranchStore.getState().getUserLocation();
+              } else {
+                // Permission was denied
+                console.log("System location permission denied");
+                useBranchStore.getState().setUserLocationNull();
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error("Error checking location permission:", error);
+    } finally {
+      setIsCheckingPermission(false);
+    }
+  };
+  
+  // Show location permission dialog on first load
+  useEffect(() => {
+    // Small delay to ensure the app is fully loaded
+    const timer = setTimeout(() => {
+      requestLocationPermission();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
   }, []);
   
   return (

@@ -68,30 +68,73 @@ export const updateUserProfileController = async (req: Request, res: Response) =
 
   //--- Update User Location ---
 
+  // Update user location permission status only (not storing coordinates for privacy)
   export const updateUserLocationController = async (req: Request, res: Response) => {
     try {
-        const userId = (req as any).user?.id;
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
-  
-    const { lastLatitude, lastLongitude, locationPermissionGranted } = req.body;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const { locationPermissionGranted } = req.body;
+      
+      // Always use the current date for locationUpdatedAt
+      const locationUpdatedAt = new Date();
     
-    // Always use the current date for locationUpdatedAt
-    const locationUpdatedAt = new Date();
-  
-    // Don't check if location exists first - just update with the provided values
-    // This will create the location data if it doesn't exist or update it if it does
-    const updatedLocation = await updateUserLocation(userId, { 
-      lastLatitude, 
-      lastLongitude, 
-      locationUpdatedAt, 
-      locationPermissionGranted: locationPermissionGranted ?? false // Default to false if not provided
-    });
-    
-    res.json(updatedLocation);
+      // Only update the permission status, not the actual coordinates
+      const updatedLocation = await updateUserLocation(userId, { 
+        locationPermissionGranted: locationPermissionGranted ?? false // Default to false if not provided
+      });
+      
+      res.json(updatedLocation);
     } catch (error) {
-        console.error('Error updating user location:', error);
+        console.error('Error updating user location permission:', error);
         res.status(500).json({ message: "Internal Server Error" });
     }
   };
 
- 
+  //--- Get Location Permission Status ---
+
+  export const getLocationPermissionController = async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const locationInfo = await getUserLocation(userId);
+      
+      res.json({ 
+        locationPermissionGranted: locationInfo?.locationPermissionGranted || false 
+      });
+    } catch (error) {
+        console.error('Error getting location permission status:', error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+  };
+
+  //--- Update Location Permission Status ---
+
+  export const updateLocationPermissionController = async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const { locationPermissionGranted } = req.body;
+      
+      // Only update the permission status
+      const updatedLocation = await updateUserLocation(userId, { 
+        locationPermissionGranted: locationPermissionGranted ?? false // Default to false if not provided
+      });
+      
+      res.json({ success: true, locationPermissionGranted: updatedLocation.locationPermissionGranted });
+    } catch (error) {
+        console.error('Error updating location permission:', error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+  };

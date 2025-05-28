@@ -24,18 +24,22 @@ export const deleteUserAccount = async (): Promise<void> => {
   await apiClient.delete('/user');
 };
 
-// Get user location
-export const getUserLocation = async (): Promise<UserLocation | null> => {
+// Update location permission status in database (without sending coordinates)
+export const updateLocationPermission = async (granted: boolean): Promise<void> => {
   try {
-    const { data } = await apiClient.get<UserLocation>('/user/location');
-    return data;
+    await apiClient.put('/user/location-permission', { locationPermissionGranted: granted });
   } catch (error) {
-    return null;
+    console.error('Error updating location permission:', error);
   }
 };
 
-// Update user location
-export const updateUserLocation = async (location: Omit<UserLocation, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<UserLocation> => {
-  const { data } = await apiClient.put<UserLocation>('/user/location', location);
-  return data;
+// Get user location permission status from database
+export const getLocationPermissionStatus = async (): Promise<boolean> => {
+  try {
+    const { data } = await apiClient.get('/user/location-permission');
+    return data.locationPermissionGranted || false;
+  } catch (error) {
+    console.error('Error getting location permission status:', error);
+    return false;
+  }
 };

@@ -55,7 +55,7 @@ export const useSavedBranches = () => {
         initialized.current = false;
       }
     };
-  }, [user, fetchSavedBranchIds, fetchSavedBranches, savedBranchIds.length, savedBranches.length]);
+  }, [user, fetchSavedBranchIds, fetchSavedBranches]);
   
   // Helper function to check if a branch is saved
   const isBranchSaved = useCallback((branchId: number): boolean => {

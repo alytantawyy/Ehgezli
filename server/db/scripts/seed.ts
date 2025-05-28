@@ -82,8 +82,6 @@ async function seed() {
       city: 'Alexandria',
       nationality: 'Egyptian',
       favoriteCuisines: ['Italian', 'Japanese'],
-      lastLatitude: tampaLocations[0].latitude,
-      lastLongitude: tampaLocations[0].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
@@ -98,8 +96,6 @@ async function seed() {
       city: 'Cairo',
       nationality: 'Egyptian',
       favoriteCuisines: ['Middle Eastern', 'Mediterranean'],
-      lastLatitude: tampaLocations[1].latitude,
-      lastLongitude: tampaLocations[1].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
@@ -114,8 +110,6 @@ async function seed() {
       city: 'Alexandria',
       nationality: 'Egyptian',
       favoriteCuisines: ['Egyptian', 'Middle Eastern', 'Mediterranean'],
-      lastLatitude: tampaLocations[2].latitude,
-      lastLongitude: tampaLocations[2].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
@@ -130,8 +124,6 @@ async function seed() {
       city: 'Cairo',
       nationality: 'Egyptian',
       favoriteCuisines: ['Indian', 'Chinese'],
-      lastLatitude: tampaLocations[3].latitude,
-      lastLongitude: tampaLocations[3].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
@@ -146,8 +138,6 @@ async function seed() {
       city: 'Alexandria',
       nationality: 'Egyptian',
       favoriteCuisines: ['French', 'Italian'],
-      lastLatitude: tampaLocations[4].latitude,
-      lastLongitude: tampaLocations[4].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
@@ -162,8 +152,6 @@ async function seed() {
       city: 'Cairo',
       nationality: 'Egyptian',
       favoriteCuisines: ['Japanese', 'Thai'],
-      lastLatitude: tampaLocations[5].latitude,
-      lastLongitude: tampaLocations[5].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
@@ -178,8 +166,6 @@ async function seed() {
       city: 'Alexandria',
       nationality: 'Egyptian',
       favoriteCuisines: ['Mexican', 'American'],
-      lastLatitude: tampaLocations[6].latitude,
-      lastLongitude: tampaLocations[6].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
@@ -194,8 +180,6 @@ async function seed() {
       city: 'Cairo',
       nationality: 'Egyptian',
       favoriteCuisines: ['Lebanese', 'Greek'],
-      lastLatitude: tampaLocations[7].latitude,
-      lastLongitude: tampaLocations[7].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
@@ -210,8 +194,6 @@ async function seed() {
       city: 'Alexandria',
       nationality: 'Egyptian',
       favoriteCuisines: ['Chinese', 'Indian'],
-      lastLatitude: tampaLocations[8].latitude,
-      lastLongitude: tampaLocations[8].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
@@ -226,8 +208,6 @@ async function seed() {
       city: 'Cairo',
       nationality: 'Egyptian',
       favoriteCuisines: ['Italian', 'French'],
-      lastLatitude: tampaLocations[9].latitude,
-      lastLongitude: tampaLocations[9].longitude,
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     }
@@ -246,9 +226,6 @@ async function seed() {
         city: user.city,
         nationality: user.nationality,
         favoriteCuisines: user.favoriteCuisines,
-        lastLatitude: user.lastLatitude,
-        lastLongitude: user.lastLongitude,
-        locationUpdatedAt: user.locationUpdatedAt,
         locationPermissionGranted: user.locationPermissionGranted,
         createdAt: new Date(),
         updatedAt: new Date()

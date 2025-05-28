@@ -13,10 +13,14 @@ import {
   getBranchById,
   searchBranches
 } from '../api/branch';
+import { updateLocationPermission, getLocationPermissionStatus } from '../api/user';
 
 // Helper function to calculate distance between coordinates
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number | null => {
+  if (!lat1 || !lon1 || !lat2 || !lon2 || 
+      isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2) || 
+      lat1 < -90 || lat1 > 90 || lat2 < -90 || lat2 > 90 || 
+      lon1 < -180 || lon1 > 180 || lon2 < -180 || lon2 > 180) return null;
   
   const R = 6371; // Radius of the earth in km
   const dLat = deg2rad(lat2 - lat1);
@@ -57,16 +61,14 @@ interface BranchState {
   filteredBranches: BranchListItem[];
   selectedBranch: BranchWithDetails | null;
   userLocation: { latitude: number; longitude: number } | null | undefined;
-  
+  hasRequestedLocationPermission: boolean;
   // Status
   loading: boolean;
   error: string | null;
-  
   // Filters
   filter: BranchFilter;
   _lastSearchKey: string | null;
   _lastSearchTime: number | null;
-  
   // Actions
   fetchBranches: () => Promise<void>;
   fetchBranchById: (id: number) => Promise<void>;
@@ -74,9 +76,12 @@ interface BranchState {
   updateFilter: (filter: Partial<BranchFilter>) => void;
   resetFilters: () => void;
   getUserLocation: () => Promise<void>;
+  checkLocationPermission: () => Promise<boolean>;
   calculateDistances: () => void;
   sortByDistance: () => void;
   clearError: () => void;
+  setUserLocationNull: () => void;
+  setHasRequestedLocationPermission: (value: boolean) => void;
 }
 
 export const useBranchStore = create<BranchState>((set, get) => ({
@@ -85,11 +90,10 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   filteredBranches: [],
   selectedBranch: null,
   userLocation: undefined,
-  
+  hasRequestedLocationPermission: false,
   // Status
   loading: false,
   error: null,
-  
   // Filters
   filter: {
     city: undefined,
@@ -104,7 +108,6 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   },
   _lastSearchKey: null,
   _lastSearchTime: null,
-  
   // Fetch all branches
   fetchBranches: async () => {
     try {
@@ -277,30 +280,91 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       const { userLocation: currentLocation } = get();
       if (currentLocation === null) {
         // We've already tried and set userLocation to null, don't try again
+        console.log('Location permissions were previously denied, not requesting again');
         return;
       }
       
+      console.log('Requesting location permissions...');
       const { status } = await Location.requestForegroundPermissionsAsync();
+      
+      console.log(`Location permission status: ${status}`);
       
       if (status !== 'granted') {
         // Set userLocation to null to indicate we've tried and failed
+        console.log('Location permissions denied by user');
         set({ userLocation: null });
         return;
       }
       
-      const location = await Location.getCurrentPositionAsync({});
-      const locationData = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude
-      };
+      // Even if permissions are "granted", we need to be careful about simulator environments
+      console.log('Location permissions granted, getting current position');
       
-      set({ userLocation: locationData });
-      
-      // Calculate distances for branches
-      get().calculateDistances();
+      try {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced
+        });
+        
+        // Check if these are the default simulator coordinates (San Francisco)
+        const isSanFranciscoDefault = 
+          Math.abs(location.coords.latitude - 37.785834) < 0.0001 && 
+          Math.abs(location.coords.longitude - (-122.406417)) < 0.0001;
+          
+        // We'll use the coordinates even if they're the default ones
+        // Just log a warning in development mode
+        if (isSanFranciscoDefault && __DEV__) {
+          console.log('Using default simulator location coordinates for development.');
+        }
+        
+        const locationData = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude
+        };
+        
+        console.log(`User location obtained: ${locationData.latitude}, ${locationData.longitude}`);
+        set({ 
+          userLocation: locationData,
+          hasRequestedLocationPermission: true // Ensure this is set when we get location
+        });
+        
+        // Update permission status in database (without sending coordinates)
+        try {
+          await updateLocationPermission(true);
+        } catch (error) {
+          console.log('Error updating location permission in database:', error);
+        }
+        
+        // Calculate distances for branches
+        get().calculateDistances();
+      } catch (locationError) {
+        console.log('Error getting specific location:', locationError);
+        set({ userLocation: null });
+      }
     } catch (error) {
+      console.log('Error getting location:', error);
       // Set userLocation to null to indicate we've tried and failed
       set({ userLocation: null });
+    }
+  },
+  
+  // Check if location permission was previously granted
+  checkLocationPermission: async () => {
+    try {
+      // Check if permission was already granted in a previous session
+      const permissionGranted = await getLocationPermissionStatus();
+      
+      if (permissionGranted) {
+        console.log("Permission was already granted in a previous session");
+        set({ hasRequestedLocationPermission: true });
+        
+        // Get the user's location directly without showing dialog
+        get().getUserLocation();
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error("Error checking location permission:", error);
+      return false;
     }
   },
   
@@ -308,7 +372,21 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   calculateDistances: () => {
     const { branches, userLocation } = get();
     
-    if (!userLocation) return;
+    // Only calculate distances if we have valid user location
+    // This prevents using default coordinates when permissions aren't granted
+    if (!userLocation || userLocation === null) {
+      console.log('No valid user location available, skipping distance calculation');
+      return;
+    }
+    
+    // Additional validation to ensure we have valid coordinates
+    if (!userLocation.latitude || !userLocation.longitude || 
+        isNaN(userLocation.latitude) || isNaN(userLocation.longitude) || 
+        userLocation.latitude < -90 || userLocation.latitude > 90 || 
+        userLocation.longitude < -180 || userLocation.longitude > 180) {
+      console.log('Invalid user location coordinates, skipping distance calculation');
+      return;
+    }
     
     const branchesWithDistance = branches.map(branch => ({
       ...branch,
@@ -349,5 +427,17 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   },
   
   // Clear error
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+  
+  // Set userLocation to null explicitly (used when permission is denied)
+  setUserLocationNull: () => {
+    console.log('Setting userLocation to null explicitly');
+    set({ userLocation: null });
+  },
+  
+  // Set hasRequestedLocationPermission flag
+  setHasRequestedLocationPermission: (value: boolean) => {
+    console.log(`Setting hasRequestedLocationPermission to ${value}`);
+    set({ hasRequestedLocationPermission: value });
+  },
 }));

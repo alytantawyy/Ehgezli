@@ -47,11 +47,24 @@ export function getSmartDefaultDateTime() {
     defaultTime = "13:00"; // 1:00 PM lunch time tomorrow
   }
   
-  // Round minutes to nearest 15 minutes for better UX
+  // Round minutes up to nearest 30 minutes for better UX
   if (defaultTime !== "13:00" && defaultTime !== "21:00") {
     const [hours, minutes] = defaultTime.split(':').map(Number);
-    const roundedMinutes = Math.round(minutes / 15) * 15;
-    defaultTime = `${hours}:${roundedMinutes === 60 ? '00' : roundedMinutes.toString().padStart(2, '0')}`;
+    
+    // Calculate minutes to next half hour (ceiling)
+    let roundedMinutes;
+    if (minutes <= 30) {
+      roundedMinutes = 30;
+    } else {
+      roundedMinutes = 0;
+      // Move to next hour
+      defaultTime = `${hours + 1}:00`;
+    }
+    
+    // Only update if we're rounding to 30 minutes
+    if (roundedMinutes === 30) {
+      defaultTime = `${hours}:${roundedMinutes}`;
+    }
   }
   
   return {

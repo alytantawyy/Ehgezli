@@ -33,9 +33,6 @@ export const users = pgTable("users", {
   nationality: text("nationality").notNull(),                    // User's nationality
   city: text("city").notNull(),                                  // User's city
   favoriteCuisines: text("favorite_cuisines").array().notNull(), // Array of favorite food types
-  lastLatitude: doublePrecision("last_latitude"),                 // Last known latitude
-  lastLongitude: doublePrecision("last_longitude"),               // Last known longitude
-  locationUpdatedAt: timestamp("location_updated_at"),            // When location was last updated
   locationPermissionGranted: boolean("location_permission_granted").default(false), // If user granted location permission
   createdAt: timestamp("created_at").notNull().defaultNow(),     // Account creation date
   updatedAt: timestamp("updated_at").notNull().defaultNow(),     // Last update date
@@ -233,8 +230,6 @@ export const insertUserSchema = createInsertSchema(users).omit({
     }),
   locationPermissionGranted: z.boolean().default(false),
   locationUpdatedAt: z.date().nullable(),
-  lastLatitude: z.number().nullable(),
-  lastLongitude: z.number().nullable(),
   gender: z.string().default(""),
   nationality: z.string().default(""),
   city: z.string().default(""),

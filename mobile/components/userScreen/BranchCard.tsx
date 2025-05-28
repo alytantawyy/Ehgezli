@@ -26,7 +26,21 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
     
     // Get user location from the branch store to check if permissions were granted
     const userLocation = useBranchStore(state => state.userLocation);
-    const locationPermissionGranted = userLocation !== null && userLocation !== undefined;
+    
+    // Simplified check - only verify that we have a valid userLocation with coordinates
+    const locationPermissionGranted = 
+      userLocation !== null && 
+      userLocation !== undefined && 
+      typeof userLocation === 'object' &&
+      userLocation.latitude !== undefined &&
+      userLocation.longitude !== undefined;
+    
+    // Debug logs
+    console.log('BranchCard debug:', {
+      userLocation,
+      locationPermissionGranted,
+      branchDistance: branch.distance
+    });
     
     // This function can be called from outside to refresh time slots
     const refreshTimeSlots = (date: Date, time: string) => {
@@ -50,8 +64,8 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
     
     const formatDistance = (distance: number | null | undefined) => {
       if (distance === null || distance === undefined) return 'Distance unknown';
-      if (distance < 1) return `${Math.round(distance * 1000)}m`;
-      return `${distance.toFixed(1)}km`;
+      if (distance < 1) return `${Math.round(distance * 1000)}m away`;
+      return `${distance.toFixed(1)} km away`;
     };
 
     const handleToggleSave = (e: any) => {
@@ -100,19 +114,28 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
           </View>
           
           <View style={styles.infoRow}>
-            {/* Price Range */}
-            <Text style={styles.priceRange}>{branch.priceRange}</Text>
-            <Text style={styles.dot}>•</Text>
-            {/* Cuisine */}
-            <Text style={styles.cuisine}>{branch.cuisine}</Text>
-            <Text style={styles.dot}>•</Text>
-            {/* Location */}
-            <Text style={styles.location}>
-              {branch.city}
-              {locationPermissionGranted && branch.distance !== null && branch.distance !== undefined && (
-                <Text style={styles.distance}> • {formatDistance(branch.distance)}</Text>
+            {/* Left side: Price Range, Cuisine, Distance */}
+            <View style={styles.leftInfo}>
+              {/* Price Range */}
+              <Text style={styles.priceRange}>{branch.priceRange}</Text>
+              <Text style={styles.dot}>•</Text>
+              {/* Cuisine */}
+              <Text style={styles.cuisine}>{branch.cuisine}</Text>
+              
+              {/* Distance (if available) */}
+              {locationPermissionGranted && branch.distance !== null && 
+               branch.distance !== undefined && 
+               typeof branch.distance === 'number' && 
+               !isNaN(branch.distance) && (
+                <>
+                  <Text style={styles.dot}>•</Text>
+                  <Text style={styles.distance}>{formatDistance(branch.distance)}</Text>
+                </>
               )}
-            </Text>
+            </View>
+            
+            {/* Right side: City */}
+            <Text style={styles.city}>{branch.city}</Text>
           </View>
         </View>
         
@@ -201,29 +224,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  leftInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
   },
   priceRange: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
   },
   dot: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     marginHorizontal: 6,
   },
   cuisine: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
-  },
-  location: {
-    fontSize: 16,
-    color: '#666',
-    marginLeft: 'auto',
   },
   distance: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     fontWeight: '400',
+  },
+  city: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 'auto',
   },
   timeSlotContainer: {
     flexDirection: 'row',

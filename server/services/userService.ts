@@ -12,11 +12,15 @@
  */
 
 import { db } from "@server/db/db";
-import { UserLocation, userPasswordResetTokens, users} from "@server/db/schema";
+import { userPasswordResetTokens, users} from "@server/db/schema";
 import { eq } from "drizzle-orm";
 import { InsertUser, User } from "@server/db/schema";
 import { hashPassword } from "./authService";
 
+// Define our own UserLocation type that matches the current schema
+type UserLocation = {
+  locationPermissionGranted: boolean | null;
+};
 
 // ==================== User Service ====================
 
@@ -67,16 +71,10 @@ export const updateUserProfile = async (
 //--- Get User Location ---
 
 export const getUserLocation = async (userId: number): Promise<{
-  lastLatitude: number;
-  lastLongitude: number;
-  locationUpdatedAt: Date;
-  locationPermissionGranted: boolean;
+  locationPermissionGranted: boolean | null;
 } | undefined> => {
     const [location] = await db
     .select({
-      lastLatitude: users.lastLatitude,
-      lastLongitude: users.lastLongitude,
-      locationUpdatedAt: users.locationUpdatedAt,
       locationPermissionGranted: users.locationPermissionGranted,
     })
     .from(users)
@@ -86,9 +84,6 @@ export const getUserLocation = async (userId: number): Promise<{
     return undefined;
   }
   return {
-    lastLatitude: location.lastLatitude ?? 0,
-    lastLongitude: location.lastLongitude ?? 0,
-    locationUpdatedAt: location.locationUpdatedAt ?? new Date(),
     locationPermissionGranted: location.locationPermissionGranted ?? false
   };
 };
@@ -98,17 +93,11 @@ export const getUserLocation = async (userId: number): Promise<{
 export const updateUserLocation = async (
     userId: number, 
     locationData: {
-      lastLatitude: number;
-      lastLongitude: number;
-      locationUpdatedAt: Date;
       locationPermissionGranted: boolean;
     }
-  ): Promise<UserLocation> => {
+  ): Promise<{ locationPermissionGranted: boolean | null }> => {
     const [updatedLocation] = await db.update(users)
       .set({
-        lastLatitude: locationData.lastLatitude,
-        lastLongitude: locationData.lastLongitude,
-        locationUpdatedAt: locationData.locationUpdatedAt,
         locationPermissionGranted: locationData.locationPermissionGranted
       })
       .where(eq(users.id, userId))
@@ -116,7 +105,8 @@ export const updateUserLocation = async (
     if (!updatedLocation) {
       throw new Error(`User with id ${userId} not found`);
     }
-    return updatedLocation;
+    // Handle potential null value by defaulting to false
+    return { locationPermissionGranted: updatedLocation.locationPermissionGranted ?? false };
   };
 
   //--- Delete User ---

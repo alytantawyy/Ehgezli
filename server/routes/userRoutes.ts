@@ -6,6 +6,6 @@ export function registerUserRoutes(app: Express) {
   app.get("/api/user", authenticate, userController.getUserProfileController);
   app.put("/api/user", authenticate, userController.updateUserProfileController);
   app.delete("/api/user", authenticate, userController.deleteUserController);
-  app.get("/api/user/location", authenticate, userController.getUserLocationController);
-  app.put("/api/user/location", authenticate, userController.updateUserLocationController);
+  app.put("/api/user/location-permission", authenticate, userController.updateLocationPermissionController);
+  app.get("/api/user/location-permission", authenticate, userController.getLocationPermissionController);
 }
