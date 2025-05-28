@@ -14,6 +14,7 @@ interface TimePickerModalProps {
   onClose: () => void;
   onSelect: (time: Date) => void;
   selectedTime: Date;
+  selectedDate: Date;
   startHour?: number;
   endHour?: number;
   interval?: number;
@@ -24,6 +25,7 @@ export default function TimePickerModal({
   onClose,
   onSelect,
   selectedTime,
+  selectedDate,
   startHour = 0,
   endHour = 24,
   interval = 30,
@@ -35,8 +37,19 @@ export default function TimePickerModal({
     baseDate.setSeconds(0);
     baseDate.setMilliseconds(0);
     
+    // Check if selected date is today to filter past times
+    const now = new Date();
+    const isToday = selectedDate.toDateString() === now.toDateString();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
     for (let hour = startHour; hour < endHour; hour++) {
       for (let minute = 0; minute < 60; minute += interval) {
+        // Skip past times if we're selecting for today
+        if (isToday && (hour < currentHour || (hour === currentHour && minute <= currentMinute))) {
+          continue; // Skip this time as it's in the past
+        }
+        
         const time = new Date(baseDate);
         time.setHours(hour);
         time.setMinutes(minute);
@@ -48,6 +61,13 @@ export default function TimePickerModal({
         });
       }
     }
+    
+    // If no slots are available (all times today have passed),
+    // add a message or handle appropriately
+    if (slots.length === 0 && isToday) {
+      console.warn('No future time slots available for today');
+    }
+    
     return slots;
   };
 

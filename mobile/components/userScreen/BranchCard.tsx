@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BranchListItem } from '@/types/branch';
 import { formatTimeWithAMPM } from '@/app/utils/time-slots';
 import { useTimeSlots } from '@/hooks/useTimeSlots';
+import { useBranchStore } from '@/store/branch-store';
 
 interface BranchCardProps {
   branch: BranchListItem;
@@ -22,6 +23,10 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
   ({ branch, onPress, isSaved = false, onToggleSave }, ref) => {
     // Use our custom hook
     const { availableSlots, loading, fetchSlots } = useTimeSlots();
+    
+    // Get user location from the branch store to check if permissions were granted
+    const userLocation = useBranchStore(state => state.userLocation);
+    const locationPermissionGranted = userLocation !== null && userLocation !== undefined;
     
     // This function can be called from outside to refresh time slots
     const refreshTimeSlots = (date: Date, time: string) => {
@@ -100,8 +105,14 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
             <Text style={styles.dot}>•</Text>
             {/* Cuisine */}
             <Text style={styles.cuisine}>{branch.cuisine}</Text>
+            <Text style={styles.dot}>•</Text>
             {/* Location */}
-            <Text style={styles.location}>{branch.city}</Text>
+            <Text style={styles.location}>
+              {branch.city}
+              {locationPermissionGranted && branch.distance !== null && branch.distance !== undefined && (
+                <Text style={styles.distance}> • {formatDistance(branch.distance)}</Text>
+              )}
+            </Text>
           </View>
         </View>
         
@@ -208,6 +219,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginLeft: 'auto',
+  },
+  distance: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '400',
   },
   timeSlotContainer: {
     flexDirection: 'row',

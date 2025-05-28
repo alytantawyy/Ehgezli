@@ -235,12 +235,12 @@ export const getRestaurantBranchAvailability = async (branchId: number, date: Da
       .where(
         and(
           inArray(bookings.timeSlotId, slotIds),
-          ne(bookings.status, 'cancelled') // Add this line to exclude cancelled bookings
+          ne(bookings.status, 'cancelled') // Exclude cancelled bookings
         )
       );
 
-    console.log(`🔍 DEBUG: Processing ${slots.length} time slots for branch ${branchId} on date ${normalizedDate.toISOString().split('T')[0]}`);
-    console.log(`📊 DEBUG: Found ${branchBookings.length} active bookings (excluding cancelled)`);
+    console.log(`🔍 DEBUG: Date=${normalizedDate.toISOString().split('T')[0]}, Time=${requestedTime}, Selected Time=${requestedTime}`);
+    console.log(`📊 DEBUG: Found ${branchBookings.length} active bookings for ${slots.length} time slots`);
 
     // Format the response as an array of available time slots with details
     const availableSlots = slots.map(slot => {
@@ -255,28 +255,6 @@ export const getRestaurantBranchAvailability = async (branchId: number, date: Da
       const availableTables = Math.max(0, maxTables - bookedTables);
       const isAvailable = !slot.isClosed && (availableSeats > 0 || availableTables > 0);
 
-      // Debug log for this specific time slot
-      console.log(`
-🕒 DEBUG: Time slot ${slot.id} (${slot.startTime.toTimeString().slice(0, 5)}-${slot.endTime.toTimeString().slice(0, 5)}):
-  📝 Raw data:
-    - isClosed: ${slot.isClosed}
-    - slot.maxSeats: ${slot.maxSeats}
-    - slot.maxTables: ${slot.maxTables}
-    - settings.maxSeatsPerSlot: ${settings.maxSeatsPerSlot}
-    - settings.maxTablesPerSlot: ${settings.maxTablesPerSlot}
-  🧮 Calculations:
-    - Bookings for this slot: ${bookingsForSlot.length}
-    - Booking IDs: ${bookingsForSlot.map(b => b.id).join(', ')}
-    - Total booked seats: ${bookedSeats}
-    - Total booked tables: ${bookedTables}
-    - Effective maxSeats: ${maxSeats}
-    - Effective maxTables: ${maxTables}
-  📊 Results:
-    - Available seats: ${availableSeats}
-    - Available tables: ${availableTables}
-    - Is available: ${isAvailable}
-      `);
-
       return {
         id: slot.id,
         time: slot.startTime.toTimeString().slice(0, 5), // Format as HH:MM
@@ -290,10 +268,6 @@ export const getRestaurantBranchAvailability = async (branchId: number, date: Da
 
     // Sort by time
     availableSlots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-
-    // Summary log
-    const availableCount = availableSlots.filter(slot => slot.isAvailable).length;
-    console.log(`✅ DEBUG: Final result - ${availableCount} available slots out of ${availableSlots.length} total`);
 
     // If requestedTime is provided, find the closest available slot
     if (requestedTime) {

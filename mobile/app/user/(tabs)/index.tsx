@@ -11,6 +11,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
+import { getSmartDefaultDateTime, formatDisplayTime, getMinSelectableDate } from '@/app/utils/date-time';
 
 // Components
 import { SearchBar } from '@/components/userScreen/SearchBar';
@@ -64,12 +65,36 @@ export default function HomeScreen() {
   // Saved branches
   const { toggleSavedBranch, isBranchSaved } = useSavedBranches();
   
+  // Get smart default date and time based on current time of day
+  const defaultDateTime = getSmartDefaultDateTime();
+  
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
-  const [date, setDate] = useState(new Date());
-  const [time, setTime] = useState('18:00');
+  const [date, setDate] = useState<Date>(() => {
+    const defaults = getSmartDefaultDateTime();
+    return defaults.date;
+  });
+  const [time, setTime] = useState<string>(() => {
+    const defaults = getSmartDefaultDateTime();
+    return defaults.time;
+  });
   const [partySize, setPartySize] = useState(2);
   
+  // Debug log function to show current date and time
+  const logDateTimeState = () => {
+    console.log(`CURRENT STATE: Date=${format(date, 'yyyy-MM-dd')}, Time=${time}, Current time=${new Date().toTimeString().slice(0, 5)}`);
+  };
+
+  // Log initial state
+  useEffect(() => {
+    logDateTimeState();
+  }, []);
+
+  // Log whenever date or time changes
+  useEffect(() => {
+    logDateTimeState();
+  }, [date, time]);
+
   // Store references to branch cards
   const branchCardsRef = useRef(new Map());
   
@@ -102,7 +127,7 @@ export default function HomeScreen() {
     const timer = setTimeout(() => {
       // Only refresh if we have branches to display
       if (displayedBranches.length > 0) {
-        console.log('ud83dudd04 Date or time changed, refreshing time slots...');
+        console.log('Date or time changed, refreshing time slots...');
         // Call refreshTimeSlots on all branch cards
         branchCardsRef.current.forEach((branchCardRef) => {
           if (branchCardRef && typeof branchCardRef.refreshTimeSlots === 'function') {
@@ -118,9 +143,9 @@ export default function HomeScreen() {
   // Format time from 24-hour to AM/PM format for display
   const formatDisplayTime = (timeString: string) => {
     const [hours, minutes] = timeString.split(':').map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0);
-    return format(date, 'h:mm a'); // Format as 1:30 PM
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
   };
   
   // Handle search
@@ -174,11 +199,48 @@ export default function HomeScreen() {
   // Date picker handlers
   const handleDateChange = (selectedDate: Date) => {
     if (selectedDate) {
+      // Ensure we're not selecting a date in the past
+      const minDate = getMinSelectableDate();
+      if (selectedDate < minDate) {
+        selectedDate = minDate;
+      }
+      
+      const oldDate = date;
       setDate(selectedDate);
+      
+      console.log(`DEBUG: Date changed from ${format(oldDate, 'yyyy-MM-dd')} to ${format(selectedDate, 'yyyy-MM-dd')}`);
+      console.log(`DEBUG: Current time is ${time}, current real time is ${new Date().toTimeString().slice(0, 5)}`);
+      
+      // When changing dates, reset to an appropriate default time
+      const now = new Date();
+      const isToday = selectedDate.toDateString() === now.toDateString();
+      
+      if (isToday) {
+        // For today, check if current selected time has already passed
+        const [selectedHours, selectedMinutes] = time.split(':').map(Number);
+        const currentHours = now.getHours();
+        const currentMinutes = now.getMinutes();
+        
+        // If selected time has already passed today, use smart default time
+        if (selectedHours < currentHours || 
+            (selectedHours === currentHours && selectedMinutes <= currentMinutes)) {
+          // Get new valid time using our smart default logic
+          const smartDefaults = getSmartDefaultDateTime();
+          const oldTime = time;
+          setTime(smartDefaults.time);
+          console.log(`DEBUG: Time updated from ${oldTime} to ${smartDefaults.time} (using smart defaults)`);
+        } else {
+          console.log(`DEBUG: Keeping current time ${time} as it's still valid for today`);
+        }
+      } else {
+        // For future dates, default to dinner time (6:00 PM)
+        const oldTime = time;
+        setTime('18:00');
+        console.log(`DEBUG: Time updated from ${oldTime} to 18:00 (default dinner time for future date)`);
+      }
     }
   };
-  
-  // Time picker handlers
+
   const getTimePickerValue = () => {
     const [hours, minutes] = time.split(':').map(Number);
     const date = new Date();
@@ -188,9 +250,34 @@ export default function HomeScreen() {
 
   const handleTimeChange = (selectedTime: Date) => {
     if (selectedTime) {
+      const now = new Date();
+      const isToday = date.toDateString() === now.toDateString();
+      
+      // For today, ensure selected time is in the future
+      if (isToday) {
+        const currentHours = now.getHours();
+        const currentMinutes = now.getMinutes();
+        const selectedHours = selectedTime.getHours();
+        const selectedMinutes = selectedTime.getMinutes();
+        
+        console.log(`DEBUG: Time selection - Current: ${currentHours}:${currentMinutes}, Selected: ${selectedHours}:${selectedMinutes}`);
+        
+        // If selected time has already passed today
+        if (selectedHours < currentHours || 
+            (selectedHours === currentHours && selectedMinutes <= currentMinutes)) {
+          console.log(`DEBUG: Rejected time ${selectedHours}:${selectedMinutes} as it's in the past`);
+          // Don't update the time and return early
+          return;
+        }
+      }
+      
+      // Update time if it's valid
       const hours = selectedTime.getHours().toString().padStart(2, '0');
       const minutes = selectedTime.getMinutes().toString().padStart(2, '0');
-      setTime(`${hours}:${minutes}`);
+      const newTime = `${hours}:${minutes}`;
+      const oldTime = time;
+      setTime(newTime);
+      console.log(`DEBUG: Time updated from ${oldTime} to ${newTime}`);
     }
   };
   
@@ -367,7 +454,8 @@ export default function HomeScreen() {
           onClose={() => setIsDatePickerVisible(false)}
           onSelect={handleDateChange}
           selectedDate={date}
-          minDate={new Date()}
+          minDate={getMinSelectableDate()} // Ensure minimum date is today
+          maxDays={60} // Allow booking up to 60 days in advance
         />
       )}
 
@@ -378,6 +466,10 @@ export default function HomeScreen() {
           onClose={() => setIsTimePickerVisible(false)}
           onSelect={handleTimeChange}
           selectedTime={getTimePickerValue()}
+          selectedDate={date} // Pass the selected date
+          startHour={10} // Start from 10 AM
+          endHour={23} // End at 11 PM
+          interval={30} // 30-minute intervals
         />
       )}
 

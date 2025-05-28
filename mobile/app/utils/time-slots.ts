@@ -170,7 +170,6 @@ export const fetchAvailableTimeSlots = async (
     const availability = await getBranchAvailability(branchId, date);
     
     // DEBUG: Log response data
-    console.log('📅 Availability response:', JSON.stringify(availability, null, 2));
     
     // If no slots are available, return empty array
     if (!availability.hasAvailability || !availability.availableSlots || availability.availableSlots.length === 0) {
@@ -209,14 +208,11 @@ export const fetchAvailableTimeSlots = async (
 };
 
 /**
- * Finds the closest available time slots to a selected time
- * @param availableTimes Array of available times in HH:mm format
- * @param selectedTime The selected time in HH:mm format
- * @returns Array of the 3 closest available times
+ * Finds the closest time slots to the selected time
  */
 export const findClosestTimeSlots = (availableTimes: string[], selectedTime: string, numSlots: number = 3): string[] => {
   if (availableTimes.length === 0) return [];
-  if (availableTimes.length <= numSlots) return availableTimes;
+  if (availableTimes.length <= numSlots) return availableTimes.sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
   
   // Convert all times to minutes since midnight for easier comparison
   const selectedMinutes = timeToMinutes(selectedTime);
@@ -228,8 +224,11 @@ export const findClosestTimeSlots = (availableTimes: string[], selectedTime: str
     return aDiff - bDiff;
   });
   
-  // Return the numSlots closest times
-  return sortedTimes.slice(0, numSlots);
+  // Get the numSlots closest times
+  const closestTimes = sortedTimes.slice(0, numSlots);
+  
+  // Sort the closest times chronologically before returning
+  return closestTimes.sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
 };
 
 /**
