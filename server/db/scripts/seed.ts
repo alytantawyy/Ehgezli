@@ -20,6 +20,17 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, saltRounds);
 }
 
+// Helper function to create a date with no time component
+const createDateWithNoTime = (date: Date): Date => {
+  const newDate = new Date(date);
+  newDate.setHours(0, 0, 0, 0);
+  return newDate;
+};
+
+// Helper function to get just the date portion as a Date object
+const getDateOnly = (date: Date): Date => {
+  return new Date(date.toISOString().split('T')[0]);
+};
 
 // Tampa coordinates for different locations
 const tampaLocations = [
@@ -715,6 +726,7 @@ async function seed() {
           // For each hour, create slots based on the interval
           // Only create one slot per hour to reduce database load
           const slotDate = new Date(date);
+          const dateOnly = getDateOnly(slotDate); // Get just the date portion
           const startTime = new Date(slotDate);
           startTime.setHours(hour, 0, 0, 0);
           
@@ -729,7 +741,7 @@ async function seed() {
           batchPromises.push(
             db.insert(timeSlots).values({
               branchId: branchId,
-              date: slotDate,
+              date: dateOnly, // Use date with no time component
               startTime: startTime,
               endTime: endTime,
               maxSeats: setting.maxSeatsPerSlot,

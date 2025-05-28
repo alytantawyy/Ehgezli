@@ -1,6 +1,21 @@
 import apiClient from './api-client';
 import { RestaurantBranch, CreateBranchData, BranchSearchResponse, BranchApiResponse, BranchWithDetails } from '../types/branch';
 
+// Define the response type for branch availability
+export interface BranchAvailabilityResponse {
+  date: string;
+  availableSlots: {
+    id: number;
+    time: string;
+    startTime: string;
+    endTime: string;
+    availableSeats: number;
+    availableTables: number;
+    isAvailable: boolean;
+  }[];
+  hasAvailability: boolean;
+}
+
 // Get a single branch by ID
 export const getBranchById = async (branchId: number) => {
   const { data } = await apiClient.get<BranchWithDetails>(`/branch/${branchId}`);
@@ -37,9 +52,19 @@ export const getAllBranches = async () => {
 };
 
 // Get branch availability for a specific date
-export const getBranchAvailability = async (branchId: number, date: string) => {
-  const { data } = await apiClient.get(`/branch/${branchId}/availability/${date}`);
-  return data;
+export const getBranchAvailability = async (branchId: number, date: string): Promise<BranchAvailabilityResponse> => {
+  try {
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error('Invalid date format. Use YYYY-MM-DD');
+    }
+    
+    const { data } = await apiClient.get<BranchAvailabilityResponse>(`/branch/${branchId}/availability/${date}`);
+    return data;
+  } catch (error) {
+    console.error('Error fetching branch availability:', error);
+    throw error;
+  }
 };
 
 // Search branches

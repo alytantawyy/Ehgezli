@@ -367,6 +367,22 @@ export const changeBookingStatus = async (
   };
 
 /**
+ * Helper function to create a date with no time component (set to midnight)
+ */
+const createDateWithNoTime = (date: Date): Date => {
+  const newDate = new Date(date);
+  newDate.setHours(0, 0, 0, 0);
+  return newDate;
+};
+
+/**
+ * Helper function to get just the date portion as a Date object
+ */
+const getDateOnly = (date: Date): Date => {
+  return new Date(date.toISOString().split('T')[0]);
+};
+
+/**
  * Generates and saves time slots for multiple days based on booking settings
  * @param tx Database transaction object
  * @param branchId Branch ID to create time slots for
@@ -386,7 +402,8 @@ export const generateTimeSlotsForDays = async (
   // Generate slots for each day
   for (let i = 0; i < days; i++) {
     try {
-      const date = new Date(today);
+      // Create date with no time component
+      const date = createDateWithNoTime(today);
       date.setDate(today.getDate() + i);
       
       // Get time slots for the day based on settings
@@ -401,18 +418,19 @@ export const generateTimeSlotsForDays = async (
         try {
           const [hours, minutes] = slotTime.split(':').map(Number);
           
+          // Create startTime with the correct date and time
           const startTime = new Date(date);
           startTime.setHours(hours, minutes, 0, 0);
           
           const endTime = new Date(startTime);
           endTime.setMinutes(endTime.getMinutes() + settings.interval);
           
-          // Create time slot in database
+          // Create time slot in database with date-only for the date field
           await tx
             .insert(timeSlots)
             .values({
               branchId: branchId,
-              date: date,
+              date: getDateOnly(date), // Store only the date portion
               startTime: startTime,
               endTime: endTime,
               maxSeats: settings.maxSeatsPerSlot ?? 0,

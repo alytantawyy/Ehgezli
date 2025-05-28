@@ -132,8 +132,16 @@ export const deleteRestaurantBranchController = async (req: Request, res: Respon
 
 export const getRestaurantBranchAvailabilityController = async (req: Request, res: Response) => {
   const branchId = req.params.branchId;
-  const date = new Date(req.params.date);
-  if (!branchId || !date) return res.status(400).json({ message: "Branch ID and Date are required" });
+  
+  // Fix date parsing to handle timezone issues
+  // Format should be YYYY-MM-DD
+  const dateStr = req.params.date;
+  if (!branchId || !dateStr) return res.status(400).json({ message: "Branch ID and Date are required" });
+  
+  // Create date with no time component to avoid timezone issues
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day); // month is 0-indexed in JS Date
+  date.setHours(0, 0, 0, 0);
   
   const availability = await getRestaurantBranchAvailability(Number(branchId), date);
   res.json(availability);

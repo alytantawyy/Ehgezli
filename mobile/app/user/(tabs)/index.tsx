@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -11,7 +11,6 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Components
 import { SearchBar } from '@/components/userScreen/SearchBar';
@@ -71,6 +70,9 @@ export default function HomeScreen() {
   const [time, setTime] = useState('18:00');
   const [partySize, setPartySize] = useState(2);
   
+  // Store references to branch cards
+  const branchCardsRef = useRef(new Map());
+  
   // Filter state
   const [cityFilter, setCityFilter] = useState('all');
   const [cuisineFilter, setCuisineFilter] = useState('all');
@@ -85,6 +87,33 @@ export default function HomeScreen() {
   
   // State for showing saved branches only
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  
+  // Calculate displayed branches based on filters and saved status
+  const displayedBranches = useMemo(() => {
+    if (showSavedOnly && user) {
+      return filteredBranches.filter(branch => isBranchSaved(branch.branchId));
+    }
+    return filteredBranches;
+  }, [filteredBranches, showSavedOnly, user, isBranchSaved]);
+
+  // Refresh time slots when date or time changes
+  useEffect(() => {
+    // Use a debounce to avoid too many refreshes
+    const timer = setTimeout(() => {
+      // Only refresh if we have branches to display
+      if (displayedBranches.length > 0) {
+        console.log('ud83dudd04 Date or time changed, refreshing time slots...');
+        // Call refreshTimeSlots on all branch cards
+        branchCardsRef.current.forEach((branchCardRef) => {
+          if (branchCardRef && typeof branchCardRef.refreshTimeSlots === 'function') {
+            branchCardRef.refreshTimeSlots(date, time);
+          }
+        });
+      }
+    }, 500); // Increased delay to reduce API calls
+    
+    return () => clearTimeout(timer);
+  }, [date, time, displayedBranches.length]);
   
   // Format time from 24-hour to AM/PM format for display
   const formatDisplayTime = (timeString: string) => {
@@ -126,6 +155,22 @@ export default function HomeScreen() {
     setIsFilterDrawerVisible(false);
   };
   
+  // Reset all filters
+  const handleResetFilters = () => {
+    // Reset filter state variables in the component
+    setCityFilter('all');
+    setCuisineFilter('all');
+    setPriceFilter('all');
+    setDistanceFilter('all');
+    setSearchQuery('');
+    
+    // Reset filters in the branch store
+    resetAllFilters();
+    
+    // Close the filter drawer
+    setIsFilterDrawerVisible(false);
+  };
+  
   // Date picker handlers
   const handleDateChange = (selectedDate: Date) => {
     if (selectedDate) {
@@ -155,18 +200,26 @@ export default function HomeScreen() {
     setIsPartySizePickerVisible(false);
   };
   
-  // Filter branches based on saved status if needed
-  const displayedBranches = useMemo(() => {
-    if (showSavedOnly) {
-      return filteredBranches.filter(branch => isBranchSaved(branch.branchId));
-    }
-    return filteredBranches;
-  }, [filteredBranches, showSavedOnly, isBranchSaved]);
-  
   useEffect(() => {
     if (showSavedOnly) {
     }
   }, [showSavedOnly]);
+  
+  // Check if any filters are applied
+  const hasActiveFilters = useMemo(() => {
+    return (
+      cityFilter !== 'all' || 
+      cuisineFilter !== 'all' || 
+      priceFilter !== 'all' || 
+      distanceFilter !== 'all'
+    );
+  }, [cityFilter, cuisineFilter, priceFilter, distanceFilter]);
+  
+  // Format the filter button text to show active filters
+  const getFilterButtonText = useMemo(() => {
+    // Always return 'Filters' regardless of which filters are active
+    return 'Filters';
+  }, []);
   
   return (
     <SafeAreaView style={styles.container}>
@@ -253,11 +306,17 @@ export default function HomeScreen() {
 
         {/* Filters Button */}
         <TouchableOpacity
-          style={styles.filterButton}
+          style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
           onPress={() => setIsFilterDrawerVisible(true)}
         >
-          <Ionicons name="options-outline" size={18} color="#fff" />
-          <Text style={styles.filterButtonText}>Filters</Text>
+          <Ionicons 
+            name={hasActiveFilters ? "funnel" : "funnel-outline"} 
+            size={18} 
+            color="#fff" 
+          />
+          <Text style={[styles.filterButtonText, hasActiveFilters && styles.filterButtonTextActive]}>
+            {getFilterButtonText}
+          </Text>
         </TouchableOpacity>
       </View>
       
@@ -268,20 +327,27 @@ export default function HomeScreen() {
             branches={displayedBranches}
             loading={branchesLoading}
             onBranchPress={(branchId: number) => router.push({pathname: '/user/branch-details', params: {id: branchId.toString()}})}
-            renderBranchCard={(branch: BranchListItem) => (
-              <BranchCard
-                branch={branch}
-                onPress={(branchId: number) => router.push({pathname: '/user/branch-details', params: {id: branchId.toString()}})}
-                isSaved={user ? isBranchSaved(branch.branchId) : false}
-                onToggleSave={(branchId: number) => {
-                  if (!user) {
-                    router.push(AuthRoute.login);
-                    return;
-                  }
-                  toggleSavedBranch(branchId);
-                }}
-              />
-            )}
+            renderBranchCard={(branch: BranchListItem) => {
+              return (
+                <BranchCard
+                  ref={(ref) => {
+                    if (ref) {
+                      branchCardsRef.current.set(branch.branchId, ref);
+                    }
+                  }}
+                  branch={branch}
+                  onPress={(branchId: number) => router.push({pathname: '/user/branch-details', params: {id: branchId.toString()}})}
+                  isSaved={user ? isBranchSaved(branch.branchId) : false}
+                  onToggleSave={(branchId: number) => {
+                    if (!user) {
+                      router.push(AuthRoute.login);
+                      return;
+                    }
+                    toggleSavedBranch(branchId);
+                  }}
+                />
+              );
+            }}
           />
         ) : (
           <View style={styles.noResultsContainer}>
@@ -331,14 +397,18 @@ export default function HomeScreen() {
           isVisible={isFilterDrawerVisible}
           onClose={() => setIsFilterDrawerVisible(false)}
           onApplyFilters={applyFilters}
-          onResetFilters={resetAllFilters}
+          onResetFilters={handleResetFilters}
           cities={CITY_OPTIONS}
           cuisines={CUISINE_OPTIONS}
           priceRanges={PRICE_RANGE_OPTIONS}
-          onSelectCity={(city) => setCityFilter(city || '')}
-          onSelectCuisine={(cuisine) => setCuisineFilter(cuisine || '')}
-          onSelectPriceRange={(priceRange) => setPriceFilter(priceRange || '')}
+          onSelectCity={(city) => setCityFilter(city || 'all')}
+          onSelectCuisine={(cuisine) => setCuisineFilter(cuisine || 'all')}
+          onSelectPriceRange={(priceRange) => setPriceFilter(priceRange || 'all')}
           onSortByDistance={() => setDistanceFilter('nearby')}
+          cityFilter={cityFilter}
+          cuisineFilter={cuisineFilter}
+          priceFilter={priceFilter}
+          distanceFilter={distanceFilter}
         />
       )}
     </SafeAreaView>
@@ -423,6 +493,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginRight: 4,
   },
+  filterButtonActive: {
+    backgroundColor: '#8B0000', // Darker red to indicate active state
+  },
   filterButtonText: {
     color: '#fff',
     marginLeft: 4,
@@ -432,6 +505,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     alignItems: 'center',
+  },
+  filterButtonTextActive: {
+    fontWeight: 'bold',
   },
   noResultsContainer: {
     flex: 1,

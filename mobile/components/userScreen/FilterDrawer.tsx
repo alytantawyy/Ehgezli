@@ -1,5 +1,5 @@
 // Importing React and other required components, libraries, and styles from React Native and Expo.
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // For using icon components (in this case, a close icon)
 import Colors from '@/constants/Colors'; // Custom color constants based on your app's theme
@@ -68,9 +68,16 @@ export function FilterDrawer({
   const colors = Colors;
   
   // Local state for selected filters
-  const [selectedCity, setSelectedCity] = useState<string | null>(null);
-  const [selectedCuisine, setSelectedCuisine] = useState<string | null>(null);
-  const [selectedPrice, setSelectedPrice] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(cityFilter === 'all' ? null : cityFilter || null);
+  const [selectedCuisine, setSelectedCuisine] = useState<string | null>(cuisineFilter === 'all' ? null : cuisineFilter || null);
+  const [selectedPrice, setSelectedPrice] = useState<string | null>(priceFilter === 'all' ? null : priceFilter || null);
+
+  // Update local state when props change
+  useEffect(() => {
+    setSelectedCity(cityFilter === 'all' ? null : cityFilter || null);
+    setSelectedCuisine(cuisineFilter === 'all' ? null : cuisineFilter || null);
+    setSelectedPrice(priceFilter === 'all' ? null : priceFilter || null);
+  }, [cityFilter, cuisineFilter, priceFilter, isVisible]);
 
   // If the drawer is not visible, don't render anything.
   if (!isVisible) return null;

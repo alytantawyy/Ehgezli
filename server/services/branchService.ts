@@ -10,7 +10,7 @@
  */
 
 import { db } from "@server/db/db";
-import { eq, and, inArray, count, or, like, sql } from "drizzle-orm";
+import { eq, and, inArray, count, or, like, sql, ne } from "drizzle-orm";
 import { restaurantBranches, RestaurantBranch, InsertRestaurantBranch, timeSlots, bookings, bookingSettings, BookingSettings, InsertBookingSettings, restaurantProfiles, RestaurantProfile, restaurantUsers, RestaurantSearchFilter } from "@server/db/schema"; 
 import { getBookingSettings, generateTimeSlots, generateTimeSlotsForDays, createBookingSettings } from "./bookingService";
 import { formatTime } from "@server/utils/date";
@@ -197,12 +197,25 @@ export const deleteRestaurantBranch = async (branchId: number, restaurantId: num
 
 //--- Get Restaurant Branch Availability ---
 
-export const getRestaurantBranchAvailability = async (branchId: number, date: Date) => {
+/**
+ * Helper function to create a date with no time component (set to midnight)
+ */
+const createDateWithNoTime = (date: Date): Date => {
+  const newDate = new Date(date);
+  newDate.setHours(0, 0, 0, 0);
+  return newDate;
+};
+
+export const getRestaurantBranchAvailability = async (branchId: number, date: Date, requestedTime?: string): Promise<any> => {
+  try {
     const settings = await getBookingSettings(branchId);
     if (!settings) {
       throw new Error(`No settings found for branchId ${branchId}`);
     }
-  
+
+    // Normalize the date to midnight to ensure proper comparison
+    const normalizedDate = createDateWithNoTime(date);
+    
     // Get all time slots for this branch on the given date
     const slots = await db
       .select()
@@ -210,35 +223,104 @@ export const getRestaurantBranchAvailability = async (branchId: number, date: Da
       .where(
         and(
           eq(timeSlots.branchId, branchId),
-          eq(timeSlots.date, date) // ensure `date` has no time component
+          eq(sql`${timeSlots.date}::date`, sql`${normalizedDate}::date`) // Compare date parts only
         )
       );
-  
+
     // Get all bookings for those time slots
     const slotIds = slots.map(slot => slot.id);
     const branchBookings = await db
       .select()
       .from(bookings)
-      .where(inArray(bookings.timeSlotId, slotIds));
-  
-    const availability: Record<string, number> = {};
-  
-    for (const slot of slots) {
-      const bookingsForSlot = branchBookings.filter((b: any) => b.timeSlotId === slot.id);
-      const bookedSeats = bookingsForSlot.reduce((sum: number, b: any) => sum + b.partySize, 0);
-      const bookedTables = bookingsForSlot.reduce((sum: number, b: any) => sum + b.tables, 0);
-  
+      .where(
+        and(
+          inArray(bookings.timeSlotId, slotIds),
+          ne(bookings.status, 'cancelled') // Add this line to exclude cancelled bookings
+        )
+      );
+
+    console.log(`🔍 DEBUG: Processing ${slots.length} time slots for branch ${branchId} on date ${normalizedDate.toISOString().split('T')[0]}`);
+    console.log(`📊 DEBUG: Found ${branchBookings.length} active bookings (excluding cancelled)`);
+
+    // Format the response as an array of available time slots with details
+    const availableSlots = slots.map(slot => {
+      const bookingsForSlot = branchBookings.filter(b => b.timeSlotId === slot.id);
+      const bookedSeats = bookingsForSlot.reduce((sum, b) => sum + b.partySize, 0);
+      const bookedTables = bookingsForSlot.length; // Each booking takes one table
+
       const maxSeats = slot.maxSeats ?? settings.maxSeatsPerSlot;
       const maxTables = slot.maxTables ?? settings.maxTablesPerSlot;
-  
-      // Calculate available seats and tables    
-      availability[formatTime(slot.startTime.toString())] = Math.max(0, maxSeats - bookedSeats, maxTables - bookedTables);
+      
+      const availableSeats = Math.max(0, maxSeats - bookedSeats);
+      const availableTables = Math.max(0, maxTables - bookedTables);
+      const isAvailable = !slot.isClosed && (availableSeats > 0 || availableTables > 0);
+
+      // Debug log for this specific time slot
+      console.log(`
+🕒 DEBUG: Time slot ${slot.id} (${slot.startTime.toTimeString().slice(0, 5)}-${slot.endTime.toTimeString().slice(0, 5)}):
+  📝 Raw data:
+    - isClosed: ${slot.isClosed}
+    - slot.maxSeats: ${slot.maxSeats}
+    - slot.maxTables: ${slot.maxTables}
+    - settings.maxSeatsPerSlot: ${settings.maxSeatsPerSlot}
+    - settings.maxTablesPerSlot: ${settings.maxTablesPerSlot}
+  🧮 Calculations:
+    - Bookings for this slot: ${bookingsForSlot.length}
+    - Booking IDs: ${bookingsForSlot.map(b => b.id).join(', ')}
+    - Total booked seats: ${bookedSeats}
+    - Total booked tables: ${bookedTables}
+    - Effective maxSeats: ${maxSeats}
+    - Effective maxTables: ${maxTables}
+  📊 Results:
+    - Available seats: ${availableSeats}
+    - Available tables: ${availableTables}
+    - Is available: ${isAvailable}
+      `);
+
+      return {
+        id: slot.id,
+        time: slot.startTime.toTimeString().slice(0, 5), // Format as HH:MM
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        availableSeats,
+        availableTables,
+        isAvailable
+      };
+    });
+
+    // Sort by time
+    availableSlots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+    // Summary log
+    const availableCount = availableSlots.filter(slot => slot.isAvailable).length;
+    console.log(`✅ DEBUG: Final result - ${availableCount} available slots out of ${availableSlots.length} total`);
+
+    // If requestedTime is provided, find the closest available slot
+    if (requestedTime) {
+      const requestedTimeDate = new Date(`1970-01-01T${requestedTime}:00`);
+      const closestSlot = availableSlots.reduce((prev, curr) => {
+        const prevDiff = Math.abs(prev.startTime.getTime() - requestedTimeDate.getTime());
+        const currDiff = Math.abs(curr.startTime.getTime() - requestedTimeDate.getTime());
+        return prevDiff < currDiff ? prev : curr;
+      }, availableSlots[0]);
+      return {
+        date: normalizedDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
+        closestAvailableSlot: closestSlot,
+        hasAvailability: availableSlots.some(slot => slot.isAvailable)
+      };
     }
 
-    return availability;
-  };
+    return {
+      date: normalizedDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
+      availableSlots,
+      hasAvailability: availableSlots.some(slot => slot.isAvailable)
+    };
+  } catch (error) {
+    throw error;
+  }
+};
 
-  //--Search Branches with Filters--
+//--Search Branches with Filters--
 
 export const searchBranches = async (
   filters: RestaurantSearchFilter

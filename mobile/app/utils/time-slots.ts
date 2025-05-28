@@ -147,6 +147,99 @@ export const getDefaultTimeForDisplay = (currentTime?: Date): string => {
   return format(baseTime, 'h:mm a');
 };
 
+/**
+ * Fetches available time slots from the backend and returns the 3 closest to the selected time
+ * @param branchId The branch ID to fetch availability for
+ * @param date The date in YYYY-MM-DD format
+ * @param selectedTime The user's selected time (optional)
+ * @returns Array of 3 closest available time slots in HH:mm format
+ */
+export const fetchAvailableTimeSlots = async (
+  branchId: number,
+  date: string,
+  selectedTime?: string
+): Promise<string[]> => {
+  try {
+    // DEBUG: Log request parameters
+    console.log('🔍 Fetching time slots with params:', { branchId, date, selectedTime });
+    
+    // Import dynamically to avoid circular dependencies
+    const { getBranchAvailability } = await import('@/api/branch');
+    
+    // Fetch all available slots for this branch and date
+    const availability = await getBranchAvailability(branchId, date);
+    
+    // DEBUG: Log response data
+    console.log('📅 Availability response:', JSON.stringify(availability, null, 2));
+    
+    // If no slots are available, return empty array
+    if (!availability.hasAvailability || !availability.availableSlots || availability.availableSlots.length === 0) {
+      console.log('❌ No available slots found');
+      return [];
+    }
+    
+    // Extract just the time strings from available slots
+    const availableTimes = availability.availableSlots
+      .filter(slot => slot.isAvailable)
+      .map(slot => slot.time);
+    
+    console.log('✅ Available times:', availableTimes);
+    
+    // If no available times after filtering, return empty array
+    if (availableTimes.length === 0) {
+      console.log('❌ No available slots after filtering');
+      return [];
+    }
+    
+    // If no selected time, return the first 3 available slots (or fewer if less than 3)
+    if (!selectedTime) {
+      const result = availableTimes.slice(0, 3);
+      console.log('🕒 Returning first 3 available slots:', result);
+      return result;
+    }
+    
+    // Find the 3 closest available slots to the selected time
+    const result = findClosestTimeSlots(availableTimes, selectedTime, 3);
+    console.log('🕒 Returning', result.length, 'closest slots to', selectedTime, ':', result);
+    return result;
+  } catch (error) {
+    console.error('❌ Error fetching available time slots:', error);
+    return [];
+  }
+};
+
+/**
+ * Finds the closest available time slots to a selected time
+ * @param availableTimes Array of available times in HH:mm format
+ * @param selectedTime The selected time in HH:mm format
+ * @returns Array of the 3 closest available times
+ */
+export const findClosestTimeSlots = (availableTimes: string[], selectedTime: string, numSlots: number = 3): string[] => {
+  if (availableTimes.length === 0) return [];
+  if (availableTimes.length <= numSlots) return availableTimes;
+  
+  // Convert all times to minutes since midnight for easier comparison
+  const selectedMinutes = timeToMinutes(selectedTime);
+  
+  // Sort available times by proximity to selected time
+  const sortedTimes = [...availableTimes].sort((a, b) => {
+    const aDiff = Math.abs(timeToMinutes(a) - selectedMinutes);
+    const bDiff = Math.abs(timeToMinutes(b) - selectedMinutes);
+    return aDiff - bDiff;
+  });
+  
+  // Return the numSlots closest times
+  return sortedTimes.slice(0, numSlots);
+};
+
+/**
+ * Converts a time string (HH:mm) to minutes since midnight
+ */
+const timeToMinutes = (time: string): number => {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
 // Add a default export to prevent Expo Router from treating this as a route
 export default {
   getBaseTime,
@@ -154,5 +247,7 @@ export default {
   generateTimeSlotsFromTime,
   formatTimeWithAMPM,
   formatDateShort,
-  getDefaultTimeForDisplay
+  getDefaultTimeForDisplay,
+  fetchAvailableTimeSlots,
+  findClosestTimeSlots
 };

@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BranchListItem } from '@/types/branch';
-import timeSlots, { formatTimeWithAMPM } from '@/app/utils/time-slots';
+import { formatTimeWithAMPM } from '@/app/utils/time-slots';
+import { useTimeSlots } from '@/hooks/useTimeSlots';
 
 interface BranchCardProps {
   branch: BranchListItem;
@@ -11,85 +12,126 @@ interface BranchCardProps {
   onToggleSave?: (branchId: number) => void;
 }
 
-export const BranchCard = ({ branch, onPress, isSaved = false, onToggleSave }: BranchCardProps) => {
-  // Format distance to show in km or m
-  const formatDistance = (distance: number | null | undefined) => {
-    if (distance === null || distance === undefined) return 'Distance unknown';
-    if (distance < 1) return `${Math.round(distance * 1000)}m`;
-    return `${distance.toFixed(1)}km`;
-  };
+// Define the ref type
+export type BranchCardRefType = {
+  refreshTimeSlots: (date: Date, time: string) => void;
+};
 
-  const handleToggleSave = (e: any) => {
-    e.stopPropagation(); // Prevent triggering the card's onPress
-    console.log('Toggle save for branch:', branch.branchId, 'Current saved status:', isSaved);
-    if (onToggleSave) {
-      onToggleSave(branch.branchId);
-    } else {
-      console.log('onToggleSave function is not provided');
-    }
-  };
-
-  return (
-    <TouchableOpacity 
-      style={styles.container}
-      onPress={() => onPress(branch.branchId)}
-      activeOpacity={0.7}
-    >
-      {/* Restaurant Logo */}
-      <View style={styles.logoContainer}>
-        <Image 
-          source={{ uri: branch.logo }} 
-          style={styles.logo} 
-          resizeMode="cover"
-        />
-      </View>
+// Use forwardRef to expose methods to parent
+export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
+  ({ branch, onPress, isSaved = false, onToggleSave }, ref) => {
+    // Use our custom hook
+    const { availableSlots, loading, fetchSlots } = useTimeSlots();
+    
+    // This function can be called from outside to refresh time slots
+    const refreshTimeSlots = (date: Date, time: string) => {
+      console.log(`🔄 Refreshing time slots for branch ${branch.branchId} with date=${date.toISOString()}, time=${time}`);
+      fetchSlots(branch.branchId, date, time);
+    };
+    
+    // Expose the refreshTimeSlots method via ref
+    useImperativeHandle(ref, () => ({
+      refreshTimeSlots
+    }));
+    
+    // Fetch time slots once when component mounts
+    useEffect(() => {
+      // Fetch slots for this branch
+      fetchSlots(branch.branchId);
       
-      {/* Restaurant Info Container */}
-      <View style={styles.infoContainer}>
-        {/* Restaurant Name and Favorite Icon */}
-        <View style={styles.headerRow}>
-          <Text style={styles.name}>{branch.restaurantName}</Text>
-          
-          {/* Favorite Button */}
-          <TouchableOpacity 
-            style={styles.favoriteButton}
-            onPress={handleToggleSave}
-            activeOpacity={0.7}
-          >
-            <Ionicons 
-              name={isSaved ? "star" : "star-outline"} 
-              size={24} 
-              color={isSaved ? "hsl(355,79%,36%)" : "#000"} 
-            />
-          </TouchableOpacity>
+      // We only want to run this once when the component mounts
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [branch.branchId]);
+    
+    const formatDistance = (distance: number | null | undefined) => {
+      if (distance === null || distance === undefined) return 'Distance unknown';
+      if (distance < 1) return `${Math.round(distance * 1000)}m`;
+      return `${distance.toFixed(1)}km`;
+    };
+
+    const handleToggleSave = (e: any) => {
+      e.stopPropagation(); // Prevent triggering the card's onPress
+      console.log('Toggle save for branch:', branch.branchId, 'Current saved status:', isSaved);
+      if (onToggleSave) {
+        onToggleSave(branch.branchId);
+      } else {
+        console.log('onToggleSave function is not provided');
+      }
+    };
+
+    return (
+      <TouchableOpacity 
+        style={styles.container}
+        onPress={() => onPress(branch.branchId)}
+        activeOpacity={0.7}
+      >
+        {/* Restaurant Logo */}
+        <View style={styles.logoContainer}>
+          <Image 
+            source={{ uri: branch.logo }} 
+            style={styles.logo} 
+            resizeMode="cover"
+          />
         </View>
         
-        <View style={styles.infoRow}>
-          {/* Price Range */}
-          <Text style={styles.priceRange}>{branch.priceRange}</Text>
-          <Text style={styles.dot}>•</Text>
-          {/* Cuisine */}
-          <Text style={styles.cuisine}>{branch.cuisine}</Text>
-          {/* Location */}
-          <Text style={styles.location}>{branch.city}</Text>
+        {/* Restaurant Info Container */}
+        <View style={styles.infoContainer}>
+          {/* Restaurant Name and Favorite Icon */}
+          <View style={styles.headerRow}>
+            <Text style={styles.name}>{branch.restaurantName}</Text>
+            
+            {/* Favorite Button */}
+            <TouchableOpacity 
+              style={styles.favoriteButton}
+              onPress={handleToggleSave}
+              activeOpacity={0.7}
+            >
+              <Ionicons 
+                name={isSaved ? "star" : "star-outline"} 
+                size={24} 
+                color={isSaved ? "hsl(355,79%,36%)" : "#000"} 
+              />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.infoRow}>
+            {/* Price Range */}
+            <Text style={styles.priceRange}>{branch.priceRange}</Text>
+            <Text style={styles.dot}>•</Text>
+            {/* Cuisine */}
+            <Text style={styles.cuisine}>{branch.cuisine}</Text>
+            {/* Location */}
+            <Text style={styles.location}>{branch.city}</Text>
+          </View>
         </View>
-      </View>
-      
-      {/* Time Slots */}
-      <View style={styles.timeSlotContainer}>
-        {timeSlots.generateLocalTimeSlots().map((time, index) => (
-          <TouchableOpacity 
-            key={index}
-            style={styles.timeSlot}
-            onPress={() => onPress(branch.branchId)}
-          >
-            <Text style={styles.timeSlotText}>{formatTimeWithAMPM(time)}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </TouchableOpacity>
-  );
-};
+        
+        {/* Time Slots */}
+        <View style={styles.timeSlotContainer}>
+          {loading ? (
+            // Show loading indicator while fetching slots
+            <ActivityIndicator size="small" color="#B22222" />
+          ) : availableSlots.length > 0 ? (
+            // Show available slots
+            availableSlots.map((time, index) => (
+              <TouchableOpacity 
+                key={index}
+                style={styles.timeSlot}
+                onPress={() => onPress(branch.branchId)}
+              >
+                <Text style={styles.timeSlotText}>{formatTimeWithAMPM(time)}</Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            // Show message if no slots available
+            <Text style={styles.noSlotsText}>
+              {branch.branchId === 91 ? 'Limited availability' : 'No available times'}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -189,5 +231,10 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
     fontSize: 14,
+  },
+  noSlotsText: {
+    color: '#666',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });
