@@ -62,7 +62,10 @@ export default function HomeScreen() {
     filterByPriceRange,
     sortByDistance,
     resetAllFilters,
-    clearError
+    clearError,
+    sortBranches,
+    userLocation,
+    calculateAvailability
   } = useBranches();
   
   // Saved branches
@@ -124,13 +127,6 @@ export default function HomeScreen() {
 
   // Refresh time slots when date or time changes
   useEffect(() => {
-    // Skip the first run to avoid refreshing immediately after mount
-    // This prevents duplicate API calls since BranchCards fetch on their own mount
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    
     // Use a debounce to avoid too many refreshes
     const timer = setTimeout(() => {
       // Only refresh if we have branches to display
@@ -142,11 +138,25 @@ export default function HomeScreen() {
             branchCardRef.refreshTimeSlots(date, time);
           }
         });
+        
+        // Wait a bit for time slots to be updated, then calculate availability and sort
+        setTimeout(() => {
+          calculateAvailability();
+          sortBranches();
+        }, 1000);
       }
     }, 500); // Increased delay to reduce API calls
     
     return () => clearTimeout(timer);
-  }, [date, time, displayedBranches.length]);
+  }, [date, time, displayedBranches.length, calculateAvailability, sortBranches]);
+  
+  // Sort branches when they're loaded or when location changes
+  useEffect(() => {
+    if (branches.length > 0) {
+      console.log('Branches loaded or location changed, sorting branches...');
+      sortBranches();
+    }
+  }, [branches.length, userLocation, sortBranches]);
   
   // Format time from 24-hour to AM/PM format for display
   const formatDisplayTime = (timeString: string) => {

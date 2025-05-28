@@ -6,7 +6,8 @@ import {
   BranchListItem,
   BranchFilter,
   BranchSearchResponse,
-  BranchApiResponse
+  BranchApiResponse,
+  TimeSlot
 } from '../types/branch';
 import {
   getAllBranches,
@@ -14,6 +15,7 @@ import {
   searchBranches
 } from '../api/branch';
 import { updateLocationPermission, getLocationPermissionStatus } from '../api/user';
+import { useSavedBranchStore } from './saved-branch-store';
 
 // Helper function to calculate distance between coordinates
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number | null => {
@@ -78,6 +80,9 @@ interface BranchState {
   getUserLocation: () => Promise<void>;
   checkLocationPermission: () => Promise<boolean>;
   calculateDistances: () => void;
+  calculateAvailability: () => void;
+  updateBranchTimeSlots: (branchId: number, timeSlots: TimeSlot[]) => void;
+  sortBranches: () => void;
   sortByDistance: () => void;
   clearError: () => void;
   setUserLocationNull: () => void;
@@ -372,10 +377,9 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   calculateDistances: () => {
     const { branches, userLocation } = get();
     
-    // Only calculate distances if we have valid user location
-    // This prevents using default coordinates when permissions aren't granted
-    if (!userLocation || userLocation === null) {
-      console.log('No valid user location available, skipping distance calculation');
+    // Skip if no user location or branches
+    if (!userLocation || !branches.length) {
+      console.log('No user location or branches, skipping distance calculation');
       return;
     }
     
@@ -409,6 +413,157 @@ export const useBranchStore = create<BranchState>((set, get) => ({
           branch.longitude
         )
       }))
+    });
+  },
+  
+  // Calculate and set availability for branches based on time slots
+  calculateAvailability: () => {
+    const { branches } = get();
+    
+    // Skip if no branches
+    if (!branches.length) {
+      console.log('No branches, skipping availability calculation');
+      return;
+    }
+    
+    // For each branch, check if it has time slots and calculate availability
+    const branchesWithAvailability = branches.map(branch => {
+      // If the branch has time slots data
+      if (branch.timeSlots && Array.isArray(branch.timeSlots) && branch.timeSlots.length > 0) {
+        // Calculate availability score based on number of available slots
+        const availableSlots = branch.timeSlots.filter(slot => !slot.isFull).length;
+        
+        // Log for debugging
+        console.log(`Branch ${branch.branchId} (${branch.restaurantName}) has ${availableSlots} available slots out of ${branch.timeSlots.length}`);
+        
+        return {
+          ...branch,
+          availability: availableSlots
+        };
+      }
+      
+      // If no time slots data is available, return branch with default availability
+      return {
+        ...branch,
+        availability: 0 // Default to 0 availability if no time slots data
+      };
+    });
+    
+    // Update both branches and filteredBranches with availability data
+    set({ 
+      branches: branchesWithAvailability,
+      filteredBranches: get().filteredBranches.map(branch => {
+        // Find the corresponding branch with availability data
+        const branchWithAvailability = branchesWithAvailability.find(
+          b => b.branchId === branch.branchId
+        );
+        
+        // Return branch with availability data if found, otherwise return original branch
+        return branchWithAvailability || branch;
+      })
+    });
+    
+    console.log('Availability calculation complete, branches sorted by availability');
+  },
+  
+  // Update time slots for a specific branch
+  updateBranchTimeSlots: (branchId: number, timeSlots: TimeSlot[]) => {
+    const { branches, filteredBranches } = get();
+    
+    // Update the branch in the branches array
+    const updatedBranches = branches.map(branch => {
+      if (branch.branchId === branchId) {
+        return {
+          ...branch,
+          timeSlots: timeSlots
+        };
+      }
+      return branch;
+    });
+    
+    // Update the branch in the filteredBranches array
+    const updatedFilteredBranches = filteredBranches.map(branch => {
+      if (branch.branchId === branchId) {
+        return {
+          ...branch,
+          timeSlots: timeSlots
+        };
+      }
+      return branch;
+    });
+    
+    // Update the state
+    set({
+      branches: updatedBranches,
+      filteredBranches: updatedFilteredBranches
+    });
+    
+    // Calculate availability based on the updated time slots
+    get().calculateAvailability();
+    
+    // Sort branches to reflect the new availability
+    get().sortBranches();
+    
+    console.log(`Updated time slots for branch ${branchId}, recalculated availability and sorted branches`);
+  },
+  
+  // Sort branches by multiple criteria: availability, distance, saved status, and cuisine
+  sortBranches: () => {
+    const { branches, filteredBranches } = get();
+    const savedBranchIds = useSavedBranchStore.getState().savedBranchIds || [];
+    
+    // Helper function to check if a branch is saved
+    const isBranchSaved = (branch: BranchListItem): boolean => {
+      return savedBranchIds.includes(branch.branchId);
+    };
+    
+    // Helper function for cuisine preference (could be expanded with user preferences)
+    const getCuisineScore = (branch: BranchListItem): number => {
+      // This is a placeholder - in a real app, you might score based on user preferences
+      // For now, we'll just use a simple alphabetical sort
+      return branch.cuisine ? branch.cuisine.charCodeAt(0) : 0;
+    };
+    
+    // Sort function that considers all criteria
+    const sortFunction = (a: BranchListItem, b: BranchListItem): number => {
+      // 1. First sort by availability (if available)
+      if (a.availability !== undefined && b.availability !== undefined) {
+        if (a.availability !== b.availability) return b.availability - a.availability; // Higher availability first
+      } else if (a.availability !== undefined) {
+        return -1; // Branch with availability comes first
+      } else if (b.availability !== undefined) {
+        return 1;
+      }
+      
+      // 2. Then sort by distance (if available)
+      if (a.distance !== undefined && b.distance !== undefined && 
+          a.distance !== null && b.distance !== null) {
+        if (a.distance !== b.distance) return a.distance - b.distance;
+      } else if (a.distance !== undefined && a.distance !== null) {
+        // Branch with distance comes before branch without distance
+        return -1;
+      } else if (b.distance !== undefined && b.distance !== null) {
+        // Branch with distance comes before branch without distance
+        return 1;
+      }
+      
+      // 3. Then sort by saved status
+      const savedA = isBranchSaved(a);
+      const savedB = isBranchSaved(b);
+      if (savedA !== savedB) return savedA ? -1 : 1;
+      
+      // 4. Finally sort by cuisine
+      return getCuisineScore(a) - getCuisineScore(b);
+    };
+    
+    // Apply sorting to both branches and filteredBranches
+    const sortedBranches = [...branches].sort(sortFunction);
+    const sortedFilteredBranches = [...filteredBranches].sort(sortFunction);
+    
+    console.log('Sorted branches based on multiple criteria');
+    set({ 
+      branches: sortedBranches,
+      filteredBranches: sortedFilteredBranches
     });
   },
   

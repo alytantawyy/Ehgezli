@@ -140,6 +140,14 @@ export interface BranchListItem {
   priceRange: string;
   logo: string;
   distance?: number | null;
+  availability?: number; // Higher number means more availability
+  timeSlots?: TimeSlot[]; // Array of time slots for availability calculation
+}
+
+// Time slot for branch list items
+export interface TimeSlot {
+  time: string;
+  isFull: boolean;
 }
 
 // Branch filter options

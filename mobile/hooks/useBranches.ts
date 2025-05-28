@@ -19,6 +19,9 @@ export const useBranches = () => {
     resetFilters,
     getUserLocation,
     calculateDistances,
+    calculateAvailability,
+    updateBranchTimeSlots,
+    sortBranches,
     sortByDistance,
     clearError
   } = useBranchStore();
@@ -44,14 +47,33 @@ export const useBranches = () => {
       // Only try to get location if it's undefined
       if (userLocation === undefined) {
         console.log('Getting user location');
-        getUserLocation();
+        await getUserLocation();
       }
+      
+      // Sort branches using our multi-criteria sorting function
+      // This will sort by: 1) availability, 2) distance, 3) saved status, 4) cuisine
+      console.log('Sorting branches by availability, distance, saved status, and cuisine');
+      sortBranches();
     };
     
     init();
     
-  // Empty dependency array means this only runs once when component mounts
+  // We need to include sortBranches in dependencies, but we don't want this 
+  // effect to re-run when it changes, so we're intentionally leaving it out
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-sort branches whenever location or saved branches change
+  useEffect(() => {
+    // Skip the initial render
+    if (!initialized.current) return;
+    
+    // Only sort if we have branches to sort
+    if (branches.length > 0) {
+      console.log('Re-sorting branches due to location or saved branches change');
+      sortBranches();
+    }
+  }, [userLocation, sortBranches, branches.length]);
 
   // Search branches with a text query
   const searchBranches = useCallback((query: string) => {
@@ -108,13 +130,16 @@ export const useBranches = () => {
   }, [branches]);
 
   return {
+    // Data
     branches,
     filteredBranches,
     selectedBranch,
     loading,
     error,
-    filter,
     userLocation,
+    
+    // Actions
+    fetchBranches,
     fetchBranchById,
     searchBranches,
     filterByCity,
@@ -123,6 +148,9 @@ export const useBranches = () => {
     filterByAvailability,
     resetAllFilters,
     sortByDistance,
+    sortBranches,
+    calculateAvailability,
+    updateBranchTimeSlots,
     getUniqueCities,
     getUniqueCuisines,
     getUniquePriceRanges,

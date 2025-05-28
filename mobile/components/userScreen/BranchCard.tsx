@@ -35,16 +35,9 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
       userLocation.latitude !== undefined &&
       userLocation.longitude !== undefined;
     
-    // Debug logs
-    console.log('BranchCard debug:', {
-      userLocation,
-      locationPermissionGranted,
-      branchDistance: branch.distance
-    });
     
     // This function can be called from outside to refresh time slots
     const refreshTimeSlots = (date: Date, time: string) => {
-      console.log(`🔄 Refreshing time slots for branch ${branch.branchId} with date=${date.toISOString()}, time=${time}`);
       fetchSlots(branch.branchId, date, time);
     };
     
@@ -70,11 +63,8 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
 
     const handleToggleSave = (e: any) => {
       e.stopPropagation(); // Prevent triggering the card's onPress
-      console.log('Toggle save for branch:', branch.branchId, 'Current saved status:', isSaved);
       if (onToggleSave) {
         onToggleSave(branch.branchId);
-      } else {
-        console.log('onToggleSave function is not provided');
       }
     };
 
