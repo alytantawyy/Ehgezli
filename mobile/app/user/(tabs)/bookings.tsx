@@ -1,13 +1,11 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, View, FlatList, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { Text } from '../../../components/common/Themed';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../hooks/useAuth';
-import { router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { getUserBookings } from '../../../api/booking';
+import { router, useFocusEffect } from 'expo-router';
+import { useBookings } from '../../../hooks/useBookings';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { format } from 'date-fns';
 import { BookingWithDetails } from '../../../types/booking';
 import { StatusBadge } from '../../../components/common/StatusBadge';
 import { DetailRow } from '../../../components/common/DetailRow';
@@ -21,67 +19,162 @@ import { UserRoute } from '../../../types/navigation';
 export default function BookingsScreen() {
   // Filter options for bookings
   const [activeFilter, setActiveFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming');
+  // Sort options
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   
   // Get user context
   const { user } = useAuth();
+  
+  // Use the bookings hook which includes React Query functionality
+  const { 
+    userBookings,
+    loading, 
+    error,
+    fetchUserBookings,
+    cancelBooking,
+    getFilteredAndSortedBookings,
+    safeFormatDate,
+    safeFormatTime,
+    isBookingPast
+  } = useBookings();
 
-  // Fetch user bookings
-  const { data: bookings = [], isLoading } = useQuery({
-    queryKey: ['bookings', user?.id, activeFilter],
-    queryFn: () => getUserBookings(),
-    enabled: !!user,
-  });
+  // Refresh bookings when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        fetchUserBookings();
+      }
+    }, [user, fetchUserBookings])
+  );
 
-  // Filter bookings based on selected filter
-  const filteredBookings = React.useMemo(() => {
-    if (!bookings) return [];
-    
-    const now = new Date();
-    
-    switch (activeFilter) {
-      case 'upcoming':
-        return bookings.filter(booking => new Date(booking.timeSlot.date) >= now);
-      case 'past':
-        return bookings.filter(booking => new Date(booking.timeSlot.date) < now);
-      case 'all':
-      default:
-        return bookings;
+  // Handle booking cancellation
+  const handleCancelBooking = async (bookingId: number) => {
+    try {
+      Alert.alert(
+        'Cancel Booking',
+        'Are you sure you want to cancel this booking?',
+        [
+          { text: 'No', style: 'cancel' },
+          { 
+            text: 'Yes', 
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const success = await cancelBooking(bookingId);
+                if (success) {
+                  Alert.alert('Success', 'Your booking has been cancelled.');
+                } else {
+                  Alert.alert('Error', 'Failed to cancel booking. Please try again.');
+                }
+              } catch (error: any) {
+                Alert.alert('Error', `Failed to cancel booking: ${error.message}`);
+              }
+            } 
+          },
+        ]
+      );
+    } catch (error: any) {
+      Alert.alert('Error', `An error occurred: ${error.message}`);
     }
-  }, [bookings, activeFilter]);
+  };
+
+  // Toggle sort order
+  const toggleSortOrder = () => {
+    setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest');
+  };
+
+  // Get filtered and sorted bookings
+  const filteredBookings = getFilteredAndSortedBookings(activeFilter, sortOrder);
 
   // Render a booking item
-  const renderBookingItem = ({ item }: { item: BookingWithDetails }) => (
-    <TouchableOpacity 
-      style={styles.bookingCard}
-      onPress={() => router.push((UserRoute.bookingDetails(item.id.toString())) as any)}
-    >
-      <View style={styles.bookingHeader}>
-        <Text style={styles.restaurantName}>{item.branch.restaurantName}</Text>
-        <StatusBadge status={item.status} />
-      </View>
-      
-      <View style={styles.bookingDetails}>
-        <DetailRow 
-          icon="calendar" 
-          text={format(new Date(item.timeSlot.date), 'EEE, MMM d, yyyy')} 
-        />
+  const renderBookingItem = ({ item }: { item: BookingWithDetails }) => {
+    const isPast = isBookingPast(item);
+    
+    return (
+      <TouchableOpacity 
+        style={styles.bookingCard}
+        onPress={() => router.push((UserRoute.bookingDetails(item.id.toString())) as any)}
+      >
+        <View style={styles.bookingHeader}>
+          <Text style={styles.restaurantName}>{item.branch.restaurantName}</Text>
+          <StatusBadge status={item.status} />
+        </View>
         
-        <DetailRow 
-          icon="time" 
-          text={format(new Date(`${item.timeSlot.date}T${item.timeSlot.startTime}`), 'h:mm a')} 
-        />
+        <View style={styles.bookingDetails}>
+          <DetailRow 
+            icon="calendar" 
+            text={safeFormatDate(item.timeSlot.date, 'EEE, MMM d, yyyy')} 
+          />
+          
+          <DetailRow 
+            icon="time" 
+            text={safeFormatTime(item.timeSlot.date, item.timeSlot.startTime, 'h:mm a')} 
+          />
+          
+          <DetailRow 
+            icon="people" 
+            text={`${item.partySize} ${item.partySize === 1 ? 'person' : 'people'}`} 
+          />
+          
+          <DetailRow 
+            icon="location" 
+            text={`${item.branch.address}, ${item.branch.city}`} 
+          />
+        </View>
         
-        <DetailRow 
-          icon="people" 
-          text={`${item.partySize} ${item.partySize === 1 ? 'person' : 'people'}`} 
-        />
-      </View>
-    </TouchableOpacity>
-  );
+        {/* Only show cancel button for upcoming bookings that aren't already cancelled */}
+        {!isPast && item.status !== 'cancelled' && (
+          <TouchableOpacity 
+            style={styles.cancelButton}
+            onPress={() => handleCancelBooking(item.id)}
+          >
+            <Text style={styles.cancelButtonText}>Cancel Booking</Text>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  // Show error state if there's an error
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.title}>My Bookings</Text>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color="#B22222" />
+          <Text style={styles.errorText}>Error loading bookings</Text>
+          <Text style={styles.errorMessage}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => fetchUserBookings()}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>My Bookings</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.title}>My Bookings</Text>
+        
+        {/* Sort button */}
+        <TouchableOpacity 
+          style={styles.sortButton}
+          onPress={toggleSortOrder}
+        >
+          <Ionicons 
+            name={sortOrder === 'newest' ? 'arrow-down' : 'arrow-up'} 
+            size={16} 
+            color="#666" 
+          />
+          <Text style={styles.sortButtonText}>
+            {sortOrder === 'newest' ? 'Newest first' : 'Oldest first'}
+          </Text>
+        </TouchableOpacity>
+      </View>
       
       <View style={styles.filterContainer}>
         <TouchableOpacity
@@ -124,9 +217,9 @@ export default function BookingsScreen() {
         </TouchableOpacity>
       </View>
       
-      {isLoading ? (
+      {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF385C" />
+          <ActivityIndicator size="large" color="#B22222" />
           <Text style={styles.loadingText}>Loading bookings...</Text>
         </View>
       ) : filteredBookings.length === 0 ? (
@@ -147,6 +240,14 @@ export default function BookingsScreen() {
           keyExtractor={item => item.id.toString()}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+              refreshing={false} 
+              onRefresh={fetchUserBookings} 
+              colors={['#B22222']} 
+              tintColor="#B22222"
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -159,10 +260,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 16,
   },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 16,
+    color: '#333',
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 4,
+    backgroundColor: '#f5f5f5',
+  },
+  sortButtonText: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 4,
   },
   filterContainer: {
     flexDirection: 'row',
@@ -176,7 +295,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   activeFilterButton: {
-    backgroundColor: '#FF385C',
+    backgroundColor: '#B22222',
   },
   filterText: {
     fontSize: 14,
@@ -196,6 +315,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
   },
   bookingHeader: {
     flexDirection: 'row',
@@ -206,9 +327,23 @@ const styles = StyleSheet.create({
   restaurantName: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#333',
   },
   bookingDetails: {
     marginTop: 8,
+  },
+  cancelButton: {
+    backgroundColor: '#f8f8f8',
+    borderWidth: 1,
+    borderColor: '#B22222',
+    borderRadius: 6,
+    padding: 10,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#B22222',
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
@@ -232,7 +367,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   findButton: {
-    backgroundColor: '#FF385C',
+    backgroundColor: '#B22222',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -244,5 +379,35 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingBottom: 20,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#B22222',
+    marginTop: 16,
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#B22222',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
