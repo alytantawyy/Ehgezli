@@ -9,7 +9,7 @@ import {
   Platform,
   Alert
 } from 'react-native';
-import { router } from 'expo-router';
+import { useLocalSearchParams, Stack, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { getSmartDefaultDateTime, formatDisplayTime, getMinSelectableDate } from '@/app/utils/date-time';
@@ -86,6 +86,32 @@ export default function HomeScreen() {
   });
   const [partySize, setPartySize] = useState(2);
   
+  // Store the last selected date and time to prevent reset on navigation
+  const [lastSelectedDate, setLastSelectedDate] = useState<Date | null>(null);
+  const [lastSelectedTime, setLastSelectedTime] = useState<string | null>(null);
+  
+  // Preserve date and time selection when navigating back to this screen
+  useFocusEffect(
+    React.useCallback(() => {
+      // If we have stored a last selected date/time, use it instead of resetting
+      if (lastSelectedDate) {
+        setDate(lastSelectedDate);
+      }
+      if (lastSelectedTime) {
+        setTime(lastSelectedTime);
+      }
+    }, [lastSelectedDate, lastSelectedTime])
+  );
+  
+  // Update the last selected values whenever date or time changes
+  useEffect(() => {
+    setLastSelectedDate(date);
+  }, [date]);
+  
+  useEffect(() => {
+    setLastSelectedTime(time);
+  }, [time]);
+  
   // Debug log function to show current date and time
   const logDateTimeState = () => {
     console.log(`CURRENT STATE: Date=${format(date, 'yyyy-MM-dd')}, Time=${time}, Real time=${new Date().toTimeString().slice(0, 5)}`);
@@ -127,11 +153,17 @@ export default function HomeScreen() {
 
   // Refresh time slots when date or time changes
   useEffect(() => {
+    // Skip the initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
     // Use a debounce to avoid too many refreshes
     const timer = setTimeout(() => {
       // Only refresh if we have branches to display
       if (displayedBranches.length > 0) {
-        console.log('Date or time changed, refreshing time slots...');
+        console.log(`Refreshing time slots with date: ${format(date, 'yyyy-MM-dd')} and time: ${time}`);
         // Call refreshTimeSlots on all branch cards
         branchCardsRef.current.forEach((branchCardRef) => {
           if (branchCardRef && typeof branchCardRef.refreshTimeSlots === 'function') {
@@ -506,7 +538,14 @@ export default function HomeScreen() {
           <BranchList
             branches={displayedBranches}
             loading={branchesLoading}
-            onBranchPress={(branchId: number) => router.push({pathname: '/user/branch-details', params: {id: branchId.toString()}})}
+            onBranchPress={(branchId: number) => router.push({
+              pathname: '/user/branch-details',
+              params: {
+                id: branchId.toString(),
+                selectedDate: format(date.toISOString().split('T')[0], 'yyyy-MM-dd'),
+                selectedTime: time
+              }
+            })}
             renderBranchCard={(branch: BranchListItem) => {
               return (
                 <BranchCard
@@ -516,7 +555,14 @@ export default function HomeScreen() {
                     }
                   }}
                   branch={branch}
-                  onPress={(branchId: number) => router.push({pathname: '/user/branch-details', params: {id: branchId.toString()}})}
+                  onPress={(branchId: number) => router.push({
+                    pathname: '/user/branch-details',
+                    params: {
+                      id: branchId.toString(),
+                      selectedDate: format(date.toISOString().split('T')[0], 'yyyy-MM-dd'),
+                      selectedTime: time
+                    }
+                  })}
                   isSaved={user ? isBranchSaved(branch.branchId) : false}
                   onToggleSave={(branchId: number) => {
                     if (!user) {

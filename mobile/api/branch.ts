@@ -18,9 +18,24 @@ export interface BranchAvailabilityResponse {
 
 // Get a single branch by ID
 export const getBranchById = async (branchId: number) => {
-  const { data } = await apiClient.get<BranchWithDetails>(`/branch/${branchId}`);
-  return data;
+  try {
+    console.log(`Fetching branch with ID: ${branchId}`);
+    const { data } = await apiClient.get<any>(`/branch/${branchId}`);
+    console.log('Branch data received:', data);
+    
+    // Handle case where API returns an array with a single branch object
+    if (Array.isArray(data) && data.length > 0) {
+      return data[0];
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error fetching branch by ID:', error);
+    throw error;
+  }
 };
+
+
 
 // Create a new branch (restaurant owners only)
 export const createBranch = async (branchData: CreateBranchData) => {

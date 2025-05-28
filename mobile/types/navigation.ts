@@ -18,7 +18,7 @@ export const UserRoute = {
   bookings: '/user/(tabs)/bookings',
   profile: '/user/(tabs)/profile',
   bookingDetails: (id: string) => `/user/booking-details?id=${id}`,
-  branchDetails: (id: string | number) => `/user/branch-details?id=${id}`,
+  branchDetails: (id: string | number, selectedDate?: string, selectedTime?: string) => `/user/branch-details?id=${id}&selectedDate=${selectedDate}&selectedTime=${selectedTime}`,
   editProfile: '/user/edit-profile',
   settings: '/user/settings',
   notifications: '/user/notifications',

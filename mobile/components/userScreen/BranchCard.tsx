@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator } fr
 import { Ionicons } from '@expo/vector-icons';
 import { BranchListItem } from '@/types/branch';
 import { formatTimeWithAMPM } from '@/app/utils/time-slots';
+import { format } from 'date-fns';
 import { useTimeSlots } from '@/hooks/useTimeSlots';
 import { useBranchStore } from '@/store/branch-store';
+import { router } from 'expo-router';
 
 interface BranchCardProps {
   branch: BranchListItem;
@@ -22,8 +24,12 @@ export type BranchCardRefType = {
 export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
   ({ branch, onPress, isSaved = false, onToggleSave }, ref) => {
     // Use our custom hook
-    const { availableSlots, loading, fetchSlots } = useTimeSlots();
+    const { timeSlots, loading, fetchTimeSlots } = useTimeSlots(branch.branchId);
     
+    // State to track the current selected date for this card
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [currentTimeStr, setCurrentTimeStr] = useState('');
+
     // Get user location from the branch store to check if permissions were granted
     const userLocation = useBranchStore(state => state.userLocation);
     
@@ -35,10 +41,13 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
       userLocation.latitude !== undefined &&
       userLocation.longitude !== undefined;
     
-    
     // This function can be called from outside to refresh time slots
     const refreshTimeSlots = (date: Date, time: string) => {
-      fetchSlots(branch.branchId, date, time);
+      // Store the date and time for later use when navigating
+      setCurrentDate(date);
+      setCurrentTimeStr(time);
+      // Fetch time slots for this date
+      fetchTimeSlots(date);
     };
     
     // Expose the refreshTimeSlots method via ref
@@ -48,12 +57,12 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
     
     // Fetch time slots once when component mounts
     useEffect(() => {
-      // Fetch slots for this branch
-      fetchSlots(branch.branchId);
+      // Fetch slots for this branch using the current date
+      fetchTimeSlots(currentDate);
       
       // We only want to run this once when the component mounts
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [branch.branchId]);
+    }, []);
     
     const formatDistance = (distance: number | null | undefined) => {
       if (distance === null || distance === undefined) return 'Distance unknown';
@@ -66,6 +75,22 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
       if (onToggleSave) {
         onToggleSave(branch.branchId);
       }
+    };
+
+    // Handle time slot click
+    const handleTimeSlotClick = (e: any, timeSlot: string) => {
+      e.stopPropagation(); // Prevent triggering the card's onPress
+      
+      // Navigate to branch details with the selected time slot
+      router.push({
+        pathname: `/user/branch-details`,
+        params: { 
+          id: branch.branchId.toString(),
+          selectedTime: timeSlot,
+          // Use the stored date from the parent component
+          selectedDate: format(currentDate, 'yyyy-MM-dd')
+        }
+      });
     };
 
     return (
@@ -134,15 +159,15 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
           {loading ? (
             // Show loading indicator while fetching slots
             <ActivityIndicator size="small" color="#B22222" />
-          ) : availableSlots.length > 0 ? (
-            // Show available slots
-            availableSlots.map((time, index) => (
+          ) : timeSlots.length > 0 ? (
+            // Show only the three closest available slots
+            timeSlots.slice(0, 3).map((time, index) => (
               <TouchableOpacity 
                 key={index}
                 style={styles.timeSlot}
-                onPress={() => onPress(branch.branchId)}
+                onPress={(e) => handleTimeSlotClick(e, time.time)}
               >
-                <Text style={styles.timeSlotText}>{formatTimeWithAMPM(time)}</Text>
+                <Text style={styles.timeSlotText}>{formatTimeWithAMPM(time.time)}</Text>
               </TouchableOpacity>
             ))
           ) : (
