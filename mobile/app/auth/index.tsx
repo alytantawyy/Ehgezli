@@ -22,6 +22,7 @@ import AuthTabs from '../../components/authScreen/AuthTabs';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthRoute, UserRoute, RestaurantRoute } from '../../types/navigation';
+import { CUISINE_OPTIONS } from '../../constants/FilterOptions';
 
 // Get screen dimensions for responsive layout
 const { height } = Dimensions.get('window');
@@ -47,11 +48,7 @@ export default function LoginScreen() {
   const [cuisines, setCuisines] = React.useState<string[]>([]);
   
   // Available cuisine options for user preferences
-  const [availableCuisines] = React.useState([
-    'Italian', 'Chinese', 'Japanese', 'Mexican', 'Indian', 'French', 
-    'Thai', 'Mediterranean', 'American', 'Middle Eastern', 'Greek', 
-    'Spanish', 'Korean', 'Vietnamese', 'Turkish', 'Egyptian'
-  ]);
+  const [availableCuisines] = React.useState(CUISINE_OPTIONS);
   
   // Restaurant profile information for registration
   const [restaurantCuisine, setRestaurantCuisine] = React.useState('');

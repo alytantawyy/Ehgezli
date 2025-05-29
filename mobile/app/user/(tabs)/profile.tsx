@@ -1,13 +1,17 @@
-import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Avatar } from '../../../components/common/Avatar';
 import { useAuth } from '../../../hooks/useAuth';
+import { useUser } from '../../../hooks/useUser';
 import { User } from '../../../types/user';
 import { format } from 'date-fns'; 
-import { AuthRoute } from '../../../types/navigation';
+import { AuthRoute, UserRoute } from '../../../types/navigation';
+import ModalPicker from '../../../components/common/ModalPicker';
+import MultiSelectModalPicker from '../../../components/common/MultiSelectModalPicker';
+import { CITY_OPTIONS, CUISINE_OPTIONS } from '../../../constants/FilterOptions';
 
 /**
  * Profile Tab Screen
@@ -15,8 +19,29 @@ import { AuthRoute } from '../../../types/navigation';
  * Displays user profile information and settings
  */
 export default function ProfileScreen() {
-  const { user, userType, logout } = useAuth();
+  const { user, userType, logout, fetchProfile } = useAuth();
+  const { updateUserProfile } = useUser();
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [loading, setLoading] = useState(false);
   
+  // Form state for edit mode
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    city: '',
+    favoriteCuisines: ['', '', '']
+  });
+  
+  // City picker state
+  const [cityPickerVisible, setCityPickerVisible] = useState(false);
+  const [selectedCity, setSelectedCity] = useState('');
+  const [cities, setCities] = useState(CITY_OPTIONS);
+
+  // Cuisine picker state
+  const [cuisinePickerVisible, setCuisinePickerVisible] = useState(false);
+  const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
+  const [cuisines, setCuisines] = useState(CUISINE_OPTIONS);
+
   // Check if the user is a regular user (not a restaurant)
   const isRegularUser = userType === 'user';
   
@@ -25,17 +50,88 @@ export default function ProfileScreen() {
     return user && 'firstName' in user;
   };
 
+  // Initialize form data when edit mode changes
+  useEffect(() => {
+    if (isEditMode && isUserType(user)) {
+      // Initialize form data with current user data
+      setFormData({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        city: user.city || '',
+        favoriteCuisines: user.favoriteCuisines || []
+      });
+      
+      // Initialize selected values for dropdowns
+      setSelectedCity(user.city || '');
+      setSelectedCuisines(user.favoriteCuisines?.filter(cuisine => cuisine.trim() !== '') || []);
+    }
+  }, [isEditMode, user]);
+
+  // Simple toggle for edit mode
+  const handleEditProfile = () => {
+    setIsEditMode(true);
+  };
+
+  // Handle input changes
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Handle cuisine change
+  const handleCuisineChange = (index: number, value: string) => {
+    const updatedCuisines = [...formData.favoriteCuisines];
+    updatedCuisines[index] = value;
+    setFormData(prev => ({
+      ...prev,
+      favoriteCuisines: updatedCuisines
+    }));
+  };
+
+  // Handle save changes
+  const handleSaveChanges = async () => {
+    if (!isUserType(user)) {
+      Alert.alert('Error', 'Unable to update profile. Please try again later.');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Prepare update data according to the UpdateUserData interface in types/user.ts
+      const updateData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        city: selectedCity,
+        favoriteCuisines: selectedCuisines.filter(cuisine => cuisine.trim() !== ''),
+      };
+      
+      console.log('Sending update data:', updateData);
+      
+      // Call API to update profile
+      await updateUserProfile(updateData);
+      
+      Alert.alert('Success', 'Profile updated successfully');
+      setIsEditMode(false);
+    } catch (error: any) {
+      console.error('Update error details:', error);
+      Alert.alert('Error', error.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle cancel edit
+  const handleCancelEdit = () => {
+    setIsEditMode(false);
+  };
+
   // Handle logout
   const handleLogout = () => {
     logout();
     router.replace(AuthRoute.login);
-  };
-
-  // Handle edit profile
-  const handleEditProfile = () => {
-    // Navigate to edit profile screen
-    // This would be implemented in a future update
-    console.log('Navigate to edit profile');
   };
 
   // If not a regular user or user data doesn't have the right shape, show limited profile
@@ -67,6 +163,134 @@ export default function ProfileScreen() {
     );
   }
 
+  // Edit Mode UI
+  if (isEditMode) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Edit Profile</Text>
+            <Text style={styles.subtitle}>Update your account information</Text>
+          </View>
+
+          {/* Edit Form */}
+          <View style={styles.profileCard}>
+            {/* Avatar Section */}
+            <View style={styles.userInfoSection}>
+              <Avatar 
+                size={80} 
+                firstName={formData.firstName} 
+                lastName={formData.lastName} 
+              />
+              <View style={styles.userDetails}>
+                <Text style={styles.greeting}>Hi, {formData.firstName || user.firstName}!</Text>
+                <Text style={styles.memberSince}>Member since {format(user.createdAt, 'MMMM yyyy')}</Text>
+              </View>
+            </View>
+
+            {/* Form Fields */}
+            <View style={styles.formSection}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>First Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.firstName}
+                  onChangeText={(value) => handleInputChange('firstName', value)}
+                  placeholder="Enter your first name"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Last Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.lastName}
+                  onChangeText={(value) => handleInputChange('lastName', value)}
+                  placeholder="Enter your last name"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>City</Text>
+                <ModalPicker
+                  visible={cityPickerVisible}
+                  onClose={() => setCityPickerVisible(false)}
+                  title="Select City"
+                  options={cities.map(city => ({ label: city, value: city }))}
+                  selectedValue={selectedCity}
+                  onSelect={(value: string) => {
+                    setSelectedCity(value);
+                    setFormData(prev => ({ ...prev, city: value }));
+                    setCityPickerVisible(false);
+                  }}
+                />
+                <TouchableOpacity onPress={() => setCityPickerVisible(true)}>
+                  <View style={styles.input}>
+                    <Text style={styles.inputText}>
+                      {selectedCity ? selectedCity : 'Select City'}
+                    </Text>
+                    <MaterialIcons name="arrow-drop-down" size={24} color="#333" style={styles.dropdownIcon} />
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Favorite Cuisines</Text>
+                <MultiSelectModalPicker
+                  visible={cuisinePickerVisible}
+                  onClose={() => setCuisinePickerVisible(false)}
+                  title="Select Favorite Cuisines"
+                  options={cuisines}
+                  selectedValues={selectedCuisines}
+                  onSelect={(values) => {
+                    setSelectedCuisines(values);
+                    setFormData(prev => ({ ...prev, favoriteCuisines: values }));
+                    setCuisinePickerVisible(false);
+                  }}
+                />
+                <TouchableOpacity onPress={() => setCuisinePickerVisible(true)}>
+                  <View style={styles.input}>
+                    <Text style={styles.inputText}>
+                      {selectedCuisines.length > 0 ? selectedCuisines.join(', ') : 'Select Cuisines (Max 3)'}
+                    </Text>
+                    <MaterialIcons name="arrow-drop-down" size={24} color="#333" style={styles.dropdownIcon} />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity 
+              style={[styles.button, styles.cancelButton]} 
+              onPress={handleCancelEdit}
+              disabled={loading}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.button, styles.saveButton, loading && styles.disabledButton]} 
+              onPress={handleSaveChanges}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Save Changes</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // View Mode UI (Default)
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -116,24 +340,29 @@ export default function ProfileScreen() {
           <View style={styles.cuisineSection}>
             <Text style={styles.sectionTitle}>Favorite Cuisines</Text>
             <View style={styles.cuisineContainer}>
-              <View style={styles.cuisineItem}>
-                <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />
-                <Text style={styles.cuisineName}>{user.favoriteCuisines?.[0]}</Text>
-              </View>
-              <View style={styles.cuisineItem}>
-                <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />
-                <Text style={styles.cuisineName}>{user.favoriteCuisines?.[1]}</Text>
-              </View>
-              <View style={styles.cuisineItem}>
-                <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />
-                <Text style={styles.cuisineName}>{user.favoriteCuisines?.[2]}</Text>
-              </View>
+              {user.favoriteCuisines && user.favoriteCuisines.length > 0 ? (
+                user.favoriteCuisines.map((cuisine, index) => (
+                  <View key={index} style={styles.cuisineItem}>
+                    <Ionicons name="restaurant-outline" size={16} color="#666" style={styles.cuisineIcon} />
+                    <Text style={styles.cuisineName}>{cuisine}</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.noCuisines}>No favorite cuisines added yet</Text>
+              )}
             </View>
           </View>
         </View>
 
         {/* Edit Profile Button */}
-        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+        <TouchableOpacity 
+          activeOpacity={0.7}
+          style={styles.editButton} 
+          onPress={() => {
+            console.log('Edit button pressed directly');
+            setIsEditMode(true);
+          }}
+        >
           <Text style={styles.editButtonText}>Edit Profile</Text>
         </TouchableOpacity>
 
@@ -251,6 +480,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
+  noCuisines: {
+    fontSize: 14,
+    color: '#888',
+    fontStyle: 'italic',
+  },
   editButton: {
     backgroundColor: '#B22222',
     borderRadius: 10,
@@ -278,5 +512,71 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginLeft: 5,
+  },
+  // Edit mode styles
+  formSection: {
+    marginBottom: 20,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#333',
+    backgroundColor: '#f9f9f9',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inputText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  dropdownIcon: {
+    marginLeft: 10,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 30,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+    marginRight: 8,
+  },
+  saveButton: {
+    backgroundColor: '#B22222',
+    marginLeft: 8,
+  },
+  disabledButton: {
+    backgroundColor: '#cccccc',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

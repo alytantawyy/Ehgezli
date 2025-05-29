@@ -359,7 +359,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         style={styles.dropdown}
         onPress={() => setShowCuisineDropdown && setShowCuisineDropdown(true)}
       >
-        <Text>{cuisines && cuisines.length > 0 ? cuisines.join(', ') : 'Select Cuisines (Max 3)'}</Text>
+        <Text>{cuisines && cuisines.length > 0 ? cuisines.join(', ') : 'Select Cuisines'}</Text>
         <Text style={styles.dropdownArrow}>▼</Text>
       </TouchableOpacity>
       
@@ -367,7 +367,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         <MultiSelectModalPicker
           visible={showCuisineDropdown}
           onClose={() => setShowCuisineDropdown && setShowCuisineDropdown(false)}
-          title="Select Cuisines (Max 3)"
+          title="Select Cuisines"
           options={availableCuisines || []}
           selectedValues={cuisines || []}
           onSelect={(values) => setCuisines && setCuisines(values)}

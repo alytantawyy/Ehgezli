@@ -56,7 +56,10 @@ export default function MultiSelectModalPicker({
     >
       <View style={styles.modalContainer}>
         <View style={styles.pickerModalContent}>
-          <Text style={styles.modalTitle}>{title}</Text>
+          <View style={styles.header}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <Text style={styles.subtitle}>Select up to {maxSelections} options</Text>
+          </View>
           
           <FlatList
             data={formattedOptions}
@@ -112,12 +115,20 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  header: {
+    marginBottom: 15,
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 5,
     color: '#333',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
   optionsList: {
     maxHeight: 300,

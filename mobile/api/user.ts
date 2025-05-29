@@ -1,11 +1,5 @@
 import apiClient from './api-client';
-import { User, UserLocation } from '../types/user';
-
-interface UpdateUserData {
-  name?: string;
-  email?: string;
-  phone?: string;
-}
+import { User, UserLocation, UpdateUserData } from '../types/user';
 
 // Get the current user's profile
 export const getUserProfile = async (): Promise<User> => {

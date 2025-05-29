@@ -3,13 +3,25 @@
 export const CITY_OPTIONS = [
   'Cairo',
   'Alexandria',
-  'Giza',
-  'Sharm El Sheikh',
 ];
 
 export const CUISINE_OPTIONS = [
   'Egyptian',
-  'Italian',
+  'Italian', 
+  'Chinese', 
+  'Japanese', 
+  'Mexican', 
+  'Indian', 
+  'French', 
+  'Thai', 
+  'Mediterranean', 
+  'American', 
+  'Middle Eastern', 
+  'Greek', 
+  'Spanish', 
+  'Korean', 
+  'Vietnamese', 
+  'Turkish',
   'Asian',
   'Fast Food',
   'Seafood',
