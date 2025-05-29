@@ -25,7 +25,7 @@ export const useBookings = () => {
   const initialized = useRef(false);
 
   // Safe date formatting function to prevent invalid time errors
-  const safeFormatDate = (dateString: string, formatString: string) => {
+  const safeFormatDate = useCallback((dateString: string, formatString: string) => {
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) {
@@ -36,10 +36,10 @@ export const useBookings = () => {
       console.error('Error formatting date:', error);
       return 'Invalid date';
     }
-  };
+  }, []);
 
   // Safe time formatting function
-  const safeFormatTime = (dateString: string, timeString: string, formatString: string) => {
+  const safeFormatTime = useCallback((dateString: string, timeString: string, formatString: string) => {
     try {
       // Make sure we have valid inputs
       if (!dateString || !timeString) {
@@ -59,13 +59,10 @@ export const useBookings = () => {
       console.error('Error formatting time:', error);
       return 'Invalid time';
     }
-  };
+  }, []);
 
   // Filter and sort bookings
-  const getFilteredAndSortedBookings = (
-    filter: BookingFilter = 'upcoming',
-    sortOrder: SortOrder = 'newest'
-  ): BookingWithDetails[] => {
+  const getFilteredAndSortedBookings = useCallback((filter: BookingFilter = 'upcoming', sortOrder: SortOrder = 'newest'): BookingWithDetails[] => {
     if (!userBookings || userBookings.length === 0) return [];
     
     const now = new Date();
@@ -94,12 +91,12 @@ export const useBookings = () => {
         ? compareDesc(dateA, dateB) 
         : compareAsc(dateA, dateB);
     });
-  };
+  }, [userBookings]);
 
   // Check if a booking is in the past
-  const isBookingPast = (booking: BookingWithDetails): boolean => {
+  const isBookingPast = useCallback((booking: BookingWithDetails): boolean => {
     return new Date(booking.timeSlot.date) < new Date();
-  };
+  }, []);
 
   return {
     // State

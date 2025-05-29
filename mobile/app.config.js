@@ -1,30 +1,37 @@
-// Basic Expo configuration that focuses on fixing asset paths
-const config = require('./app.json');
+// app.config.js
+const appJson = require('./app.json');
 
-// Override the asset paths to ensure they work correctly
 module.exports = {
-  ...config.expo,
-  icon: "./assets/icon.png",
-  splash: {
-    ...config.expo.splash,
-    image: "./assets/splash-icon.png"
+  // spread in everything under "expo" from your static app.json
+  expo: {
+    ...appJson.expo,
+
+    // now override just the things you care about
+    icon: './assets/icon.png',
+
+    splash: {
+      ...appJson.expo.splash,
+      image: './assets/splash-icon.png',
+    },
+
+    android: {
+      ...appJson.expo.android,
+      adaptiveIcon: {
+        ...appJson.expo.android?.adaptiveIcon,
+        foregroundImage: './assets/adaptive-icon.png',
+      },
+    },
+
+    web: {
+      ...appJson.expo.web,
+      favicon: './assets/favicon.png',
+    },
+
+    extra: {
+      ...appJson.expo.extra,
+      router: {
+        origin: 'localhost:8081',
+      },
+    },
   },
-  android: {
-    ...config.expo.android,
-    adaptiveIcon: {
-      ...config.expo.android?.adaptiveIcon,
-      foregroundImage: "./assets/adaptive-icon.png"
-    }
-  },
-  web: {
-    ...config.expo.web,
-    favicon: "./assets/favicon.png"
-  },
-  // Force the app to use localhost for development
-  extra: {
-    ...config.expo.extra,
-    router: {
-      origin: "localhost:8081"
-    }
-  }
 };
