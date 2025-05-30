@@ -1,243 +1,284 @@
-import React, { useState, useMemo } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
-import { Text } from '../../../components/common/Themed';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, SafeAreaView } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../hooks/useAuth';
-import { router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { getBookingsForBranch } from '../../../api/booking';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
-import { BookingWithCustomer, BookingStatus } from '../../../types/booking';
+
+// Components
+import { BookingCard } from '../../../components/restaurantScreen/BookingCard';
 import { StatusBadge } from '../../../components/common/StatusBadge';
-import { DetailRow } from '../../../components/common/DetailRow';
-import { RestaurantRoute } from '../../../types/navigation';
+
+// Stores and hooks
+import { useBookingStore } from '../../../store/booking-store';
+import { useBranchStore } from '../../../store/branch-store';
+import { useAuth } from '../../../hooks/useAuth';
+import { BranchListItem } from '../../../types/branch';
+import { BookingWithDetails } from '../../../types/booking';
 
 /**
  * Restaurant Bookings Screen
  * 
- * Displays and manages restaurant bookings with filtering options
+ * Displays and manages bookings for restaurant branches
  */
 export default function RestaurantBookingsScreen() {
-  // Filter options for bookings
-  const [activeFilter, setActiveFilter] = useState<'upcoming' | 'today' | 'past' | 'cancelled' | 'all'>('upcoming');
-  const [selectedBranch, setSelectedBranch] = useState<string>('all');
-  
-  // Get restaurant user context
+  const router = useRouter();
   const { user } = useAuth();
-
-  // Fetch restaurant bookings
-  const { data: rawBookings = [], isLoading } = useQuery({
-    queryKey: ['restaurantBookings', user?.id, activeFilter, selectedBranch],
-    queryFn: () => getBookingsForBranch(parseInt(selectedBranch)),
-    enabled: !!user && selectedBranch !== 'all',
-  });
-
-  /**
-   * Data Transformation: BookingWithDetails → BookingWithCustomer
-   * 
-   * Purpose:
-   * This transformation converts the API response data (BookingWithDetails) into the format
-   * expected by the restaurant booking UI components (BookingWithCustomer).
-   * 
-   * Why it's necessary:
-   * 1. Type Safety: Ensures TypeScript type checking passes for our FlatList component
-   * 2. UI Requirements: The restaurant view needs customer-focused data that's structured differently
-   * 3. Data Normalization: Creates a consistent format regardless of whether bookings were made by
-   *    registered users or guests
-   * 
-   * Transformation details:
-   * - Branch data: Simplifies the branch object to only include the name (from restaurantName)
-   * - User data: Creates a structured user object even for guest bookings (with empty/default values)
-   * - customerName: Adds a computed field that displays the guest name or a default "Guest" label
-   * 
-   * Performance optimization:
-   * - Uses React.useMemo to prevent unnecessary re-computation on each render
-   * - Only recalculates when rawBookings data changes
-   * 
-   * @param {BookingWithDetails[]} rawBookings - The original booking data from the API
-   * @returns {BookingWithCustomer[]} - Transformed booking data ready for the restaurant UI
-   */
-  const bookings: BookingWithCustomer[] = React.useMemo(() => {
-    return rawBookings.map(booking => ({
-      ...booking,
-      branch: {
-        name: booking.branch.restaurantName || 'Unknown Branch',
-        address: booking.branch.address,
-        city: booking.branch.city
-      },
-      user: {
-        firstName: '',
-        lastName: '',
-        email: booking.guestEmail || '',
-        phone: booking.guestPhone || '',
-      },
-      customerName: booking.guestName || 'Guest',
-    }));
-  }, [rawBookings]);
-
-  // Render a booking item
-  const renderBookingItem = ({ item }: { item: BookingWithCustomer }) => (
-    <TouchableOpacity 
-      style={styles.bookingCard}
-      onPress={() => router.push(RestaurantRoute.reservationDetails(item.id.toString()) as any)}
-    >
-      <View style={styles.bookingHeader}>
-        <Text style={styles.customerName}>{item.customerName}</Text>
-        <StatusBadge status={item.status} />
-      </View>
+  
+  // Get store hooks
+  const { getBookingsForBranchOnDate, loading: bookingsLoading } = useBookingStore();
+  const { getRestaurantBranches, loading: branchesLoading } = useBranchStore();
+  
+  // State
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [branches, setBranches] = useState<BranchListItem[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
+  
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, []);
+  
+  // Load branches and bookings
+  const loadData = async () => {
+    try {
+      setLoading(true);
       
-      <View style={styles.bookingDetails}>
-        <DetailRow 
-          icon="business" 
-          text={item.branch.name} 
-        />
-        
-        <DetailRow 
-          icon="calendar" 
-          text={format(new Date(item.timeSlot.date), 'EEE, MMM d, yyyy')} 
-        />
-        
-        <DetailRow 
-          icon="time" 
-          text={format(new Date(`${item.timeSlot.date}T${item.timeSlot.startTime}`), 'h:mm a')} 
-        />
-        
-        <DetailRow 
-          icon="people" 
-          text={`${item.partySize} ${item.partySize === 1 ? 'person' : 'people'}`} 
-        />
-      </View>
+      // Get restaurant branches
+      const branchesData = await getRestaurantBranches(user?.id);
+      setBranches(branchesData);
       
-      <View style={styles.actionButtons}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.confirmButton]}
-          onPress={() => handleUpdateStatus(item.id, 'confirmed')}
-        >
-          <Text style={styles.actionButtonText}>Confirm</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.cancelButton]}
-          onPress={() => handleUpdateStatus(item.id, 'cancelled')}
-        >
-          <Text style={styles.actionButtonText}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-
-  // Handle updating booking status
-  const handleUpdateStatus = (bookingId: number, status: BookingStatus) => {
-    // Implementation would go here
-    console.log(`Update booking ${bookingId} to ${status}`);
+      // Set default selected branch to the first one
+      if (branchesData.length > 0 && selectedBranchId === null) {
+        setSelectedBranchId(branchesData[0].branchId.toString());
+        await loadBookings(branchesData[0].branchId.toString(), selectedDate);
+      } else if (selectedBranchId) {
+        await loadBookings(selectedBranchId, selectedDate);
+      }
+    } catch (error) {
+      console.error('Error loading branches data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
-
+  
+  // Load bookings for a specific branch and date
+  const loadBookings = async (branchId: string, date: string) => {
+    try {
+      const bookingsData = await getBookingsForBranchOnDate(Number(branchId), date);
+      setBookings(bookingsData);
+    } catch (error) {
+      console.error('Error loading bookings:', error);
+    }
+  };
+  
+  // Handle pull-to-refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+  };
+  
+  // Handle branch selection
+  const handleBranchSelect = (branchId: string) => {
+    setSelectedBranchId(branchId);
+    loadBookings(branchId, selectedDate);
+  };
+  
+  // Handle date selection
+  const handleDateSelect = (date: string) => {
+    setSelectedDate(date);
+    if (selectedBranchId) {
+      loadBookings(selectedBranchId, date);
+    }
+  };
+  
+  // Handle status filter
+  const handleStatusFilter = (status: string) => {
+    setFilterStatus(status as 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled');
+  };
+  
+  // Filter bookings by status
+  const filteredBookings = filterStatus === 'all' 
+    ? bookings 
+    : bookings.filter(booking => booking.status === filterStatus);
+  
+  // Render loading state
+  if (loading || branchesLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#B22222" />
+        <Text style={styles.loadingText}>Loading bookings...</Text>
+      </View>
+    );
+  }
+  
+  // Render empty state
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Ionicons name="calendar-outline" size={48} color="#999" />
+      <Text style={styles.emptyStateText}>
+        {filterStatus === 'all' 
+          ? 'No bookings found for this date' 
+          : `No ${filterStatus} bookings found`}
+      </Text>
+    </View>
+  );
+  
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Bookings</Text>
-        
+      <Stack.Screen 
+        options={{
+          title: 'Bookings',
+          headerStyle: {
+            backgroundColor: '#B22222',
+          },
+          headerTintColor: '#fff',
+        }} 
+      />
+      
+      {/* Branch Selector */}
+      {branches.length > 0 && (
+        <View style={styles.branchSelector}>
+          <Text style={styles.sectionTitle}>Branch:</Text>
+          <FlatList
+            horizontal
+            data={branches}
+            keyExtractor={(item) => item.branchId.toString()}
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.branchButton,
+                  selectedBranchId === item.branchId.toString() && styles.branchButtonActive
+                ]}
+                onPress={() => handleBranchSelect(item.branchId.toString())}
+              >
+                <Text 
+                  style={[
+                    styles.branchButtonText,
+                    selectedBranchId === item.branchId.toString() && styles.branchButtonTextActive
+                  ]}
+                >
+                  {item.address || item.city}
+                </Text>
+              </TouchableOpacity>
+            )}
+            style={styles.branchScroll}
+          />
+        </View>
+      )}
+      
+      {/* Date Selector */}
+      <View style={styles.dateSelector}>
         <TouchableOpacity 
-          style={styles.calendarButton}
-          onPress={() => router.push(RestaurantRoute.calendarView)}
+          style={styles.dateButton}
+          onPress={() => handleDateSelect(format(new Date(), 'yyyy-MM-dd'))}
         >
-          <Ionicons name="calendar" size={24} color="#FF385C" />
+          <Text style={styles.dateButtonText}>Today</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.dateButton}
+          onPress={() => {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            handleDateSelect(format(tomorrow, 'yyyy-MM-dd'));
+          }}
+        >
+          <Text style={styles.dateButtonText}>Tomorrow</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.dateButton}
+          onPress={() => {
+            // Open date picker
+            // This would be implemented with a date picker component
+          }}
+        >
+          <Text style={styles.dateButtonText}>Select Date</Text>
+          <Ionicons name="calendar-outline" size={16} color="#B22222" />
         </TouchableOpacity>
       </View>
       
-      <View style={styles.filterContainer}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterScroll}
+      {/* Status Filter */}
+      <View style={styles.statusFilter}>
+        <TouchableOpacity 
+          style={[
+            styles.statusButton,
+            filterStatus === 'all' && styles.statusButtonActive
+          ]}
+          onPress={() => handleStatusFilter('all')}
         >
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              activeFilter === 'upcoming' && styles.activeFilterButton
-            ]}
-            onPress={() => setActiveFilter('upcoming')}
-          >
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'upcoming' && styles.activeFilterText
-            ]}>Upcoming</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              activeFilter === 'today' && styles.activeFilterButton
-            ]}
-            onPress={() => setActiveFilter('today')}
-          >
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'today' && styles.activeFilterText
-            ]}>Today</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              activeFilter === 'past' && styles.activeFilterButton
-            ]}
-            onPress={() => setActiveFilter('past')}
-          >
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'past' && styles.activeFilterText
-            ]}>Past</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              activeFilter === 'cancelled' && styles.activeFilterButton
-            ]}
-            onPress={() => setActiveFilter('cancelled')}
-          >
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'cancelled' && styles.activeFilterText
-            ]}>Cancelled</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              activeFilter === 'all' && styles.activeFilterButton
-            ]}
-            onPress={() => setActiveFilter('all')}
-          >
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'all' && styles.activeFilterText
-            ]}>All</Text>
-          </TouchableOpacity>
-        </ScrollView>
+          <Text style={[
+            styles.statusButtonText,
+            filterStatus === 'all' && styles.statusButtonTextActive
+          ]}>All</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[
+            styles.statusButton,
+            filterStatus === 'pending' && styles.statusButtonActive
+          ]}
+          onPress={() => handleStatusFilter('pending')}
+        >
+          <Text style={[
+            styles.statusButtonText,
+            filterStatus === 'pending' && styles.statusButtonTextActive
+          ]}>Pending</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[
+            styles.statusButton,
+            filterStatus === 'confirmed' && styles.statusButtonActive
+          ]}
+          onPress={() => handleStatusFilter('confirmed')}
+        >
+          <Text style={[
+            styles.statusButtonText,
+            filterStatus === 'confirmed' && styles.statusButtonTextActive
+          ]}>Confirmed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[
+            styles.statusButton,
+            filterStatus === 'completed' && styles.statusButtonActive
+          ]}
+          onPress={() => handleStatusFilter('completed')}
+        >
+          <Text style={[
+            styles.statusButtonText,
+            filterStatus === 'completed' && styles.statusButtonTextActive
+          ]}>Completed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[
+            styles.statusButton,
+            filterStatus === 'cancelled' && styles.statusButtonActive
+          ]}
+          onPress={() => handleStatusFilter('cancelled')}
+        >
+          <Text style={[
+            styles.statusButtonText,
+            filterStatus === 'cancelled' && styles.statusButtonTextActive
+          ]}>Cancelled</Text>
+        </TouchableOpacity>
       </View>
       
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF385C" />
-          <Text style={styles.loadingText}>Loading bookings...</Text>
-        </View>
-      ) : bookings.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="calendar-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyText}>No bookings found</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={bookings}
-          renderItem={renderBookingItem}
-          keyExtractor={item => item.id.toString()}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+      {/* Bookings List */}
+      <FlatList
+        data={filteredBookings}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <BookingCard booking={item} />
+        )}
+        ListEmptyComponent={renderEmptyState}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        style={styles.bookingsList}
+      />
     </SafeAreaView>
   );
 }
@@ -247,120 +288,114 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f8f8',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  calendarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterContainer: {
-    backgroundColor: '#fff',
-    paddingVertical: 8,
-  },
-  filterScroll: {
-    paddingHorizontal: 16,
-  },
-  filterButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginRight: 8,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-  },
-  activeFilterButton: {
-    backgroundColor: '#FF385C',
-  },
-  filterText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  activeFilterText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  bookingCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    marginHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  bookingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  customerName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  bookingDetails: {
-    marginBottom: 16,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  confirmButton: {
-    backgroundColor: '#4CAF50',
-  },
-  cancelButton: {
-    backgroundColor: '#F44336',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 10,
     fontSize: 16,
     color: '#666',
   },
-  emptyContainer: {
+  branchSelector: {
+    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 5,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  branchScroll: {
+    flexGrow: 0,
+    marginBottom: 10,
+  },
+  branchButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  branchButtonActive: {
+    backgroundColor: '#B22222',
+  },
+  branchButtonText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  branchButtonTextActive: {
+    color: '#fff',
+  },
+  dateSelector: {
+    flexDirection: 'row',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  dateButtonText: {
+    fontSize: 14,
+    color: '#B22222',
+    marginRight: 5,
+  },
+  statusFilter: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  statusButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 15,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  statusButtonActive: {
+    backgroundColor: '#B22222',
+  },
+  statusButtonText: {
+    fontSize: 12,
+    color: '#333',
+  },
+  statusButtonTextActive: {
+    color: '#fff',
+  },
+  bookingsList: {
+    flex: 1,
+    padding: 15,
+  },
+  emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingVertical: 50,
   },
-  emptyText: {
-    fontSize: 18,
-    color: '#666',
-    marginTop: 16,
-  },
-  listContainer: {
-    paddingTop: 16,
-    paddingBottom: 24,
+  emptyStateText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#999',
+    textAlign: 'center',
   },
 });

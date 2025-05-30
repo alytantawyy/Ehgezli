@@ -6,32 +6,30 @@ module.exports = {
   expo: {
     ...appJson.expo,
 
-    // now override just the things you care about
-    icon: './assets/icon.png',
+    // Make sure these paths match exactly what's in app.json
+    icon: './assets/Ehgezli-logo.png',
 
     splash: {
       ...appJson.expo.splash,
-      image: './assets/splash-icon.png',
+      image: './assets/Ehgezli-logo.png',
     },
 
     android: {
       ...appJson.expo.android,
       adaptiveIcon: {
         ...appJson.expo.android?.adaptiveIcon,
-        foregroundImage: './assets/adaptive-icon.png',
+        foregroundImage: './assets/Ehgezli-logo.png',
       },
     },
 
     web: {
       ...appJson.expo.web,
-      favicon: './assets/favicon.png',
+      favicon: './assets/Ehgezli-logo.png', // Match app.json
     },
 
     extra: {
       ...appJson.expo.extra,
-      router: {
-        origin: 'localhost:8081',
-      },
+      // Remove the router origin configuration that's causing connection issues
     },
   },
 };

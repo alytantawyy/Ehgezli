@@ -8,8 +8,7 @@ export interface AuthResponse {
 }
 
 export interface RestaurantAuthResponse {
-  restaurantUser: RestaurantUser;
-  restaurantProfile?: any;
+  restaurant: RestaurantUser;
   token: string;
 }
 
@@ -56,4 +55,4 @@ export interface PasswordUpdateData {
   newPassword: string;
 }
 
-export { Restaurant, User };
+export type { Restaurant, User };

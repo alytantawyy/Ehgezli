@@ -1,252 +1,260 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
-import { Text } from '../../../components/common/Themed';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, SafeAreaView } from 'react-native';
+import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../hooks/useAuth';
+import { format } from 'date-fns';
 import { router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { format, addDays, subDays } from 'date-fns';
-import { getBookingsForBranch } from '../../../api/booking';
-import { getAllBranches } from '../../../api/branch';
-import { getRestaurantProfile } from '../../../api/restaurant';
-import { RestaurantUser } from '../../../types/restaurantUser';
+
+// Components
+import { BookingCard } from '../../../components/restaurantScreen/BookingCard';
+import { StatCard } from '../../../components/restaurantScreen/StatCard';
+import { ActivityItem } from '../../../components/restaurantScreen/ActivityItem';
+
+// Stores and hooks
+import { useBranchStore } from '../../../store/branch-store';
+import { useBookingStore } from '../../../store/booking-store';
+import { useAuth } from '../../../hooks/useAuth';
+import { BranchListItem } from '../../../types/branch';
 import { BookingWithDetails } from '../../../types/booking';
+import { RestaurantRoute } from '../../../types/navigation';
 
 /**
  * Restaurant Dashboard Screen
  * 
- * Main dashboard for restaurant owners showing key metrics and recent bookings
+ * Main dashboard for restaurant owners showing today's bookings,
+ * quick stats, and recent activity
  */
-export default function DashboardScreen() {
-  // Get restaurant user context
+export default function RestaurantDashboardScreen() {
+  // State variables
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [todayBookings, setTodayBookings] = useState<BookingWithDetails[]>([]);
+  const [branches, setBranches] = useState<BranchListItem[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    upcoming: 0,
+    completed: 0,
+    cancelled: 0
+  });
+  
+  // Get auth context
   const { user } = useAuth();
-  // First cast to unknown, then to RestaurantUser to avoid the type error
-  const restaurantUser = user as unknown as RestaurantUser;
   
-  // State for selected branch and date
-  const [selectedBranch, setSelectedBranch] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  // Get store hooks
+  const { getRestaurantBranches, loading: branchesLoading } = useBranchStore();
+  const { getBookingsForBranchOnDate, loading: bookingsLoading } = useBookingStore();
   
-  // Fetch restaurant profile
-  const { data: restaurantProfile, isLoading: isLoadingProfile } = useQuery({
-    queryKey: ['restaurantProfile', restaurantUser?.restaurantId],
-    queryFn: () => getRestaurantProfile(),
-    enabled: !!restaurantUser,
-  });
-  
-  // Fetch restaurant branches
-  const { data: branches = [], isLoading: isLoadingBranches, isError, error } = useQuery({
-    queryKey: ['branches', restaurantUser?.restaurantId],
-    queryFn: () => getAllBranches(),
-    enabled: !!restaurantUser,
-  });
-  
+  // Load initial data
   useEffect(() => {
-    if (branches.length > 0 && !selectedBranch) {
-      setSelectedBranch(branches[0].branchId.toString());
+    loadData();
+  }, []);
+  
+  // Load all necessary data
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Get restaurant branches
+      const branchesData: BranchListItem[] = await getRestaurantBranches(user?.id);
+      setBranches(branchesData);
+      
+      // Always use branch 109 for the dashboard
+      setSelectedBranchId('109');
+      
+      // Load bookings for branch 109
+      console.log('Loading bookings for branch 109...');
+      await loadBookings('109');
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  }, [branches, selectedBranch]);
-
-  useEffect(() => {
-    if (isError) {
-      console.error(error);
-    }
-  }, [isError, error]);
-
-  // Fetch bookings for selected branch and date
-  const { data: bookings = [], isLoading: isLoadingBookings } = useQuery({
-    queryKey: ['bookings', selectedBranch, format(selectedDate, 'yyyy-MM-dd')],
-    queryFn: () => getBookingsForBranch(parseInt(selectedBranch)),
-    enabled: !!selectedBranch,
-  });
-  
-  // Filter bookings for selected date
-  const bookingsForSelectedDate = bookings.filter(booking => 
-    booking.timeSlot.date === format(selectedDate, 'yyyy-MM-dd')
-  );
-  
-  // Calculate stats
-  const totalSeats = 100; // This would come from the branch data
-  const totalBookings = bookingsForSelectedDate.length;
-  const seatedCustomers = bookingsForSelectedDate.filter(b => b.status === 'arrived').length;
-  const availableSeats = totalSeats - seatedCustomers;
-  
-  // Navigate to previous day
-  const goToPreviousDay = () => {
-    setSelectedDate(subDays(selectedDate, 1));
   };
   
-  // Navigate to next day
-  const goToNextDay = () => {
-    setSelectedDate(addDays(selectedDate, 1));
+  // Load bookings for a specific branch
+  const loadBookings = async (branchId: string) => {
+    try {
+      // Get today's date in YYYY-MM-DD format
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      // Always use branch 109 for the dashboard
+      const bookingsData = await getBookingsForBranchOnDate(109, today);
+      setTodayBookings(bookingsData);
+      
+      // Calculate stats
+      const stats = {
+        total: bookingsData.length,
+        upcoming: bookingsData.filter(b => ['pending', 'confirmed'].includes(b.status.toLowerCase())).length,
+        completed: bookingsData.filter(b => b.status.toLowerCase() === 'completed').length,
+        cancelled: bookingsData.filter(b => b.status.toLowerCase() === 'cancelled').length
+      };
+      
+      setStats(stats);
+    } catch (error) {
+      console.error('Error loading bookings:', error);
+    }
   };
   
-  // Render a booking item
-  const renderBookingItem = (booking: BookingWithDetails) => {
-    // Format the customer name
-    const customerName = booking.guestName || 'Guest';
-    
-    // Get status color
-    const getStatusColor = (status: string) => {
-      switch (status.toUpperCase()) {
-        case 'ARRIVED':
-          return '#4CAF50';
-        case 'COMPLETED':
-          return '#8BC34A';
-        case 'CONFIRMED':
-          return '#2196F3';
-        case 'PENDING':
-          return '#FFC107';
-        case 'CANCELLED':
-          return '#F44336';
-        default:
-          return '#9E9E9E';
-      }
-    };
-    
+  // Handle pull-to-refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+  };
+  
+  // Handle branch selection
+  const handleBranchSelect = (branchId: string) => {
+    setSelectedBranchId(branchId);
+    loadBookings(branchId);
+  };
+  
+  // Render loading state
+  if (loading || branchesLoading) {
     return (
-      <TouchableOpacity 
-        key={booking.id}
-        style={styles.bookingItem}
-        onPress={() => router.push(`/restaurant/booking-details/${booking.id}` as any)}
-      >
-        <View style={styles.bookingHeader}>
-          <Text style={styles.customerName}>{customerName}</Text>
-          <View style={styles.statusContainer}>
-            <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
-              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1).toLowerCase()}
-            </Text>
-          </View>
-        </View>
-        
-        <View style={styles.bookingDetails}>
-          <Text style={styles.bookingInfo}>
-            {booking.partySize} {booking.partySize === 1 ? 'person' : 'people'} • 
-            {format(new Date(`${booking.timeSlot.date}T${booking.timeSlot.startTime}`), 'MMM d')} • 
-            {format(new Date(`${booking.timeSlot.date}T${booking.timeSlot.startTime}`), 'h:mm a')}
-          </Text>
-        </View>
-      </TouchableOpacity>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#B22222" />
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
+      </View>
     );
-  };
-
+  }
+  
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Restaurant Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.appTitle}>ehgezli</Text>
-            <Text style={styles.dashboardTitle}>Restaurant Dashboard</Text>
-            <Text style={styles.welcomeText}>Welcome, {restaurantProfile?.name || 'Restaurant Owner'}!</Text>
-          </View>
-          <Image 
-            source={require('../../../assets/icon.png')} 
-            style={styles.logo}
-          />
-        </View>
-        
+      <Stack.Screen 
+        options={{
+          title: 'Home',
+          headerStyle: {
+            backgroundColor: '#B22222',
+          },
+          headerTintColor: '#fff',
+        }} 
+      />
+      
+      <ScrollView 
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Branch Selector */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Select Branch:</Text>
-          {isLoadingBranches ? (
-            <ActivityIndicator size="small" color="#FF385C" />
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {branches.length > 0 && (
+          <View style={styles.branchSelector}>
+            <Text style={styles.sectionTitle}>Select Branch:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.branchScroll}>
               {branches.map((branch) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   key={branch.branchId}
                   style={[
                     styles.branchButton,
-                    selectedBranch === branch.branchId.toString() && styles.selectedBranchButton
+                    selectedBranchId?.toString() === branch.branchId.toString() && styles.branchButtonActive
                   ]}
-                  onPress={() => setSelectedBranch(branch.branchId.toString())}
+                  onPress={() => handleBranchSelect(branch.branchId.toString())}
                 >
                   <Text 
                     style={[
                       styles.branchButtonText,
-                      selectedBranch === branch.branchId.toString() && styles.selectedBranchButtonText
+                      selectedBranchId?.toString() === branch.branchId.toString() && styles.branchButtonTextActive
                     ]}
                   >
-                    {branch.restaurantName}
+                    {branch.address || branch.city}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          )}
-        </View>
-        
-        {/* Date Navigator */}
-        <View style={styles.dateNavigator}>
-          <TouchableOpacity onPress={goToPreviousDay} style={styles.dateNavButton}>
-            <Ionicons name="chevron-back" size={24} color="#000" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.dateDisplay}>
-            <Text style={styles.dateText}>{format(selectedDate, 'MMM d')}</Text>
-            <Ionicons name="calendar-outline" size={20} color="#000" style={styles.calendarIcon} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={goToNextDay} style={styles.dateNavButton}>
-            <Ionicons name="chevron-forward" size={24} color="#000" />
-          </TouchableOpacity>
-        </View>
+          </View>
+        )}
         
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
-          <View style={[styles.statCard, styles.blueCard]}>
-            <Ionicons name="calendar-outline" size={24} color="#fff" />
-            <Text style={styles.statValue}>{totalBookings}</Text>
-            <Text style={styles.statLabel}>Total Bookings</Text>
-          </View>
-          
-          <View style={[styles.statCard, styles.purpleCard]}>
-            <Ionicons name="restaurant-outline" size={24} color="#fff" />
-            <Text style={styles.statValue}>{totalSeats}</Text>
-            <Text style={styles.statLabel}>Total Seats</Text>
-          </View>
-          
-          <View style={[styles.statCard, styles.cyanCard]}>
-            <Ionicons name="restaurant-outline" size={24} color="#fff" />
-            <Text style={styles.statValue}>{availableSeats}</Text>
-            <Text style={styles.statLabel}>Available Seats</Text>
-          </View>
-          
-          <View style={[styles.statCard, styles.pinkCard]}>
-            <Ionicons name="people-outline" size={24} color="#fff" />
-            <Text style={styles.statValue}>{seatedCustomers}</Text>
-            <Text style={styles.statLabel}>Currently Seated</Text>
-          </View>
+          <StatCard 
+            title="Total Bookings" 
+            value={stats.total} 
+            icon="calendar"
+            color="#B22222"
+          />
+          <StatCard 
+            title="Upcoming" 
+            value={stats.upcoming} 
+            icon="time"
+            color="#007AFF"
+          />
+          <StatCard 
+            title="Completed" 
+            value={stats.completed} 
+            icon="checkmark-circle"
+            color="#34C759"
+          />
+          <StatCard 
+            title="Cancelled" 
+            value={stats.cancelled} 
+            icon="close-circle"
+            color="#FF3B30"
+          />
         </View>
         
-        {/* Bookings for Selected Date */}
-        <View style={styles.bookingsContainer}>
-          <Text style={styles.bookingsTitle}>Bookings on {format(selectedDate, 'MMM d')}</Text>
+        {/* Today's Bookings */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Today's Bookings</Text>
+            <TouchableOpacity 
+              style={styles.viewAllButton}
+              onPress={() => router.push(RestaurantRoute.bookings)}
+            >
+              <Text style={styles.viewAllText}>View All</Text>
+              <Ionicons name="chevron-forward" size={16} color="#B22222" />
+            </TouchableOpacity>
+          </View>
           
-          {isLoadingBookings ? (
-            <ActivityIndicator size="large" color="#FF385C" style={styles.loader} />
-          ) : bookingsForSelectedDate.length === 0 ? (
-            <Text style={styles.noBookingsText}>No bookings available for today</Text>
+          {/* Create New Reservation Button */}
+          <TouchableOpacity 
+            style={styles.createReservationButton}
+            onPress={() => router.push(RestaurantRoute.createReservation)}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
+            <Text style={styles.createReservationText}>Create New Reservation</Text>
+          </TouchableOpacity>
+          
+          {bookingsLoading ? (
+            <ActivityIndicator size="small" color="#B22222" style={{marginVertical: 20}} />
+          ) : todayBookings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="calendar-outline" size={48} color="#999" />
+              <Text style={styles.emptyStateText}>No bookings for today</Text>
+            </View>
           ) : (
-            bookingsForSelectedDate.map(booking => renderBookingItem(booking))
+            <View style={styles.bookingsList}>
+              {todayBookings.map((booking) => (
+                <BookingCard key={booking.id} booking={booking} />
+              ))}
+            </View>
           )}
         </View>
         
-        {/* Latest Bookings */}
-        <View style={styles.bookingsContainer}>
-          <Text style={styles.bookingsTitle}>Latest Bookings</Text>
+        {/* Recent Activity */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+          </View>
           
-          {isLoadingBookings ? (
-            <ActivityIndicator size="large" color="#FF385C" style={styles.loader} />
-          ) : bookings.length === 0 ? (
-            <Text style={styles.noBookingsText}>No bookings available</Text>
-          ) : (
-            bookings
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-              .slice(0, 5)
-              .map(booking => renderBookingItem(booking))
-          )}
+          <View style={styles.activityList}>
+            {/* These would be populated from an activity log API */}
+            <ActivityItem 
+              type="new_booking"
+              message="New booking from John Doe"
+              time="10 minutes ago"
+            />
+            <ActivityItem 
+              type="cancellation"
+              message="Booking #1234 was cancelled"
+              time="1 hour ago"
+            />
+            <ActivityItem 
+              type="completed"
+              message="Booking #1230 was marked as completed"
+              time="3 hours ago"
+            />
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -258,175 +266,111 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f8f8',
   },
-  content: {
-    padding: 16,
+  scrollView: {
+    flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
   },
-  appTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  dashboardTitle: {
+  loadingText: {
+    marginTop: 10,
     fontSize: 16,
     color: '#666',
-    marginBottom: 4,
   },
-  welcomeText: {
-    fontSize: 18,
-    fontWeight: '500',
-  },
-  logo: {
-    width: 50,
-    height: 50,
-    resizeMode: 'contain',
-  },
-  sectionContainer: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '500',
+  branchSelector: {
+    padding: 15,
+    backgroundColor: '#fff',
     marginBottom: 10,
   },
-  branchButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    marginRight: 10,
-    backgroundColor: '#fff',
+  branchScroll: {
+    marginTop: 10,
   },
-  selectedBranchButton: {
-    borderColor: '#FF385C',
-    backgroundColor: '#FFF0F3',
+  branchButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 10,
+  },
+  branchButtonActive: {
+    backgroundColor: '#B22222',
   },
   branchButtonText: {
     fontSize: 14,
-    color: '#666',
+    color: '#333',
   },
-  selectedBranchButtonText: {
-    color: '#FF385C',
-    fontWeight: '500',
-  },
-  dateNavigator: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  dateNavButton: {
-    padding: 10,
-  },
-  dateDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  dateText: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginRight: 10,
-  },
-  calendarIcon: {
-    marginLeft: 5,
+  branchButtonTextActive: {
+    color: '#fff',
   },
   statsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    padding: 10,
   },
-  statCard: {
-    width: '48%',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  blueCard: {
-    backgroundColor: '#4A6FFF',
-  },
-  purpleCard: {
-    backgroundColor: '#6A3DE8',
-  },
-  cyanCard: {
-    backgroundColor: '#00BCD4',
-  },
-  pinkCard: {
-    backgroundColor: '#FF4081',
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginVertical: 5,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  bookingsContainer: {
+  section: {
     backgroundColor: '#fff',
     borderRadius: 10,
-    padding: 15,
+    marginHorizontal: 15,
     marginBottom: 20,
+    padding: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  bookingsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 15,
-  },
-  loader: {
-    marginVertical: 20,
-  },
-  noBookingsText: {
-    textAlign: 'center',
-    color: '#666',
-    fontStyle: 'italic',
-    marginVertical: 20,
-  },
-  bookingItem: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingVertical: 12,
-  },
-  bookingHeader: {
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: 15,
   },
-  customerName: {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: '#B22222',
+    marginRight: 5,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  emptyStateText: {
+    marginTop: 10,
     fontSize: 16,
-    fontWeight: '600',
+    color: '#999',
+    textAlign: 'center',
   },
-  statusContainer: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+  bookingsList: {
+    marginTop: 10,
   },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '500',
+  activityList: {
+    marginTop: 10,
   },
-  bookingDetails: {
-    marginTop: 5,
+  createReservationButton: {
+    backgroundColor: '#B22222',
+    padding: 10,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
   },
-  bookingInfo: {
-    fontSize: 14,
-    color: '#666',
+  createReservationText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginLeft: 5,
   },
 });

@@ -22,7 +22,19 @@ export const login = async (credentials: LoginCredentials): Promise<User> => {
     const { data } = await apiClient.post<AuthResponse>('/auth/login', credentials);
     
     if (data && data.token) {
+      console.log('Saving auth token to AsyncStorage:', data.token.substring(0, 20) + '...');
       await AsyncStorage.setItem('auth_token', data.token);
+      
+      // Update the token cache in api-client
+      if (typeof window !== 'undefined') {
+        // @ts-ignore - accessing the module's cache variable
+        require('./api-client').tokenCache = data.token;
+      }
+      
+      // Verify token was saved
+      const savedToken = await AsyncStorage.getItem('auth_token');
+      console.log('Token saved successfully:', !!savedToken);
+      
       return data.user;
     } else {
       throw new Error('Invalid login response');
@@ -34,7 +46,19 @@ export const login = async (credentials: LoginCredentials): Promise<User> => {
 
 export const register = async (userData: RegisterData): Promise<User> => {
   const { data } = await apiClient.post<AuthResponse>('/auth/register', userData);
+  console.log('Saving auth token to AsyncStorage:', data.token.substring(0, 20) + '...');
   await AsyncStorage.setItem('auth_token', data.token);
+  
+  // Update the token cache in api-client
+  if (typeof window !== 'undefined') {
+    // @ts-ignore - accessing the module's cache variable
+    require('./api-client').tokenCache = data.token;
+  }
+  
+  // Verify token was saved
+  const savedToken = await AsyncStorage.getItem('auth_token');
+  console.log('Token saved successfully:', !!savedToken);
+  
   return data.user;
 };
 
@@ -61,21 +85,48 @@ export const restaurantLogin = async (credentials: LoginCredentials): Promise<Re
   try {
     const { data } = await apiClient.post<RestaurantAuthResponse>('/auth/restaurant-login', credentials);
     
+    console.log('Restaurant login API response:', data);
+    
     if (data && data.token) {
+      console.log('Saving auth token to AsyncStorage:', data.token.substring(0, 20) + '...');
       await AsyncStorage.setItem('auth_token', data.token);
-      return data.restaurantUser;
+      
+      // Update the token cache in api-client
+      if (typeof window !== 'undefined') {
+        // @ts-ignore - accessing the module's cache variable
+        require('./api-client').tokenCache = data.token;
+      }
+      
+      // Verify token was saved
+      const savedToken = await AsyncStorage.getItem('auth_token');
+      console.log('Token saved successfully:', !!savedToken);
+      
+      return data.restaurant;
     } else {
       throw new Error('Invalid login response');
     }
   } catch (error) {
+    console.error('Restaurant login API error:', error);
     throw error;
   }
 };
 
 export const restaurantRegister = async (restaurantData: RestaurantRegisterData): Promise<RestaurantUser> => {
   const { data } = await apiClient.post<RestaurantAuthResponse>('/auth/restaurant-register', restaurantData);
+  console.log('Saving auth token to AsyncStorage:', data.token.substring(0, 20) + '...');
   await AsyncStorage.setItem('auth_token', data.token);
-  return data.restaurantUser;
+  
+  // Update the token cache in api-client
+  if (typeof window !== 'undefined') {
+    // @ts-ignore - accessing the module's cache variable
+    require('./api-client').tokenCache = data.token;
+  }
+  
+  // Verify token was saved
+  const savedToken = await AsyncStorage.getItem('auth_token');
+  console.log('Token saved successfully:', !!savedToken);
+  
+  return data.restaurant;
 };
 
 // Password reset flow for restaurants
@@ -95,5 +146,3 @@ export const restaurantResetPassword = async (resetPasswordData: ResetPasswordDa
 export const updateRestaurantPassword = async (passwordData: PasswordUpdateData): Promise<void> => {
   await apiClient.post('/auth/update-restaurant-password', passwordData);
 };
-
-

@@ -400,15 +400,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderRadius: 8,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#eee',
-    backgroundColor: '#fafafa',
+    backgroundColor: 'white',
+    borderWidth: 0,
   },
   picker: {
     height: 200,
   },
   pickerItemStyle: {
     fontSize: 16,
+    color: '#000',
   },
   modalButtons: {
     flexDirection: 'row',
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: '#B01C2E',
     padding: 15,
     borderRadius: 8,
     marginRight: 10,
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontWeight: '600',
     fontSize: 16,
-    color: '#333',
+    color: '#fff',
   },
   confirmButtonText: {
     fontWeight: '600',

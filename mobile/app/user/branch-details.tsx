@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Platform, SafeAreaView, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Platform, SafeAreaView, StatusBar, Linking, Alert } from 'react-native';
 import { useLocalSearchParams, Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -14,6 +14,8 @@ import { useTimeSlots } from '../../hooks/useTimeSlots';
 import { useAuth } from '../../hooks/useAuth';
 import { UserRoute } from '../../types/navigation';
 import { useSavedBranches } from '../../hooks/useSavedBranches';
+import { createBookingWithTimeInfo } from '../../api/booking';
+import { CreateBookingData } from '../../types/booking';
 
 const { width } = Dimensions.get('window');
 
@@ -128,20 +130,22 @@ export default function BranchDetailsScreen() {
     setIsBooking(true);
     
     try {
-      // Example booking data that would be sent to the API
-      const bookingData = {
+      console.log('Creating booking with:', {
         branchId,
         date: selectedDate,
         time: selectedTime,
-        partySize,
-        userId: user?.id
-      };
+        partySize
+      });
       
-      // In a real implementation, you would call your API here
-      // const response = await createBooking(bookingData);
+      // Call the API function that handles getting the time slot ID and creating the booking
+      const response = await createBookingWithTimeInfo(
+        branchId,
+        selectedDate,
+        selectedTime,
+        partySize
+      );
       
-      // Simulate API call with timeout
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Booking created successfully:', response);
       
       // Show success state
       setBookingSuccess(true);
@@ -156,6 +160,24 @@ export default function BranchDetailsScreen() {
     } finally {
       setIsBooking(false);
     }
+  };
+  
+  // Function to open maps app with confirmation
+  const openMapsWithConfirmation = () => {
+    Alert.alert(
+      'Open in Maps App?',
+      'Do you want to open the location in the maps app?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'OK',
+          onPress: () => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`),
+        },
+      ],
+    );
   };
   
   // Render loading state
@@ -208,7 +230,7 @@ export default function BranchDetailsScreen() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar 
           barStyle="dark-content" 
-          backgroundColor="transparent" 
+          backgroundColor="#f7f7f7" 
           translucent={false}
         />
         <View style={styles.topActions}>
@@ -277,29 +299,33 @@ export default function BranchDetailsScreen() {
             <View style={styles.mapContainer}>
               {/* Conditionally render the map to avoid errors */}
               {Platform.OS === 'web' ? (
-                <View style={[styles.map, styles.mapPlaceholder]}>
+                <View style={styles.mapPlaceholder}>
                   <Text style={styles.mapPlaceholderText}>Map not available on web</Text>
                 </View>
               ) : (
                 <View style={styles.mapWrapper}>
-                  <MapView
-                    provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-                    style={styles.map}
-                    initialRegion={{
-                      latitude,
-                      longitude,
-                      latitudeDelta: 0.01,
-                      longitudeDelta: 0.01,
-                    }}
-                    onMapReady={() => {
-                      console.log('Map ready with coordinates:', latitude, longitude);
-                      setMapReady(true);
-                    }}
-                    loadingEnabled={true}
-                    loadingIndicatorColor="#B22222"
-                    loadingBackgroundColor="#f5f5f5"
+                  <TouchableOpacity 
+                    activeOpacity={0.9} 
+                    onPress={openMapsWithConfirmation}
+                    style={styles.mapTouchable}
                   >
-                    {mapReady && (
+                    <MapView
+                      provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+                      style={styles.map}
+                      initialRegion={{
+                        latitude,
+                        longitude,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      }}
+                      onMapReady={() => {
+                        console.log('Map ready with coordinates:', latitude, longitude);
+                        setMapReady(true);
+                      }}
+                      loadingEnabled={true}
+                      loadingIndicatorColor="#B22222"
+                      loadingBackgroundColor="#f5f5f5"
+                    >
                       <Marker
                         coordinate={{
                           latitude,
@@ -308,9 +334,10 @@ export default function BranchDetailsScreen() {
                         title={selectedBranch.restaurantName || "Restaurant"}
                         description={selectedBranch.address || ""}
                         pinColor="#B22222"
+                        onPress={openMapsWithConfirmation}
                       />
-                    )}
-                  </MapView>
+                    </MapView>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -480,7 +507,7 @@ function formatTimeWithAMPM(time: string) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f7f7f7',
   },
   topActions: {
     flexDirection: 'row',
@@ -507,7 +534,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f7f7f7',
   },
   contentContainer: {
     paddingBottom: 40,
@@ -807,5 +834,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+  },
+  mapTouchable: {
+    width: '100%',
+    height: '100%',
   },
 });

@@ -83,7 +83,7 @@ export default function LoginScreen() {
       // Add a small delay to ensure auth state is updated before navigation
       setTimeout(() => {
         router.replace(UserRoute.tabs as any);
-      }, 500); // Increased delay to give more time for auth state to update
+      }, 1500); // Increased delay to give more time for auth state to update
     };
   
     /**

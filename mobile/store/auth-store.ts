@@ -6,7 +6,8 @@ import {
   restaurantLogin,
   restaurantRegister,
 } from '../api/auth';
-import {getUserProfile} from '../api/user';
+import {getUserProfile, } from '../api/user';
+import {getRestaurantUserProfile} from '../api/restaurantUser'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type UserType = 'user' | 'restaurant' | null;
@@ -25,7 +26,7 @@ interface AuthState {
   clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set: any) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   userType: null,
   isLoading: false,
@@ -35,7 +36,7 @@ export const useAuthStore = create<AuthState>((set: any) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await login({ email, password });
-      set({ user, userType: 'user', isLoading: false });
+      set({ user: user as unknown as User | Restaurant, userType: 'user', isLoading: false });
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Login failed', 
@@ -47,9 +48,21 @@ export const useAuthStore = create<AuthState>((set: any) => ({
   restaurantLogin: async (email: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
+      console.log('Starting restaurant login...');
       const restaurant = await restaurantLogin({ email, password });
-      set({ user: restaurant, userType: 'restaurant', isLoading: false });
+      console.log('Restaurant login successful:', restaurant);
+      
+      // Get the token from AsyncStorage to confirm it was saved
+      const token = await AsyncStorage.getItem('auth_token');
+      console.log('Auth token available after login:', !!token, token ? token.substring(0, 20) + '...' : 'none');
+      
+      console.log('Setting userType to restaurant');
+      set({ user: restaurant as unknown as User | Restaurant, userType: 'restaurant', isLoading: false });
+      await AsyncStorage.setItem('userType', 'restaurant');
+      
+      console.log('User state after login:', get().user, 'userType:', get().userType);
     } catch (error) {
+      console.error('Restaurant login failed:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Restaurant login failed', 
         isLoading: false 
@@ -61,7 +74,7 @@ export const useAuthStore = create<AuthState>((set: any) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await register(userData);
-      set({ user, userType: 'user', isLoading: false });
+      set({ user: user as unknown as User | Restaurant, userType: 'user', isLoading: false });
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Registration failed', 
@@ -74,7 +87,7 @@ export const useAuthStore = create<AuthState>((set: any) => ({
     set({ isLoading: true, error: null });
     try {
       const restaurant = await restaurantRegister(restaurantData);
-      set({ user: restaurant, userType: 'restaurant', isLoading: false });
+      set({ user: restaurant as unknown as User | Restaurant, userType: 'restaurant', isLoading: false });
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Restaurant registration failed', 
@@ -100,9 +113,26 @@ export const useAuthStore = create<AuthState>((set: any) => ({
   fetchProfile: async () => {
     set({ isLoading: true, error: null });
     try {
-      const user = await getUserProfile();
-      set({ user, isLoading: false });
+      console.log('Starting fetch profile...');
+      // Get the current userType from the store state
+      const state = get();
+      const userType = state.userType;
+      
+      let user;
+      
+      if (userType === 'restaurant') {
+        // Fetch restaurant user profile
+        user = await getRestaurantUserProfile();
+      } else {
+        // Fetch regular user profile
+        user = await getUserProfile();
+      }
+      
+      console.log('Fetch profile successful:', user);
+      set({ user: user as unknown as User | Restaurant, isLoading: false });
+      console.log('User state after fetch profile:', get().user, 'userType:', get().userType);
     } catch (error) {
+      console.error('Fetch profile failed:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Failed to fetch profile', 
         isLoading: false 

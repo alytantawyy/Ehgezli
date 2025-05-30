@@ -87,6 +87,7 @@ interface BranchState {
   clearError: () => void;
   setUserLocationNull: () => void;
   setHasRequestedLocationPermission: (value: boolean) => void;
+  getRestaurantBranches: (restaurantId?: number) => Promise<BranchListItem[]>;
 }
 
 export const useBranchStore = create<BranchState>((set, get) => ({
@@ -594,5 +595,49 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   setHasRequestedLocationPermission: (value: boolean) => {
     console.log(`Setting hasRequestedLocationPermission to ${value}`);
     set({ hasRequestedLocationPermission: value });
+  },
+  
+  // Get branches for a restaurant
+  getRestaurantBranches: async (restaurantId?: number) => {
+    try {
+      set({ loading: true, error: null });
+      
+      // If no restaurantId is provided, try to use the one from the current user
+      if (!restaurantId) {
+        console.warn('No restaurantId provided to getRestaurantBranches');
+      }
+      
+      const data = await getAllBranches();
+      
+      // Filter branches for the specific restaurant if restaurantId is provided
+      const restaurantBranches = restaurantId
+        ? data.filter((branch: BranchApiResponse) => branch.restaurantId === restaurantId)
+        : data;
+      
+      // Transform data to match BranchListItem format
+      const branchItems: BranchListItem[] = restaurantBranches.map((branch: BranchApiResponse) => ({
+        branchId: branch.branchId,
+        address: branch.address || '',
+        city: branch.city || '',
+        latitude: branch.latitude || 0,
+        longitude: branch.longitude || 0,
+        restaurantId: branch.restaurantId,
+        restaurantName: branch.restaurantName || '',
+        cuisine: branch.cuisine || '',
+        priceRange: branch.priceRange || '',
+        logo: branch.logo || '',
+        distance: null
+      }));
+      
+      set({ loading: false });
+      return branchItems;
+    } catch (error) {
+      console.error('Error fetching restaurant branches:', error);
+      set({ 
+        error: 'Failed to fetch restaurant branches. Please try again.', 
+        loading: false 
+      });
+      return [];
+    }
   },
 }));

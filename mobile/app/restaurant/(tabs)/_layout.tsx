@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'react-native';
 import Colors from '../../../constants/Colors';
 
 /**
@@ -14,7 +15,7 @@ export default function RestaurantTabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors.tint,
         tabBarStyle: { 
-          height: 60,
+          height: 70,
           paddingBottom: 10,
           paddingTop: 5,
         },
@@ -26,10 +27,10 @@ export default function RestaurantTabLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'grid' : 'grid-outline'} 
-              size={24} 
-              color={color} 
+            <Image 
+              source={require('../../../assets/Ehgezli-logo-white.png')}
+              style={{ width: 28, height: 28 }}
+              resizeMode="contain"
             />
           ),
         }}
@@ -42,20 +43,6 @@ export default function RestaurantTabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? 'calendar' : 'calendar-outline'} 
-              size={24} 
-              color={color} 
-            />
-          ),
-        }}
-      />
-      
-      <Tabs.Screen
-        name="branches"
-        options={{
-          title: 'Branches',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'business' : 'business-outline'} 
               size={24} 
               color={color} 
             />

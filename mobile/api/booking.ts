@@ -84,6 +84,25 @@ export const getBookingsForBranch = async (branchId: number): Promise<BookingWit
   }
 };
 
+// Get bookings for a branch on a specific date (restaurant owners only)
+export const getBookingsForBranchOnDate = async (branchId: number, date: string): Promise<BookingWithDetails[]> => {
+  try {
+    console.log(`Fetching bookings for branch ${branchId} on date ${date}`);
+    const { data } = await apiClient.get<BookingWithDetails[]>(`/booking/branch/${branchId}/date/${date}`);
+    console.log(`Successfully fetched ${data.length} bookings`);
+    return data;
+  } catch (error: any) {
+    console.error(`Error fetching bookings for branch ${branchId} on ${date}:`, error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      headers: error.response?.headers
+    });
+    throw error;
+  }
+};
+
 // Get booking settings for a branch
 export const getBookingSettings = async (branchId: number): Promise<BookingSettings> => {
   try {
@@ -156,6 +175,70 @@ export const deleteBookingOverride = async (overrideId: number): Promise<void> =
     await apiClient.delete(`/booking/override/${overrideId}`);
   } catch (error: any) {
     console.error(`Error deleting booking override ${overrideId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Create a booking using branch ID, date, time, and party size
+export const createBookingWithTimeInfo = async (
+  branchId: number,
+  date: string,
+  time: string,
+  partySize: number,
+  specialRequests?: string
+): Promise<Booking> => {
+  try {
+    // First, get the time slot ID from the branch availability
+    const { data: availabilityData } = await apiClient.get<any>(`/branch/${branchId}/availability/${date}`);
+    
+    // Find the time slot that matches our selected time
+    const selectedTimeSlot = availabilityData.availableSlots.find(
+      (slot: any) => slot.time === time
+    );
+    
+    if (!selectedTimeSlot || !selectedTimeSlot.id) {
+      throw new Error(`Could not find time slot for ${time} on ${date}`);
+    }
+    
+    // Create the booking with the time slot ID
+    const bookingData: CreateBookingData = {
+      timeSlotId: selectedTimeSlot.id,
+      partySize,
+      specialRequests
+    };
+    
+    // Call the existing createBooking function
+    return await createBooking(bookingData);
+  } catch (error: any) {
+    console.error('Error creating booking with time info:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Create a reservation for a guest customer (for restaurant staff)
+export const createGuestReservation = async (reservationData: {
+  guestName: string;
+  guestPhone: string;
+  timeSlotId: number;
+  partySize: number;
+  specialRequests?: string;
+}): Promise<Booking> => {
+  try {
+    console.log('Creating guest reservation with data:', reservationData);
+    
+    // Create the booking with the exact format the backend expects
+    const bookingData = {
+      guestName: reservationData.guestName,
+      guestPhone: reservationData.guestPhone,
+      timeSlotId: reservationData.timeSlotId,
+      partySize: reservationData.partySize,
+      specialRequests: reservationData.specialRequests
+    };
+    
+    const { data } = await apiClient.post<Booking>('/booking', bookingData);
+    return data;
+  } catch (error: any) {
+    console.error('Error creating guest reservation:', error.response?.data || error.message);
     throw error;
   }
 };

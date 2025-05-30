@@ -7,7 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "jest --watchAll"
+    "test": "jest --watchAll",
+    "reset": "rm -rf node_modules/.cache && rm -rf .expo && watchman watch-del-all"
   },
   "jest": {
     "preset": "jest-expo"
@@ -35,7 +36,7 @@
     "expo-splash-screen": "~0.30.0",
     "expo-status-bar": "~2.2.3",
     "expo-system-ui": "~5.0.7",
-    "expo-web-browser": "~14.1.0",
+    "expo-web-browser": "^14.1.0",
     "jwt-decode": "^4.0.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",

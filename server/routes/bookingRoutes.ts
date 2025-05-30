@@ -5,6 +5,7 @@ import { authenticate } from "@server/middleware/authMiddleware";
 export function registerBookingRoutes(app: Express) {
   app.post("/api/booking", authenticate, bookingController.createBookingController);
   app.get("/api/booking/branch/:branchId", authenticate, bookingController.getBookingsForBranchController)
+  app.get("/api/booking/branch/:branchId/date/:date", authenticate, bookingController.getBookingsForBranchOnDateController);
   app.get("/api/booking", authenticate, bookingController.getUserBookingsController);
   app.get("/api/booking/:id", authenticate, bookingController.getBookingByIdController);
   app.put("/api/booking/:id", authenticate, bookingController.updateBookingController);

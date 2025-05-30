@@ -1,11 +1,15 @@
 import { create } from 'zustand';
+import { format } from 'date-fns';
 import { BookingWithDetails, Booking, CreateBookingData, UpdateBookingData } from '../types/booking';
 import {
   getBookingById,
   getUserBookings,
   createBooking,
   updateBooking,
-  deleteBooking} from '../api/booking';
+  deleteBooking,
+  getBookingsForBranch,
+  getBookingsForBranchOnDate,
+  createGuestReservation} from '../api/booking';
 
 interface BookingState {
   // Data
@@ -20,6 +24,24 @@ interface BookingState {
   createNewBooking: (bookingData: CreateBookingData) => Promise<Booking | null>;
   updateExistingBooking: (id: number, bookingData: UpdateBookingData) => Promise<Booking | null>;
   cancelBooking: (id: number) => Promise<boolean>;
+  getBookingsForBranchOnDate: (branchId: number, date: string) => Promise<BookingWithDetails[]>;
+  createReservationForCustomer: (reservationData: {
+    customerName: string;
+    phoneNumber: string;
+    partySize: number;
+    reservationTime: string;
+    branchId: number;
+    notes?: string;
+    status: string;
+    timeSlotId: number;
+  }) => Promise<Booking | null>;
+  createGuestReservation: (reservationData: {
+    customerName: string;
+    phoneNumber: string;
+    partySize: number;
+    timeSlotId: number;
+    notes?: string;
+  }) => Promise<Booking | null>;
   clearError: () => void;
 }
 
@@ -118,6 +140,110 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         loading: false 
       });
       return false;
+    }
+  },
+  
+  // Get bookings for a branch on a specific date
+  getBookingsForBranchOnDate: async (branchId: number, date: string) => {
+    try {
+      set({ loading: true, error: null });
+      
+      // Validate inputs
+      if (!branchId) {
+        throw new Error('Branch ID is required');
+      }
+      
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        throw new Error('Valid date in YYYY-MM-DD format is required');
+      }
+      
+      // Call the API to get bookings for the branch on the specified date
+      const bookings = await getBookingsForBranchOnDate(branchId, date);
+      set({ loading: false });
+      return bookings;
+    } catch (error: any) {
+      console.error(`Error fetching bookings for branch ${branchId} on ${date}:`, error);
+      set({ 
+        error: error.message || 'Failed to fetch branch bookings', 
+        loading: false 
+      });
+      return [];
+    }
+  },
+  
+  // Create a reservation for a customer (for restaurant staff)
+  createReservationForCustomer: async (reservationData: {
+    customerName: string;
+    phoneNumber: string;
+    partySize: number;
+    reservationTime: string;
+    branchId: number;
+    notes?: string;
+    status: string;
+    timeSlotId: number;
+  }) => {
+    try {
+      set({ loading: true, error: null });
+      
+      // Transform the data to match what createGuestReservation expects
+      const guestData = {
+        guestName: reservationData.customerName,
+        guestPhone: reservationData.phoneNumber,
+        timeSlotId: reservationData.timeSlotId,
+        partySize: reservationData.partySize,
+        specialRequests: reservationData.notes
+      };
+      
+      const newBooking = await createGuestReservation(guestData);
+      
+      // Refresh bookings
+      get().fetchUserBookings();
+      set({ loading: false });
+      return newBooking;
+    } catch (error: any) {
+      console.error('Error creating reservation for customer:', error);
+      set({ 
+        error: error.message || 'Failed to create reservation', 
+        loading: false 
+      });
+      return null;
+    }
+  },
+  
+  // Create a guest reservation
+  createGuestReservation: async (reservationData: {
+    customerName: string;
+    phoneNumber: string;
+    partySize: number;
+    timeSlotId: number;
+    notes?: string;
+  }) => {
+    try {
+      set({ loading: true, error: null });
+      
+      // Format the data to match what the API expects
+      const apiData = {
+        guestName: reservationData.customerName,
+        guestPhone: reservationData.phoneNumber,
+        timeSlotId: reservationData.timeSlotId,
+        partySize: reservationData.partySize,
+        specialRequests: reservationData.notes
+      };
+      
+      const newBooking = await createGuestReservation(apiData);
+      
+      // Refresh bookings
+      get().getBookingsForBranchOnDate(109, format(new Date(), 'yyyy-MM-dd'));
+      
+      set({ loading: false });
+      return newBooking;
+    } catch (error: any) {
+      console.error('Error creating guest reservation:', error);
+      set({ 
+        error: error.message || 'Failed to create guest reservation', 
+        loading: false 
+      });
+      return null;
     }
   },
   

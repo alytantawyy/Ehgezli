@@ -1,220 +1,236 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView, Alert, Switch, Image } from 'react-native';
-import { Text } from '../../../components/common/Themed';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert, Switch, SafeAreaView } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
-import { updateRestaurantProfile } from '../../../api/restaurant';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+// Stores and hooks
 import { useAuth } from '../../../hooks/useAuth';
+import { Restaurant } from '../../../types/restaurant';
 
 /**
- * Restaurant Profile Tab Screen
+ * Restaurant Profile Screen
  * 
- * Displays restaurant profile information and settings
+ * Displays and manages restaurant profile information
  */
 export default function RestaurantProfileScreen() {
+  const router = useRouter();
   const { user, logout } = useAuth();
-  const queryClient = useQueryClient();
   
-  // Type assertion to tell TypeScript this is a Restaurant type
-  // This is safe because this screen is only accessible to restaurant users
-  const restaurantUser = user as any;
-
-  // Settings state
+  // State
+  const [loading, setLoading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [autoConfirmBookings, setAutoConfirmBookings] = useState(false);
+  const [autoConfirmEnabled, setAutoConfirmEnabled] = useState(false);
   
-  // Profile update mutation
-  const updateProfileMutation = useMutation({
-    mutationFn: updateRestaurantProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restaurantProfile'] });
-      Alert.alert('Success', 'Profile updated successfully');
-    },
-    onError: (error) => {
-      Alert.alert('Error', 'Failed to update profile');
-      console.error('Update profile error:', error);
-    }
-  });
-
-  // Handle profile picture selection
-  const handleSelectProfilePicture = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (!permissionResult.granted) {
-      Alert.alert('Permission Required', 'Please allow access to your photo library to change your profile picture.');
-      return;
-    }
-    
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      // Only pass the specific properties needed for the update
-      // instead of the entire user object to avoid type conflicts
-      updateProfileMutation.mutate({
-        logo: result.assets[0].uri
-      });
-    }
+  /**
+   * Type guard to check if user is a Restaurant
+   */
+  const isRestaurant = (user: any): user is Restaurant => {
+    return user && 'logo' in user;
   };
-
-  // Handle logout
-  const handleLogout = () => {
+  
+  // Handle sign out
+  const handleSignOut = () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      'Sign Out',
+      'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
-          text: 'Logout', 
+          text: 'Sign Out', 
           style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/auth/login' as any);
+          onPress: () => logout()
+        }
+      ]
+    );
+  };
+  
+  // Handle account deletion
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => {
+            // Implement account deletion
+            Alert.alert('Account Deletion', 'This feature is not yet implemented.');
           }
         }
       ]
     );
   };
-
-  // Render settings section
-  const renderSettingsSection = (title: string, items: any[]) => (
-    <View style={styles.settingsSection}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {items.map((item: any, index: number) => (
-        <TouchableOpacity 
-          key={index}
-          style={styles.settingsItem}
-          onPress={item.onPress}
-        >
-          <View style={styles.settingsItemLeft}>
-            <Ionicons name={item.icon} size={24} color="#666" />
-            <Text style={styles.settingsItemText}>{item.title}</Text>
-          </View>
-          
-          {item.hasSwitch ? (
-            <Switch
-              value={item.switchValue}
-              onValueChange={item.onToggle}
-              trackColor={{ false: '#ccc', true: '#FF385C' }}
-              thumbColor="#fff"
-            />
-          ) : (
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          )}
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
+  
+  if (!user) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#B22222" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
+  
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <Stack.Screen 
+        options={{
+          title: 'Profile',
+          headerStyle: {
+            backgroundColor: '#B22222',
+          },
+          headerTintColor: '#fff',
+        }} 
+      />
+      
+      <ScrollView style={styles.scrollView}>
         {/* Profile Header */}
         <View style={styles.profileHeader}>
-          <TouchableOpacity onPress={handleSelectProfilePicture}>
-            {restaurantUser?.logo ? (
-              <Image 
-                source={{ uri: restaurantUser.logo }} 
-                style={styles.profileImage} 
-              />
+          <View style={styles.profileImageContainer}>
+            {isRestaurant(user) && user.logo ? (
+              <Image source={{ uri: user.logo }} style={styles.profileImage} />
             ) : (
-              <View style={[styles.profileImage, styles.profileImagePlaceholder]}>
+              <View style={styles.profileImagePlaceholder}>
                 <Ionicons name="restaurant" size={40} color="#fff" />
               </View>
             )}
-            <View style={styles.editIconContainer}>
-              <Ionicons name="camera" size={16} color="#fff" />
-            </View>
-          </TouchableOpacity>
+          </View>
           
-          <Text style={styles.restaurantName}>
-            {restaurantUser?.name || 'Restaurant Name'}
-          </Text>
-          <Text style={styles.restaurantEmail}>
-            {restaurantUser?.email || 'restaurant@example.com'}
-          </Text>
+          <View style={styles.profileInfo}>
+            <Text style={styles.restaurantName}>{isRestaurant(user) ? user.name : 'Your Restaurant'}</Text>
+            <Text style={styles.restaurantEmail}>{user?.email}</Text>
+          </View>
           
           <TouchableOpacity 
-            style={styles.editProfileButton}
-            onPress={() => router.push('/restaurant/edit-restaurant' as any)}
+            style={styles.editButton}
+            onPress={() => router.push('/restaurant/edit-profile')}
           >
-            <Text style={styles.editProfileText}>Edit Restaurant Profile</Text>
+            <Ionicons name="create-outline" size={20} color="#B22222" />
+            <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
         </View>
         
-        {/* Restaurant Management */}
-        {renderSettingsSection('Restaurant Management', [
-          {
-            icon: 'business',
-            title: 'Manage Branches',
-            onPress: () => router.push('/restaurant/(tabs)/branches' as any),
-          },
-          {
-            icon: 'restaurant',
-            title: 'Manage Menu',
-            onPress: () => router.push('/restaurant/manage-menu' as any),
-          },
-          {
-            icon: 'time',
-            title: 'Opening Hours',
-            onPress: () => router.push('/restaurant/opening-hours' as any),
-          },
-        ])}
+        {/* Settings Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Settings</Text>
+          
+          <View style={styles.settingItem}>
+            <View style={styles.settingTextContainer}>
+              <Ionicons name="notifications-outline" size={24} color="#333" style={styles.settingIcon} />
+              <Text style={styles.settingText}>Booking Notifications</Text>
+            </View>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+              trackColor={{ false: '#d3d3d3', true: '#B22222' }}
+              thumbColor="#fff"
+            />
+          </View>
+          
+          <View style={styles.settingItem}>
+            <View style={styles.settingTextContainer}>
+              <Ionicons name="checkmark-circle-outline" size={24} color="#333" style={styles.settingIcon} />
+              <Text style={styles.settingText}>Auto-confirm Bookings</Text>
+            </View>
+            <Switch
+              value={autoConfirmEnabled}
+              onValueChange={setAutoConfirmEnabled}
+              trackColor={{ false: '#d3d3d3', true: '#B22222' }}
+              thumbColor="#fff"
+            />
+          </View>
+        </View>
         
-        {/* App Settings */}
-        {renderSettingsSection('Settings', [
-          {
-            icon: 'notifications',
-            title: 'Notifications',
-            hasSwitch: true,
-            switchValue: notificationsEnabled,
-            onToggle: setNotificationsEnabled,
-          },
-          {
-            icon: 'checkmark-circle',
-            title: 'Auto-confirm Bookings',
-            hasSwitch: true,
-            switchValue: autoConfirmBookings,
-            onToggle: setAutoConfirmBookings,
-          },
-        ])}
+        {/* Account Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push('/restaurant/change-password')}
+          >
+            <Ionicons name="lock-closed-outline" size={24} color="#333" style={styles.menuIcon} />
+            <Text style={styles.menuText}>Change Password</Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push('/restaurant/payment-settings')}
+          >
+            <Ionicons name="card-outline" size={24} color="#333" style={styles.menuIcon} />
+            <Text style={styles.menuText}>Payment Settings</Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push('/restaurant/subscription')}
+          >
+            <Ionicons name="star-outline" size={24} color="#333" style={styles.menuIcon} />
+            <Text style={styles.menuText}>Subscription</Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+        </View>
         
-        {/* Support & About */}
-        {renderSettingsSection('Support', [
-          {
-            icon: 'help-circle',
-            title: 'Help Center',
-            onPress: () => router.push('/restaurant/help-center' as any),
-          },
-          {
-            icon: 'information-circle',
-            title: 'About',
-            onPress: () => router.push('/restaurant/about' as any),
-          },
-          {
-            icon: 'shield-checkmark',
-            title: 'Privacy Policy',
-            onPress: () => router.push('/restaurant/privacy-policy' as any),
-          },
-        ])}
+        {/* Support Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Support</Text>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push('/restaurant/help-center')}
+          >
+            <Ionicons name="help-circle-outline" size={24} color="#333" style={styles.menuIcon} />
+            <Text style={styles.menuText}>Help Center</Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push('/restaurant/contact-support')}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color="#333" style={styles.menuIcon} />
+            <Text style={styles.menuText}>Contact Support</Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push('/restaurant/privacy-policy')}
+          >
+            <Ionicons name="shield-outline" size={24} color="#333" style={styles.menuIcon} />
+            <Text style={styles.menuText}>Privacy Policy</Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push('/restaurant/terms-of-service')}
+          >
+            <Ionicons name="document-text-outline" size={24} color="#333" style={styles.menuIcon} />
+            <Text style={styles.menuText}>Terms of Service</Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+        </View>
         
-        {/* Logout Button */}
+        {/* Sign Out Button */}
         <TouchableOpacity 
-          style={styles.logoutButton}
-          onPress={handleLogout}
+          style={styles.signOutButton}
+          onPress={handleSignOut}
         >
-          <Ionicons name="log-out" size={20} color="#FF385C" />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Ionicons name="log-out-outline" size={20} color="#fff" />
+          <Text style={styles.signOutButtonText}>Sign Out</Text>
         </TouchableOpacity>
         
-        <Text style={styles.versionText}>Version 1.0.0</Text>
+        {/* Delete Account Button */}
+        <TouchableOpacity 
+          style={styles.deleteAccountButton}
+          onPress={handleDeleteAccount}
+        >
+          <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -225,111 +241,142 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f8f8',
   },
-  scrollContent: {
-    paddingBottom: 40,
+  scrollView: {
+    flex: 1,
   },
-  profileHeader: {
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  profileImagePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#FF385C',
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  editIconContainer: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#FF385C',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  restaurantName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 16,
-  },
-  restaurantEmail: {
+  loadingText: {
+    marginTop: 10,
     fontSize: 16,
     color: '#666',
-    marginTop: 4,
   },
-  editProfileButton: {
-    marginTop: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#FF385C',
-  },
-  editProfileText: {
-    color: '#FF385C',
-    fontWeight: '600',
-  },
-  settingsSection: {
-    marginTop: 16,
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
     backgroundColor: '#fff',
-    borderRadius: 8,
-    marginHorizontal: 16,
-    overflow: 'hidden',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  profileImageContainer: {
+    marginRight: 15,
+  },
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  profileImagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#B22222',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  restaurantName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  restaurantEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 5,
+    backgroundColor: '#f5f5f5',
+  },
+  editButtonText: {
+    fontSize: 14,
+    color: '#B22222',
+    marginLeft: 5,
+  },
+  section: {
+    marginTop: 20,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#eee',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#666',
-    marginVertical: 8,
-    marginHorizontal: 16,
-  },
-  settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    color: '#333',
+    padding: 15,
+    paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#eee',
   },
-  settingsItemLeft: {
+  settingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  settingTextContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  settingsItemText: {
-    fontSize: 16,
-    marginLeft: 12,
+  settingIcon: {
+    marginRight: 10,
   },
-  logoutButton: {
+  settingText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  menuIcon: {
+    marginRight: 10,
+  },
+  menuText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+  },
+  signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 24,
-    marginHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    marginTop: 30,
+    marginHorizontal: 20,
+    padding: 15,
+    backgroundColor: '#B22222',
+    borderRadius: 10,
   },
-  logoutText: {
-    marginLeft: 8,
+  signOutButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FF385C',
+    fontWeight: 'bold',
+    color: '#fff',
+    marginLeft: 10,
   },
-  versionText: {
-    textAlign: 'center',
-    marginTop: 16,
-    color: '#999',
-    fontSize: 12,
+  deleteAccountButton: {
+    alignItems: 'center',
+    marginTop: 15,
+    marginBottom: 30,
+    padding: 15,
+  },
+  deleteAccountButtonText: {
+    fontSize: 14,
+    color: '#FF3B30',
   },
 });

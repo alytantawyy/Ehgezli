@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 // Import Stack component from expo-router for navigation
 import { Stack } from 'expo-router';
 // Import our context providers that will share data across the app
@@ -10,6 +10,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 // Import hook to detect if user has dark or light mode enabled
 import { useColorScheme } from 'react-native';
+// Import auth store
+import { useAuthStore } from '../store/auth-store';
 
 // Create a new React Query client to manage API requests and caching
 const queryClient = new QueryClient();

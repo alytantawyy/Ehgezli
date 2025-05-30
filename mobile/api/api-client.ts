@@ -10,6 +10,9 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.2.64.32:4000/api';
 let authFailureCount = 0;
 const MAX_AUTH_FAILURES = 3;
 
+// Add a memory cache for the token to avoid AsyncStorage delays
+let tokenCache: string | null = null;
+
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
@@ -21,17 +24,26 @@ const apiClient = axios.create({
 
 // Add request interceptor for auth token
 apiClient.interceptors.request.use(async (config) => {
-  // Don't retry auth endpoints if we've had multiple failures
-  if (config.url?.includes('/auth/verify-token') && authFailureCount >= MAX_AUTH_FAILURES) {
-    return Promise.reject(new Error('Auth verification disabled after multiple failures'));
-  }
-  
   try {
-    const token = await AsyncStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Check the memory cache first
+    if (tokenCache) {
+      console.log(`Using cached token for request: ${config.url}`);
+      config.headers.Authorization = `Bearer ${tokenCache}`;
+    } else {
+      // Force token refresh on every request
+      const token = await AsyncStorage.getItem('auth_token');
+      console.log(`Retrieving token for request: ${config.url}, token exists: ${!!token}`);
+      
+      if (token) {
+        console.log(`Adding auth token to request: ${config.url}`);
+        config.headers.Authorization = `Bearer ${token}`;
+        tokenCache = token; // Cache the token
+      } else {
+        console.log(`No auth token available for request: ${config.url}`);
+      }
     }
   } catch (error) {
+    console.error('Error getting auth token:', error);
   }
   
   return config;
@@ -42,7 +54,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     // Track auth failures
-    if (error.config?.url?.includes('/auth/verify-token') || error.response?.status === 401) {
+    if (error.response?.status === 401) {
       authFailureCount++;
       
       if (authFailureCount >= MAX_AUTH_FAILURES) {
