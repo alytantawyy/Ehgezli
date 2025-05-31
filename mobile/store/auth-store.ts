@@ -19,7 +19,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  restaurantLogin: (email: string, password: string) => Promise<void>;
+  restaurantLogin: (email: string, password: string) => Promise<{ verified: boolean, message?: string }>;
   register: (userData: any) => Promise<void>;
   restaurantRegister: (restaurantData: any) => Promise<void>;
   logout: () => Promise<void>;
@@ -64,6 +64,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const restaurant = await restaurantLogin({ email, password });
       console.log('Restaurant login successful:', restaurant);
       
+      // Check if restaurant is verified - use the 'verified' field from the backend
+      // instead of 'isVerified'
+      if (restaurant.verified === false) {
+        set({ isLoading: false });
+        return { verified: false, message: 'Your restaurant account is pending verification. Please wait for approval.' };
+      }
+      
       // Get the token from AsyncStorage to confirm it was saved
       const token = await AsyncStorage.getItem('auth_token');
       console.log('Auth token available after login:', !!token, token ? token.substring(0, 20) + '...' : 'none');
@@ -73,12 +80,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await AsyncStorage.setItem('userType', 'restaurant');
       
       console.log('User state after login:', get().user, 'userType:', get().userType);
+      return { verified: true };
     } catch (error) {
       console.error('Restaurant login failed:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Restaurant login failed', 
         isLoading: false 
       });
+      throw error;
     }
   },
   

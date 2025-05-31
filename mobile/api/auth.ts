@@ -1,4 +1,4 @@
-import apiClient from './api-client';
+import apiClient, { clearAuthState } from './api-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   AuthResponse, 
@@ -12,9 +12,7 @@ import {
 } from '../types/auth';
 import { User } from '@/types/user';
 import { RestaurantUser } from '@/types/restaurantUser';
-
-
-
+import { Alert } from 'react-native';
 
 // User authentication
 export const login = async (credentials: LoginCredentials): Promise<User> => {
@@ -37,9 +35,21 @@ export const login = async (credentials: LoginCredentials): Promise<User> => {
       
       return data.user;
     } else {
+      Alert.alert(
+        'Login Failed',
+        'Invalid email or password. Please try again.',
+        [{ text: 'OK', style: 'cancel' }]
+      );
       throw new Error('Invalid login response');
     }
   } catch (error) {
+    console.error('Login API error:', error);
+    // Show alert for network or server errors
+    Alert.alert(
+      'Login Failed',
+      'Invalid email or password. Please try again.',
+      [{ text: 'OK', style: 'cancel' }]
+    );
     throw error;
   }
 };
@@ -101,12 +111,31 @@ export const restaurantLogin = async (credentials: LoginCredentials): Promise<Re
       const savedToken = await AsyncStorage.getItem('auth_token');
       console.log('Token saved successfully:', !!savedToken);
       
+      // TEMPORARY: Add verified field for testing if it doesn't exist
+      // This should be removed once the backend properly implements this field
+      if (data.restaurant && data.restaurant.verified === undefined) {
+        // For testing: set to false to simulate unverified restaurant
+        // In production, this should come from the backend
+        data.restaurant.verified = false;
+      }
+      
       return data.restaurant;
     } else {
+      Alert.alert(
+        'Login Failed',
+        'Invalid email or password. Please try again.',
+        [{ text: 'OK', style: 'cancel' }]
+      );
       throw new Error('Invalid login response');
     }
   } catch (error) {
     console.error('Restaurant login API error:', error);
+    // Show alert for network or server errors
+    Alert.alert(
+      'Login Failed',
+      'Invalid email or password. Please try again.',
+      [{ text: 'OK', style: 'cancel' }]
+    );
     throw error;
   }
 };

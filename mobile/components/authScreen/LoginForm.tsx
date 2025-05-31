@@ -1,10 +1,11 @@
-import React, { useState, Dispatch, SetStateAction } from 'react';
+import React, { useState, Dispatch, SetStateAction, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { EhgezliButton } from '../common/EhgezliButton';
 
@@ -16,6 +17,7 @@ interface LoginFormProps {
   onToggleMode?: () => void;
   setEmail?: Dispatch<SetStateAction<string>>;
   setPassword?: Dispatch<SetStateAction<string>>;
+  authError?: string | null;
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({
@@ -25,13 +27,33 @@ const LoginForm: React.FC<LoginFormProps> = ({
   onFormSubmit,
   onToggleMode,
   setEmail,
-  setPassword
+  setPassword,
+  authError
 }) => {
   // Local state for form fields
   const [email, setEmailState] = useState('');
   const [password, setPasswordState] = useState('');
   const [isLoading, setIsLoading] = useState(isAuthenticating || false);
   const [error, setError] = useState<string | null>(null);
+
+  // Show alert when auth error is received
+  useEffect(() => {
+    if (authError && authError.length > 0) {
+      // Check if it's an invalid credentials error
+      if (authError.includes('Invalid credentials') || 
+          authError.includes('invalid email') || 
+          authError.includes('invalid password') ||
+          authError.includes('Unauthorized')) {
+        Alert.alert(
+          'Login Failed',
+          'Invalid email or password. Please try again.',
+          [{ text: 'OK', style: 'cancel' }]
+        );
+      }
+      // Set the local error state
+      setError(authError);
+    }
+  }, [authError]);
 
   // Update local loading state when prop changes
   React.useEffect(() => {

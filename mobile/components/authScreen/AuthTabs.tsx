@@ -80,6 +80,7 @@ interface AuthTabsProps {
   authState?: {
     isAuthenticating: boolean;
     setIsAuthenticating: Dispatch<SetStateAction<boolean>>;
+    authError: string | null;
   };
   
   authCallbacks?: {
@@ -147,6 +148,7 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
   
   const _isAuthenticating = authState?.isAuthenticating;
   const _setIsAuthenticating = authState?.setIsAuthenticating;
+  const _authError = authState?.authError;
   
   const _onLoginSuccess = authCallbacks?.onLoginSuccess;
   const _onRegisterSuccess = authCallbacks?.onRegisterSuccess;
@@ -239,6 +241,7 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
             isAuthenticating={_isAuthenticating}
             setIsAuthenticating={_setIsAuthenticating}
             onFormSubmit={_onFormSubmit}
+            authError={_authError}
           />
         ) : activeTab === 'register' ? (
           // Register Form - shown when activeTab is 'register'
@@ -284,6 +287,7 @@ const AuthTabs: React.FC<AuthTabsProps> = ({
             isAuthenticating={_isAuthenticating}
             onFormSubmit={_onFormSubmit}
             onToggleMode={() => _onRestaurantModeToggle && _onRestaurantModeToggle(false)}
+            authError={_authError}
           />
         ) : (
           // Restaurant Register Form - shown when activeTab is 'restaurant' and in register mode

@@ -1,4 +1,5 @@
 export interface RestaurantUser {
+  verified: boolean;
   id: number;
   restaurantId: number;
   about: string;

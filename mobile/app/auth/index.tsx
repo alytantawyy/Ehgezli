@@ -15,6 +15,7 @@ import {
   ScrollView,
   ImageBackground,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,6 +37,7 @@ export default function LoginScreen() {
   
   // Loading and error states
   const [isAuthenticating, setIsAuthenticating] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
   
   // User profile information for registration
   const [firstName, setFirstName] = React.useState('');
@@ -61,9 +63,9 @@ export default function LoginScreen() {
   const [showGenderDropdown, setShowGenderDropdown] = React.useState(false);
   const [showCuisineDropdown, setShowCuisineDropdown] = React.useState(false);
   const [showPriceRangeDropdown, setShowPriceRangeDropdown] = React.useState(false);
-  const [showNationalityDropdown, setShowNationalityDropdown] = React.useState(false);
   const [showImagePickerModal, setShowImagePickerModal] = React.useState(false);
   const [showBirthdayPicker, setShowBirthdayPicker] = React.useState(false);
+  const [showNationalityDropdown, setShowNationalityDropdown] = React.useState(false);
 
   
   /**
@@ -192,6 +194,8 @@ export default function LoginScreen() {
   const authState = {
     isAuthenticating,
     setIsAuthenticating,
+    authError,
+    setAuthError,
   };
 
   // Hooks for authentication and navigation
@@ -204,6 +208,7 @@ export default function LoginScreen() {
   const handleSubmit = async (formData?: any) => {
     // Set loading state
     setIsAuthenticating(true);
+    setAuthError(null);
     
     try {
       if (authMode === 'userLogin') {
@@ -243,16 +248,52 @@ export default function LoginScreen() {
         }
       } else if (authMode === 'restaurantLogin') {
         // Handle restaurant login
-        await restaurantLogin(formData.email, formData.password);
-        handleRestaurantLoginSuccess();
+        try {
+          const result = await restaurantLogin(formData.email, formData.password);
+          
+          if (!result.verified) {
+            // Show alert for verification pending
+            Alert.alert(
+              'Verification Pending',
+              result.message || 'Your restaurant account is pending verification. Please wait for approval.',
+              [
+                { 
+                  text: 'View Details', 
+                  onPress: () => router.replace(AuthRoute.verificationPending as any) 
+                },
+                { text: 'OK', style: 'cancel' }
+              ]
+            );
+            // Set loading state to false since we're done
+            setIsAuthenticating(false);
+          } else {
+            handleRestaurantLoginSuccess();
+          }
+        } catch (error) {
+          console.error('Restaurant login error:', error);
+          // Show alert for invalid credentials
+          Alert.alert(
+            'Login Failed',
+            'Invalid email or password. Please try again.',
+            [{ text: 'OK', style: 'cancel' }]
+          );
+          // Set loading state to false
+          setIsAuthenticating(false);
+          // Don't re-throw, we've handled it here
+        }
       } else if (authMode === 'restaurantRegister') {
         // Handle restaurant registration
         handleRestaurantRegister(formData);
       }
     } catch (error) {
       console.error('Authentication error:', error);
-      // Set error state (you could add this to your state management)
-      // setAuthError(error.message);
+      // Show alert for authentication errors
+      Alert.alert(
+        'Login Failed',
+        'Invalid email or password. Please try again.',
+        [{ text: 'OK', style: 'cancel' }]
+      );
+      setAuthError(error instanceof Error ? error.message : 'Authentication failed');
     } finally {
       setIsAuthenticating(false);
     }
@@ -294,6 +335,7 @@ export default function LoginScreen() {
     } catch (error) {
       console.error('Restaurant registration error:', error);
       setIsAuthenticating(false);
+      setAuthError(error as string);
       // You could add error handling UI here
     }
   };

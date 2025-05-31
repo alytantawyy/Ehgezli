@@ -1,10 +1,11 @@
-import React, { useState, Dispatch, SetStateAction } from 'react';
+import React, { useState, Dispatch, SetStateAction, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { EhgezliButton } from '../common/EhgezliButton';
 
@@ -12,9 +13,10 @@ interface RestaurantLoginFormProps {
   onSuccess?: () => void;
   isAuthenticating?: boolean;
   setIsAuthenticating?: Dispatch<SetStateAction<boolean>>;
-  onFormSubmit?: (formData: any) => void;
+  onFormSubmit?: (formData?: { email: string; password: string }) => void;
   onToggleMode?: () => void;
   onForgotPassword?: () => void;
+  authError?: string | null;
 }
 
 const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
@@ -23,7 +25,8 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
   setIsAuthenticating,
   onFormSubmit,
   onToggleMode,
-  onForgotPassword
+  onForgotPassword,
+  authError
 }) => {
   // Local state for form fields
   const [email, setEmail] = useState('');
@@ -32,7 +35,7 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Update local loading state when prop changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (isAuthenticating !== undefined) {
       setIsLoading(isAuthenticating);
     }
@@ -43,6 +46,11 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
     // Validate form fields
     if (!email || !password) {
       setError('Please enter both email and password');
+      Alert.alert(
+        'Missing Information',
+        'Please enter both email and password',
+        [{ text: 'OK', style: 'cancel' }]
+      );
       return;
     }
 
@@ -55,12 +63,26 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
 
     // If external submit handler is provided, use it
     if (onFormSubmit) {
-      // Store email/password in parent component's state before submitting
-      // This would typically be done via state update callbacks passed from parent
-      onFormSubmit({
-        email,
-        password,
-      });
+      try {
+        // Store email/password in parent component's state before submitting
+        // This would typically be done via state update callbacks passed from parent
+        onFormSubmit({
+          email,
+          password,
+        });
+      } catch (error) {
+        console.error('Error submitting form:', error);
+        setError(error instanceof Error ? error.message : 'An error occurred');
+        Alert.alert(
+          'Login Failed',
+          'Invalid email or password. Please try again.',
+          [{ text: 'OK', style: 'cancel' }]
+        );
+        if (setIsAuthenticating) {
+          setIsAuthenticating(false);
+        }
+        setIsLoading(false);
+      }
     }
   };
 
