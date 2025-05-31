@@ -12,6 +12,18 @@ const MAX_AUTH_FAILURES = 3;
 
 // Add a memory cache for the token to avoid AsyncStorage delays
 let tokenCache: string | null = null;
+// Add a memory cache for user type
+let userTypeCache: string | null = null;
+
+// Function to clear all auth state
+export const clearAuthState = async () => {
+  console.log('Clearing all auth state');
+  tokenCache = null;
+  userTypeCache = null;
+  await AsyncStorage.removeItem('auth_token');
+  await AsyncStorage.removeItem('userType');
+  authFailureCount = 0;
+};
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -52,21 +64,32 @@ apiClient.interceptors.request.use(async (config) => {
 // Add response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Track auth failures
-    if (error.response?.status === 401) {
-      authFailureCount++;
+  async (error) => {
+    // Handle specific error cases
+    if (error.response) {
+      // Handle 401 Unauthorized errors
+      if (error.response.status === 401) {
+        console.log('Unauthorized error detected, clearing auth state');
+        await clearAuthState();
+      }
       
-      if (authFailureCount >= MAX_AUTH_FAILURES) {
-        AsyncStorage.removeItem('auth_token');
+      // Handle 404 Not Found errors for user profile
+      if (error.response.status === 404 && 
+          (error.config.url.includes('/user') || 
+           error.config.url.includes('/restaurant-user'))) {
+        console.log('User not found error detected, clearing auth state');
+        await clearAuthState();
+      }
+      
+      // Handle 500 Internal Server Error with specific error message
+      if (error.response.status === 500 && 
+          error.response.data?.message === 'Internal Server Error' &&
+          error.config.url.includes('/user')) {
+        console.log('User-related server error detected, clearing auth state');
+        await clearAuthState();
       }
     }
     
-    // Handle common errors
-    if (error.response?.status === 401) {
-      // Handle unauthorized (could trigger logout)
-      AsyncStorage.removeItem('auth_token');
-    }
     return Promise.reject(error);
   }
 );

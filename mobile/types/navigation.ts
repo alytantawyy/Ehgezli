@@ -10,6 +10,8 @@ export const AuthRoute = {
   login: '/auth',
   forgotPassword: '/auth/forgot-password',
   resetPassword: '/auth/reset-password',
+  verificationPending: '/auth/verification-pending',
+
 } as const;
 
 // User routes

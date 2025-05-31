@@ -96,13 +96,13 @@ export default function LoginScreen() {
   
     /**
      * Handle successful restaurant registration
-     * Redirects restaurant owner to the restaurant dashboard
+     * Redirects restaurant owner to the verification pending screen
      */
     const handleRestaurantRegisterSuccess = () => {
-      console.log('Restaurant registration success, redirecting to restaurant tabs');
+      console.log('Restaurant registration success, redirecting to verification pending screen');
       // Force a small delay to ensure state is updated before navigation
       setTimeout(() => {
-        router.replace(RestaurantRoute.tabs as any);
+        router.replace(AuthRoute.verificationPending as any);
       }, 100);
     };
   

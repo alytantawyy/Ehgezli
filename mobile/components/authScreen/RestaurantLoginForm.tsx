@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
+import { EhgezliButton } from '../common/EhgezliButton';
 
 interface RestaurantLoginFormProps {
   onSuccess?: () => void;
@@ -13,6 +14,7 @@ interface RestaurantLoginFormProps {
   setIsAuthenticating?: Dispatch<SetStateAction<boolean>>;
   onFormSubmit?: (formData: any) => void;
   onToggleMode?: () => void;
+  onForgotPassword?: () => void;
 }
 
 const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
@@ -20,7 +22,8 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
   isAuthenticating,
   setIsAuthenticating,
   onFormSubmit,
-  onToggleMode
+  onToggleMode,
+  onForgotPassword
 }) => {
   // Local state for form fields
   const [email, setEmail] = useState('');
@@ -39,7 +42,7 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
   const handleLogin = () => {
     // Validate form fields
     if (!email || !password) {
-      setError('Please enter email and password');
+      setError('Please enter both email and password');
       return;
     }
 
@@ -64,13 +67,14 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Restaurant Login</Text>
+      <Text style={styles.subtitle}>Access your restaurant dashboard</Text>
       
       {error && <Text style={styles.errorText}>{error}</Text>}
       
       <Text style={styles.label}>Email</Text>
       <TextInput
         style={styles.input}
-        placeholder="Enter email address"
+        placeholder="Enter your restaurant email"
         placeholderTextColor="#999"
         value={email}
         onChangeText={setEmail}
@@ -81,28 +85,34 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
       <Text style={styles.label}>Password</Text>
       <TextInput
         style={styles.input}
-        placeholder="Enter password"
+        placeholder="Enter your password"
         placeholderTextColor="#999"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
       />
       
-      <TouchableOpacity 
-        style={styles.button}
+      <EhgezliButton
+        title={isLoading ? 'Logging in...' : 'Login'}
         onPress={handleLogin}
         disabled={isLoading}
-      >
-        <Text style={styles.buttonText}>
-          {isLoading ? 'Logging in...' : 'Login'}
-        </Text>
-      </TouchableOpacity>
+        style={styles.loginButton}
+      />
+      
+      {onForgotPassword && (
+        <TouchableOpacity 
+          style={styles.forgotPasswordButton}
+          onPress={onForgotPassword}
+        >
+          <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+        </TouchableOpacity>
+      )}
       
       <TouchableOpacity 
         style={styles.switchModeButton}
         onPress={onToggleMode}
       >
-        <Text style={styles.switchModeText}>Don't have an account? Register</Text>
+        <Text style={styles.switchModeText}>Don't have a restaurant account? Register</Text>
       </TouchableOpacity>
     </View>
   );
@@ -111,13 +121,17 @@ const RestaurantLoginForm: React.FC<RestaurantLoginFormProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    padding: 16,
+    padding: 5,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
     marginBottom: 20,
-    textAlign: 'center',
   },
   label: {
     fontSize: 16,
@@ -132,13 +146,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: '#f5f5f5',
   },
-  button: {
-    backgroundColor: '#B01C2E',
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 16,
+  loginButton: {
+    marginTop: 10,
   },
   buttonText: {
     color: 'white',
@@ -154,6 +163,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   switchModeText: {
+    color: '#B01C2E',
+    fontSize: 16,
+  },
+  forgotPasswordButton: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  forgotPasswordText: {
     color: '#B01C2E',
     fontSize: 16,
   },

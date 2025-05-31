@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/auth-store';
 import { useRouter, useSegments } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthRoute, UserRoute, RestaurantRoute } from '../types/navigation';
+import { clearAuthState } from '../api/api-client';
 
 export function useAuth() {
   const { 
@@ -53,22 +54,41 @@ export function useAuth() {
   useEffect(() => {
     const checkToken = async () => {
       try {
-        const token = await AsyncStorage.getItem('auth_token');
+        // Clear any existing errors first
+        clearError();
         
-        if (token) {
-          // Use the fetchProfile function from the auth store
-          // This will properly check userType before making API calls
-          await fetchProfile();
+        // Get both token and userType from AsyncStorage
+        const token = await AsyncStorage.getItem('auth_token');
+        const storedUserType = await AsyncStorage.getItem('userType');
+        
+        console.log('Initial auth check - Token exists:', !!token, 'User type:', storedUserType);
+        
+        if (!token || !storedUserType) {
+          // If either token or userType is missing, clear auth state
+          console.log('Missing token or userType, clearing auth state');
+          await clearAuthState();
+          return;
+        }
+        
+        // Only attempt to fetch profile if we have both token and userType
+        if (token && storedUserType) {
+          try {
+            // Use the fetchProfile function from the auth store
+            await fetchProfile();
+          } catch (error) {
+            console.error('Error fetching profile during initialization:', error);
+            // Clear auth state on profile fetch error
+            await clearAuthState();
+          }
         }
       } catch (error) {
         console.error('Error checking token:', error);
-        await AsyncStorage.removeItem('auth_token');
-        await AsyncStorage.removeItem('userType');
+        await clearAuthState();
       }
     };
     
     checkToken();
-  }, [fetchProfile]);
+  }, [fetchProfile, clearError]);
 
   return {
     user,
