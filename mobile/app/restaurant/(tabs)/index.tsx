@@ -4,14 +4,15 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { router } from 'expo-router';
+import ModalPicker from '@/components/common/ModalPicker';
 
 // Components
-import { BookingCard } from '../../../components/restaurantScreen/BookingCard';
-import { StatCard } from '../../../components/restaurantScreen/StatCard';
-import { ActivityItem } from '../../../components/restaurantScreen/ActivityItem';
+import { BookingCard } from '@/components/restaurantScreen/BookingCard';
+import { StatCard } from '@/components/restaurantScreen/StatCard';
+import { ActivityItem } from '@/components/restaurantScreen/ActivityItem';
 
 // Stores and hooks
-import { useBranchStore } from '../../../store/branch-store';
+import { useBranchStore } from '@/store/branch-store';
 import { useBookingStore } from '../../../store/booking-store';
 import { useAuth } from '../../../hooks/useAuth';
 import { BranchListItem } from '../../../types/branch';
@@ -31,6 +32,7 @@ export default function RestaurantDashboardScreen() {
   const [todayBookings, setTodayBookings] = useState<BookingWithDetails[]>([]);
   const [branches, setBranches] = useState<BranchListItem[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [branchPickerVisible, setBranchPickerVisible] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     upcoming: 0,
@@ -138,32 +140,33 @@ export default function RestaurantDashboardScreen() {
         }
       >
         {/* Branch Selector */}
-        {branches.length > 0 && (
-          <View style={styles.branchSelector}>
-            <Text style={styles.sectionTitle}>Select Branch:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.branchScroll}>
-              {branches.map((branch) => (
-                <TouchableOpacity
-                  key={branch.branchId}
-                  style={[
-                    styles.branchButton,
-                    selectedBranchId?.toString() === branch.branchId.toString() && styles.branchButtonActive
-                  ]}
-                  onPress={() => handleBranchSelect(branch.branchId.toString())}
-                >
-                  <Text 
-                    style={[
-                      styles.branchButtonText,
-                      selectedBranchId?.toString() === branch.branchId.toString() && styles.branchButtonTextActive
-                    ]}
-                  >
-                    {branch.address || branch.city}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+        <View style={styles.branchSelector}>
+          <Text style={styles.sectionTitle}>Select Branch:</Text>
+          <TouchableOpacity 
+            style={styles.branchDropdown}
+            onPress={() => setBranchPickerVisible(true)}
+          >
+            <Text style={styles.branchDropdownText}>
+              {selectedBranchId ? branches.find(b => b.branchId.toString() === selectedBranchId.toString())?.address || 'Select Branch' : 'Select Branch'}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#fff" />
+          </TouchableOpacity>
+          
+          <ModalPicker 
+            visible={branchPickerVisible}
+            onClose={() => setBranchPickerVisible(false)}
+            title="Select a Branch"
+            options={branches.map(branch => ({ 
+              label: branch.address || branch.city || 'Branch', 
+              value: branch.branchId.toString() 
+            }))}
+            onSelect={(branchId) => {
+              handleBranchSelect(branchId);
+              setBranchPickerVisible(false);
+            }}
+            selectedValue={selectedBranchId?.toString()}
+          />
+        </View>
         
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
@@ -264,7 +267,7 @@ export default function RestaurantDashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#f5f5f5',
   },
   scrollView: {
     flex: 1,
@@ -284,25 +287,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     marginBottom: 10,
   },
-  branchScroll: {
+  branchDropdown: {
     marginTop: 10,
-  },
-  branchButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    marginRight: 10,
-  },
-  branchButtonActive: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 25,
     backgroundColor: '#B22222',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  branchButtonText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  branchButtonTextActive: {
+  branchDropdownText: {
+    fontSize: 16,
     color: '#fff',
+    fontWeight: '500',
   },
   statsContainer: {
     flexDirection: 'row',

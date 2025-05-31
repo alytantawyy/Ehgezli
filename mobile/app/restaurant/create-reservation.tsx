@@ -3,19 +3,14 @@ import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Activi
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
+
+// Components
 import { useBranchStore } from '../../store/branch-store';
 import { useBookingStore } from '../../store/booking-store';
 import { useAuth } from '../../hooks/useAuth';
-import { BranchListItem } from '../../types/branch';
-import { getBranchAvailability } from '../../api/branch';
-
-// Try to import DateTimePicker with error handling
-let DateTimePicker: any;
-try {
-  DateTimePicker = require('@react-native-community/datetimepicker').default;
-} catch (error) {
-  console.warn('DateTimePicker package not found. Using fallback UI.');
-}
+import { BranchListItem } from '@/types/branch';
+import DatePickerModal from '@/components/common/DatePickerModal';
+import TimePickerModal from '@/components/common/TimePickerModal';
 
 /**
  * Create Reservation Screen
@@ -39,7 +34,7 @@ export default function CreateReservationScreen() {
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<number | null>(null);
   
   // Get store hooks
-  const { getRestaurantBranches } = useBranchStore();
+  const { getRestaurantBranches, getBranchAvailability } = useBranchStore();
   const { createGuestReservation } = useBookingStore();
   const { user } = useAuth();
   
@@ -77,6 +72,12 @@ export default function CreateReservationScreen() {
       fetchTimeSlots(selectedDate);
     }
   };
+
+  // Handle date selection from modal
+  const handleDateSelect = (selectedDate: Date) => {
+    setDate(selectedDate);
+    fetchTimeSlots(selectedDate);
+  };
   
   // Handle time change
   const onTimeChange = (event: any, selectedTime?: Date) => {
@@ -106,9 +107,14 @@ export default function CreateReservationScreen() {
       const branchId = parseInt(selectedBranchId);
       
       const timeSlotsData = await getBranchAvailability(branchId, formattedDate);
-      setAvailableTimeSlots(timeSlotsData.availableSlots || []);
+      if (timeSlotsData) {
+        setAvailableTimeSlots(timeSlotsData.availableSlots || []);
+      } else {
+        setAvailableTimeSlots([]);
+      }
     } catch (error) {
       console.error('Error fetching time slots:', error);
+      setAvailableTimeSlots([]); // Add error handling to set empty time slots
     }
   };
   
@@ -215,22 +221,13 @@ export default function CreateReservationScreen() {
                   <Text>{format(date, 'MMMM dd, yyyy')}</Text>
                   <Ionicons name="calendar" size={20} color="#666" />
                 </TouchableOpacity>
-                {showDatePicker && DateTimePicker && (
-                  Platform.OS === 'ios' ? (
-                    <DateTimePicker
-                      value={date}
-                      mode="date"
-                      display="spinner"
-                      onChange={onDateChange}
-                    />
-                  ) : (
-                    <DateTimePicker
-                      value={date}
-                      mode="date"
-                      display="default"
-                      onChange={onDateChange}
-                    />
-                  )
+                {showDatePicker && (
+                  <DatePickerModal
+                    visible={showDatePicker}
+                    onClose={() => setShowDatePicker(false)}
+                    onSelect={handleDateSelect}
+                    selectedDate={date}
+                  />
                 )}
               </View>
               
@@ -243,22 +240,14 @@ export default function CreateReservationScreen() {
                   <Text>{format(time, 'h:mm a')}</Text>
                   <Ionicons name="time" size={20} color="#666" />
                 </TouchableOpacity>
-                {showTimePicker && DateTimePicker && (
-                  Platform.OS === 'ios' ? (
-                    <DateTimePicker
-                      value={time}
-                      mode="time"
-                      display="spinner"
-                      onChange={onTimeChange}
-                    />
-                  ) : (
-                    <DateTimePicker
-                      value={time}
-                      mode="time"
-                      display="default"
-                      onChange={onTimeChange}
-                    />
-                  )
+                {showTimePicker && (
+                  <TimePickerModal
+                    visible={showTimePicker}
+                    onClose={() => setShowTimePicker(false)}
+                    onSelect={onTimeChange}
+                    selectedDate={time}
+                    selectedTime={time}
+                  />
                 )}
               </View>
               
@@ -280,37 +269,13 @@ export default function CreateReservationScreen() {
                           selectedBranchId === branch.branchId.toString() && styles.selectedBranchText
                         ]}
                       >
-                        {branch.restaurantName}
+                        {branch.address}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
               </View>
-              
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Time Slots</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.branchScroll}>
-                  {availableTimeSlots.map((timeSlot) => (
-                    <TouchableOpacity
-                      key={timeSlot.id}
-                      style={[
-                        styles.branchButton,
-                        selectedTimeSlotId === timeSlot.id && styles.selectedBranch
-                      ]}
-                      onPress={() => setSelectedTimeSlotId(timeSlot.id)}
-                    >
-                      <Text 
-                        style={[
-                          styles.branchText,
-                          selectedTimeSlotId === timeSlot.id && styles.selectedBranchText
-                        ]}
-                      >
-                        {timeSlot.time}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+          
               
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Notes (Optional)</Text>

@@ -1,21 +1,22 @@
 import { create } from 'zustand';
 import * as Location from 'expo-location';
 import { 
-  RestaurantBranch, 
   BranchWithDetails, 
   BranchListItem,
   BranchFilter,
   BranchSearchResponse,
   BranchApiResponse,
-  TimeSlot
-} from '../types/branch';
+  TimeSlot} from '../types/branch';
 import {
   getAllBranches,
   getBranchById,
-  searchBranches
+  searchBranches,
+  getBranchAvailability,
+  BranchAvailabilityResponse
 } from '../api/branch';
 import { updateLocationPermission, getLocationPermissionStatus } from '../api/user';
 import { useSavedBranchStore } from './saved-branch-store';
+import { format } from 'date-fns';
 
 // Helper function to calculate distance between coordinates
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number | null => {
@@ -88,6 +89,7 @@ interface BranchState {
   setUserLocationNull: () => void;
   setHasRequestedLocationPermission: (value: boolean) => void;
   getRestaurantBranches: (restaurantId?: number) => Promise<BranchListItem[]>;
+  getBranchAvailability: (branchId: number, date: string) => Promise<BranchAvailabilityResponse | null>;
 }
 
 export const useBranchStore = create<BranchState>((set, get) => ({
@@ -638,6 +640,17 @@ export const useBranchStore = create<BranchState>((set, get) => ({
         loading: false 
       });
       return [];
+    }
+  },
+  
+  // Get branch availability
+  getBranchAvailability: async (branchId: number) => {
+    try {
+      const data = await getBranchAvailability(branchId, format(new Date(), 'yyyy-MM-dd'));
+      return data;
+    } catch (error) {
+      console.error('Error fetching branch availability:', error);
+      return null;
     }
   },
 }));
