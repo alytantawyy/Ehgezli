@@ -6,6 +6,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 
 // Stores and hooks
 import { useAuth } from '@/hooks/useAuth';
+import { useRestaurant } from '@/hooks/useRestaurant';
 import { Restaurant } from '@/types/restaurant';
 import { AuthRoute } from '@/types/navigation';
 
@@ -15,7 +16,8 @@ import { AuthRoute } from '@/types/navigation';
  * Displays and manages restaurant profile information
  */
 export default function RestaurantProfileScreen() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
+  const { restaurant, isLoading, refreshRestaurantData } = useRestaurant();
   
   // State
   const [loading, setLoading] = useState(false);
@@ -30,7 +32,7 @@ export default function RestaurantProfileScreen() {
   };
   
   // Handle sign out
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out?',
@@ -39,7 +41,10 @@ export default function RestaurantProfileScreen() {
         { 
           text: 'Sign Out', 
           style: 'destructive',
-          onPress: () => logout()
+          onPress: async () => {
+            await logout();
+            router.replace('/auth/login');
+          }
         }
       ]
     );
@@ -64,7 +69,11 @@ export default function RestaurantProfileScreen() {
     );
   };
   
-  if (!user) {
+  useEffect(() => {
+    refreshRestaurantData();
+  }, []);
+  
+  if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#B22222" />
@@ -86,15 +95,15 @@ export default function RestaurantProfileScreen() {
         <View style={styles.profileCard}>
           {/* Restaurant Info Section */}
           <View style={styles.userInfoSection}>
-            {isRestaurant(user) && user.logo ? (
-              <Image source={{ uri: user.logo }} style={styles.profileImage} />
+            {restaurant && restaurant.logo ? (
+              <Image source={{ uri: restaurant.logo }} style={styles.profileImage} />
             ) : (
               <View style={styles.profileImagePlaceholder}>
                 <Ionicons name="restaurant" size={40} color="#fff" />
               </View>
             )}
             <View style={styles.userDetails}>
-              <Text style={styles.greeting}>Hi, {isRestaurant(user) ? user.name.split(' ')[0] : 'Restaurant'}!</Text>
+              <Text style={styles.greeting}>Hi, {restaurant ? restaurant.name.split(' ')[0] : 'Restaurant'}!</Text>
               <Text style={styles.memberSince}>Member since May 2025</Text>
             </View>
           </View>
@@ -103,12 +112,12 @@ export default function RestaurantProfileScreen() {
           <View style={styles.infoSection}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Full Name</Text>
-              <Text style={styles.infoValue}>{isRestaurant(user) ? user.name : 'Your Restaurant'}</Text>
+              <Text style={styles.infoValue}>{restaurant ? restaurant.name : 'Your Restaurant'}</Text>
             </View>
 
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{user.email}</Text>
+              <Text style={styles.infoValue}>{restaurant ? restaurant.email : ''}</Text>
             </View>
 
             <View style={styles.infoItem}>
@@ -116,7 +125,7 @@ export default function RestaurantProfileScreen() {
               <View style={styles.cuisineContainer}>
                 <Ionicons name="restaurant-outline" size={16} color="#666" />
                 <Text style={styles.infoValue}>
-                  {isRestaurant(user) && user.cuisine ? user.cuisine : 'Not specified'}
+                  {restaurant && restaurant.cuisine ? restaurant.cuisine : 'Not specified'}
                 </Text>
               </View>
             </View>
@@ -129,9 +138,9 @@ export default function RestaurantProfileScreen() {
                 </TouchableOpacity>
               </View>
               
-              {isRestaurant(user) && user.branches && user.branches.length > 0 ? (
+              {restaurant && restaurant.branches && restaurant.branches.length > 0 ? (
                 <View style={styles.branchList}>
-                  {user.branches.map((branch, index) => (
+                  {restaurant.branches.map((branch, index) => (
                     <View key={branch.id} style={styles.branchItem}>
                       <View style={styles.branchDetails}>
                         <Text style={styles.branchName}>{branch.restaurantName}</Text>
@@ -244,10 +253,9 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   infoSection: {
-    marginBottom: 20,
   },
   infoItem: {
-    marginBottom: 15,
+    marginBottom: 10,
   },
   infoLabel: {
     fontSize: 14,
@@ -273,11 +281,10 @@ const styles = StyleSheet.create({
     color: '#B22222',
   },
   branchList: {
-    marginBottom: 20,
+    marginBottom: 0,
   },
   branchItem: {
-    marginBottom: 15,
-    padding: 15,
+    padding: 10,
     backgroundColor: '#f8f8f8',
     borderRadius: 10,
   },
