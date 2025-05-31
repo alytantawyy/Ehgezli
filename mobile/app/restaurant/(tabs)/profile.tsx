@@ -8,7 +8,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { useRestaurant } from '@/hooks/useRestaurant';
 import { Restaurant } from '@/types/restaurant';
-import { AuthRoute } from '@/types/navigation';
+import { AuthRoute, RestaurantRoute } from '@/types/navigation';
 
 /**
  * Restaurant Profile Screen
@@ -43,7 +43,7 @@ export default function RestaurantProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            router.replace('/auth/login');
+            router.replace(AuthRoute.login);
           }
         }
       ]
@@ -133,7 +133,7 @@ export default function RestaurantProfileScreen() {
             <View style={styles.infoItem}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.infoLabel}>Branches</Text>
-                <TouchableOpacity onPress={() => router.push('/restaurant/edit-branches')}>
+                <TouchableOpacity onPress={() => router.push(RestaurantRoute.editBranches)}>
                   <Text style={styles.manageText}>Manage Branches</Text>
                 </TouchableOpacity>
               </View>
@@ -163,7 +163,7 @@ export default function RestaurantProfileScreen() {
                   <Text style={styles.emptyText}>No branches added yet</Text>
                   <TouchableOpacity 
                     style={styles.addBranchButton}
-                    onPress={() => router.push('/restaurant/add-branch')}
+                    onPress={() => router.push(RestaurantRoute.addBranch)}
                   >
                     <Text style={styles.addBranchText}>Add Branch</Text>
                   </TouchableOpacity>
@@ -177,7 +177,7 @@ export default function RestaurantProfileScreen() {
         <TouchableOpacity 
           activeOpacity={0.7}
           style={styles.editButton} 
-          onPress={() => router.push('/restaurant/edit-profile')}
+          onPress={() => router.push(RestaurantRoute.editProfile)}
         >
           <Text style={styles.editButtonText}>Edit Profile</Text>
         </TouchableOpacity>

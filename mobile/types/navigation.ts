@@ -36,6 +36,7 @@ export const RestaurantRoute = {
   branchDetails: (id: string) => `/restaurant/branch-details?id=${id}`,
   addBranch: '/restaurant/add-branch',
   editBranch: (id: string) => `/restaurant/edit-branch?id=${id}`,
+  editBranches: '/restaurant/edit-branches',
   editProfile: '/restaurant/edit-profile',
   settings: '/restaurant/settings',
   calendarView: '/restaurant/calendar-view',
