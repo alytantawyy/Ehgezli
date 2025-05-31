@@ -99,8 +99,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
-      // Clear the auth token from AsyncStorage
+      // Clear both the auth token and userType from AsyncStorage
       await AsyncStorage.removeItem('auth_token');
+      await AsyncStorage.removeItem('userType');
       set({ user: null, userType: null, isLoading: false });
     } catch (error) {
       set({ 
@@ -115,17 +116,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       console.log('Starting fetch profile...');
       // Get the current userType from the store state
-      const state = get();
-      const userType = state.userType;
+      let userType = get().userType;
+      
+      // If not in store, try to get it from AsyncStorage
+      if (!userType) {
+        userType = (await AsyncStorage.getItem('userType')) as UserType;
+        // Update the store with the userType from AsyncStorage
+        if (userType) {
+          set({ userType });
+        }
+      }
+      
+      console.log('Fetching profile for userType:', userType);
       
       let user;
       
       if (userType === 'restaurant') {
         // Fetch restaurant user profile
         user = await getRestaurantUserProfile();
-      } else {
+        console.log('Fetched restaurant profile:', user);
+      } else if (userType === 'user') {
         // Fetch regular user profile
         user = await getUserProfile();
+        console.log('Fetched user profile:', user);
+      } else {
+        console.error('No userType found, cannot fetch profile');
+        throw new Error('Cannot determine user type');
       }
       
       console.log('Fetch profile successful:', user);

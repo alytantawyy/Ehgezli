@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '../store/auth-store';
 import { useRouter, useSegments } from 'expo-router';
-import { getUserProfile } from '../api/user';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthRoute, UserRoute, RestaurantRoute } from '../types/navigation';
 
@@ -57,12 +56,14 @@ export function useAuth() {
         const token = await AsyncStorage.getItem('auth_token');
         
         if (token) {
-          // Fetch the user profile using the token
-          await getUserProfile();
-        } else {
+          // Use the fetchProfile function from the auth store
+          // This will properly check userType before making API calls
+          await fetchProfile();
         }
       } catch (error) {
+        console.error('Error checking token:', error);
         await AsyncStorage.removeItem('auth_token');
+        await AsyncStorage.removeItem('userType');
       }
     };
     
