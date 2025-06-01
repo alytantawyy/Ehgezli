@@ -2,300 +2,138 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, Modal, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getRestaurantById, createBooking, Restaurant, Branch, getRestaurantLocation } from '@/shared/api/client';
-import { formatTimeWithAMPM } from '@/shared/utils/time-slots';
-import { EhgezliButton } from '@/components/EhgezliButton';
-import { RestaurantMap } from '@/components/RestaurantMap';
+import { getDetailedRestaurant } from '@/api/restaurant';
+import { formatTimeWithAMPM } from '../utils/time-slots';
+import { EhgezliButton } from '@/components/common/EhgezliButton';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from 'react-native';
-import { format, parseISO } from 'date-fns';
-import { useAuth } from '@/context/auth-context';
-import { useLocation } from '@/context/location-context';
+import { format } from 'date-fns';
+import { useAuth } from '../../hooks/useAuth';
+import { useLocation } from '../../context/location-context';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
-// Define extended types for the restaurant data that includes profile information
-interface RestaurantWithProfile extends Restaurant {
-  profile?: {
-    logo?: string;
-    cuisine?: string;
-    priceRange?: string;
-    about?: string;
-  };
-}
+import { getBranchById } from '@/api/branch';
+import { createBooking } from '@/api/booking';
+import { DetailedRestaurantResponse } from '@/types/restaurant';
+import { BranchWithDetails, RestaurantBranch } from '@/types/branch';
+import { Branch, CreateBookingData } from '@/types/booking';
 
 // Define time slot interface for type safety
 interface TimeSlot {
-  time: string;
+  id: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  remainingSeats: number;
+  remainingTables?: number;
 }
 
-// Extend Branch type to include city
-interface BranchWithCity extends Omit<Branch, 'slots'> {
-  city?: string;
-  slots: (string | TimeSlot)[];
+// Define branch with city for type safety
+interface BranchWithCity extends RestaurantBranch {
+  city: string;
+  distance?: number;
 }
 
 export default function RestaurantDetailScreen() {
-  const { id, date, time, partySize, branchId } = useLocalSearchParams<{
-    id: string;
-    date: string;
-    time: string;
-    partySize: string;
-    branchId: string;
-  }>();
-  
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors;
+  const { id, branchId } = useLocalSearchParams<{ id: string; branchId: string }>();
   const { user } = useAuth();
   const { location } = useLocation();
-  
-  // Parse date from params or use current date
-  const initialDate = date ? parseISO(date) : new Date();
-  const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
-  
-  // Parse time from params or use empty string
-  const [selectedTime, setSelectedTime] = useState(time ? formatTimeWithAMPM(time) : '');
-  
-  // Parse party size from params or use default of 2
-  const [selectedPartySize, setSelectedPartySize] = useState(Number(partySize || '2'));
-  
-  // State for picker visibility
+  const colors = Colors; // Use Colors directly without indexing
+
+  // State for booking flow
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
+  const [selectedPartySize, setSelectedPartySize] = useState(2);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<TimeSlot[]>([]);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
   const [isPartySizePickerVisible, setIsPartySizePickerVisible] = useState(false);
   
-  const [showMap, setShowMap] = useState(false);
-  
-  // Handle date change
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setIsDatePickerVisible(false);
-    
-    if (selectedDate) {
-      // Ensure we don't allow past dates
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Set to beginning of today
-      
-      if (selectedDate.getTime() >= today.getTime()) {
-        setSelectedDate(selectedDate);
-        // Time validation will happen in the useEffect
-      } else {
-        // If past date was selected, default to today
-        console.log('Past date selected, defaulting to today');
-        setSelectedDate(today);
-        // Time validation will happen in the useEffect
-      }
-    }
-  };
-  
-  // Validate time whenever date changes
+  // Generate sample time slots for demo purposes
   useEffect(() => {
-    // If we have a time selected, validate it for the current date
-    if (selectedTime) {
-      const isValid = validateTimeForDate(selectedDate, selectedTime);
-      if (!isValid) {
-        console.log('Time is invalid for the current date, resetting to default');
-        setSelectedTime(getDefaultTimeForDisplay());
-      }
-    }
-  }, [selectedDate]); // This effect runs whenever date changes
-
-  // Validate if a time is valid for a given date
-  const validateTimeForDate = (dateToCheck: Date, timeString: string): boolean => {
-    try {
-      // Parse the time string
-      const [timePart, ampm] = timeString.split(' ');
-      const [hours, minutes] = timePart.split(':').map(Number);
-      
-      let hour24 = hours;
-      if (ampm === 'PM' && hours < 12) hour24 += 12;
-      if (ampm === 'AM' && hours === 12) hour24 = 0;
-      
-      // Create a date-time with the given date and time
-      const dateTime = new Date(dateToCheck);
-      dateTime.setHours(hour24, minutes, 0, 0);
-      
-      // Check if this date-time is in the past
-      const now = new Date();
-      return dateTime.getTime() >= now.getTime();
-    } catch (error) {
-      console.error('Error validating time:', error);
-      return false;
-    }
-  };
-
-  // Handle time change
-  const handleTimeChange = (event: any, selectedTime?: Date) => {
-    setIsTimePickerVisible(false);
-    
-    if (selectedTime) {
-      // Round to nearest 30-minute interval
-      const hours = selectedTime.getHours();
-      let minutes = selectedTime.getMinutes();
-      
-      // Round minutes to nearest 30 (0 or 30)
-      minutes = minutes >= 30 ? 30 : 0;
-      
-      // Create a new date with rounded minutes
-      const roundedTime = new Date(selectedTime);
-      roundedTime.setMinutes(minutes);
-      
-      // Format the selected time for display
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const displayHours = hours % 12 || 12;
-      const displayTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-      
-      // Validate the time for the current date before setting it
-      if (validateTimeForDate(selectedDate, displayTime)) {
-        console.log('User selected valid time:', displayTime);
-        setSelectedTime(displayTime);
-      } else {
-        console.log('Selected time is in the past, using default time instead');
-        setSelectedTime(getDefaultTimeForDisplay());
-      }
-    }
-  };
-
-  // Handle party size selection
-  const handlePartySizeSelect = (size: number) => {
-    setSelectedPartySize(size);
-    setIsPartySizePickerVisible(false);
-  };
-
-  const getTimePickerValue = () => {
-    try {
-      // If there's a selected time, use it
-      if (selectedTime) {
-        const [timePart, ampm] = selectedTime.split(' ');
-        const [hours, minutes] = timePart.split(':').map(Number);
-        
-        let hour24 = hours;
-        if (ampm === 'PM' && hours < 12) hour24 += 12;
-        if (ampm === 'AM' && hours === 12) hour24 = 0;
-        
-        const date = new Date();
-        date.setHours(hour24, minutes, 0, 0);
-        return date;
-      }
-      
-      // Otherwise, use the current time or default time
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-      
-      // If it's late night, use noon as default
-      if (currentHour >= 22 || currentHour < 6) {
-        now.setHours(12, 0, 0, 0);
-      } else {
-        // Add 2 hours to current time as default
-        now.setHours(currentHour + 2, currentMinute, 0, 0);
-      }
-      
-      return now;
-    } catch (error) {
-      console.error('Error getting time picker value:', error);
-      return new Date();
-    }
-  };
+    // In a real app, you would fetch these from your API based on the selected date
+    const sampleTimeSlots: TimeSlot[] = [
+      { id: 1, date: selectedDate.toISOString(), startTime: '12:00:00', endTime: '13:30:00', remainingSeats: 8, remainingTables: 2 },
+      { id: 2, date: selectedDate.toISOString(), startTime: '13:30:00', endTime: '15:00:00', remainingSeats: 12, remainingTables: 3 },
+      { id: 3, date: selectedDate.toISOString(), startTime: '15:00:00', endTime: '16:30:00', remainingSeats: 6, remainingTables: 1 },
+      { id: 4, date: selectedDate.toISOString(), startTime: '18:00:00', endTime: '19:30:00', remainingSeats: 10, remainingTables: 2 },
+      { id: 5, date: selectedDate.toISOString(), startTime: '19:30:00', endTime: '21:00:00', remainingSeats: 4, remainingTables: 1 },
+    ];
+    setAvailableTimeSlots(sampleTimeSlots);
+  }, [selectedDate]);
   
-  // Get the minimum allowed time based on the selected date
-  const getMinimumTime = () => {
-    const now = new Date();
-    const selectedDateCopy = new Date(selectedDate);
-    
-    // If selected date is today, minimum time is current time
-    if (selectedDateCopy.toDateString() === now.toDateString()) {
-      return now;
-    }
-    
-    // If selected date is in the future, no minimum time
-    return undefined;
-  };
-
-  const isDateToday = () => {
-    const today = new Date();
-    return selectedDate.getDate() === today.getDate() && 
-           selectedDate.getMonth() === today.getMonth() && 
-           selectedDate.getFullYear() === today.getFullYear();
-  };
-
-  const getDefaultTimeForDisplay = () => {
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    
-    // If it's late night, use noon as default
-    if (currentHour >= 22 || currentHour < 6) {
-      return '12:00 PM';
-    } else {
-      // Add 2 hours to current time as default
-      const displayHour = (currentHour + 2) % 12 || 12;
-      const displayMinute = currentMinute.toString().padStart(2, '0');
-      const ampm = (currentHour + 2) >= 12 ? 'PM' : 'AM';
-      return `${displayHour}:${displayMinute} ${ampm}`;
-    }
-  };
-
   // Query restaurant details
-  const { data: restaurant, isLoading, error } = useQuery<RestaurantWithProfile | null>({
+  const { data: restaurant, isLoading, error } = useQuery<DetailedRestaurantResponse>({  
     queryKey: ['restaurant', id],
-    queryFn: () => getRestaurantById(Number(id)),
+    queryFn: () => getDetailedRestaurant(Number(id)),
   });
   
-  // Query restaurant location with user's coordinates for distance calculation
-  const { data: locationData, isLoading: isLocationLoading } = useQuery({
-    queryKey: ['restaurantLocation', id, location?.coords.latitude, location?.coords.longitude],
-    queryFn: () => getRestaurantLocation(Number(id), {
-      userLatitude: location?.coords.latitude.toString(),
-      userLongitude: location?.coords.longitude.toString(),
-    }),
-    enabled: !!id && !!location,
+  // Query restaurant branch with user's coordinates for distance calculation
+  const { data: locationData, isLoading: isLocationLoading } = useQuery<BranchWithDetails>({  
+    queryKey: ['branch', branchId, location?.coords.latitude, location?.coords.longitude],
+    queryFn: () => getBranchById(Number(branchId)),
+    enabled: !!branchId && !!location,
   });
   
-  // Create booking mutation
-  const bookingMutation = useMutation({
-    mutationFn: createBooking,
+  // Mutation for creating a booking
+  const createBookingMutation = useMutation({
+    mutationFn: (bookingData: CreateBookingData) => createBooking(bookingData),
     onSuccess: () => {
       Alert.alert(
         'Booking Confirmed',
-        'Your reservation has been confirmed!',
-        [{ text: 'OK', onPress: () => router.push('/') }]
+        'Your reservation has been successfully confirmed!',
+        [{ text: 'OK', onPress: () => router.back() }]
       );
     },
-    onError: (error: any) => {
-      Alert.alert('Booking Failed', error.message || 'Could not complete your booking');
-    },
+    onError: (error) => {
+      Alert.alert('Booking Failed', 'There was an error creating your booking. Please try again.');
+      console.error('Booking error:', error);
+    }
   });
   
   // Find the selected branch
-  const selectedBranch = restaurant?.branches.find((branch) => branch.id === Number(branchId)) as unknown as BranchWithCity | undefined;
+  const selectedBranch = locationData as BranchWithCity | undefined;
   
   const handleBooking = () => {
     if (!user) {
-      Alert.alert('Authentication Required', 'Please log in to make a booking');
+      Alert.alert(
+        'Login Required',
+        'Please login to make a reservation',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Login', onPress: () => router.push('/auth') }
+        ]
+      );
       return;
     }
     
-    if (!selectedTime) {
-      Alert.alert('Time Required', 'Please select a time for your booking');
+    if (!selectedTimeSlot) {
+      Alert.alert('Please select a time slot');
       return;
     }
     
-    bookingMutation.mutate({
-      restaurantId: Number(id),
-      branchId: Number(branchId),
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      time: selectedTime,
+    const bookingData: CreateBookingData = {
+      timeSlotId: selectedTimeSlot.id,
       partySize: selectedPartySize,
-    });
+    };
+    
+    createBookingMutation.mutate(bookingData);
   };
   
-  if (isLoading || isLocationLoading) {
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setIsDatePickerVisible(false);
+    if (selectedDate) {
+      setSelectedDate(selectedDate);
+    }
+  };
+  
+  if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.text }]}>Loading restaurant details...</Text>
+        <Text style={{ marginTop: 10, color: colors.text }}>Loading restaurant details...</Text>
       </View>
     );
   }
@@ -303,145 +141,123 @@ export default function RestaurantDetailScreen() {
   if (error || !restaurant) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={[styles.errorText, { color: colors.text }]}>Could not load restaurant details</Text>
-        <EhgezliButton
-          title="Go Back"
-          variant="ehgezli"
-          onPress={() => router.back()}
-          style={styles.errorButton}
-        />
+        <Text style={{ color: colors.text }}>Error loading restaurant details</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Text style={{ color: colors.primary }}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
   
   return (
-    <ScrollView style={styles.container}>
-      <SafeAreaView>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={24} color={colors.text} />
-      </TouchableOpacity>
-      
-      <Image
-        source={{
-          uri: restaurant.profile?.logo || 'https://via.placeholder.com/400x200?text=Restaurant',
-        }}
-        style={styles.coverImage}
-      />
-      
-      <View style={styles.content}>
-        <Text style={[styles.restaurantName, { color: colors.text }]}>{restaurant.name}</Text>
-        
-        <View style={styles.infoRow}>
-          <View style={styles.infoItem}>
-            <Ionicons name="location-outline" size={16} color={colors.text} style={styles.infoIcon} />
-            <Text style={[styles.infoText, { color: colors.text }]}>
-              {selectedBranch?.city || 'Location not available'}
-            </Text>
-          </View>
-          
-          <View style={styles.infoItem}>
-            <Ionicons name="restaurant-outline" size={16} color={colors.text} style={styles.infoIcon} />
-            <Text style={[styles.infoText, { color: colors.text }]}>
-              {restaurant.profile?.cuisine || 'Various Cuisine'}
-            </Text>
-          </View>
-          
-          <View style={styles.infoItem}>
-            <Text style={[styles.priceText, { color: colors.text }]}>
-              {restaurant.profile?.priceRange || '$$'}
-            </Text>
-          </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView style={styles.scrollView}>
+        {/* Header with back button */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
         </View>
         
-        <View style={styles.divider} />
+        {/* Restaurant Image */}
+        <View style={styles.imageContainer}>
+          <Image 
+            source={{ uri: restaurant.profile.logo || 'https://via.placeholder.com/400x200?text=Restaurant' }}
+            style={styles.restaurantImage}
+            resizeMode="cover"
+          />
+        </View>
         
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
-        <Text style={[styles.aboutText, { color: colors.text }]}>
-          {restaurant.profile?.about || 'No description available for this restaurant.'}
-        </Text>
-        
-        <View style={styles.divider} />
-        
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Location</Text>
-        {locationData ? (
-          <TouchableOpacity 
-            style={styles.locationContainer} 
-            onPress={() => setShowMap(true)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.locationContent}>
+        <View style={styles.content}>
+          <Text style={[styles.restaurantName, { color: colors.text }]}>{restaurant.user.name}</Text>
+          
+          <View style={styles.infoRow}>
+            <View style={styles.infoItem}>
+              <Ionicons name="restaurant-outline" size={20} color={colors.primary} />
+              <Text style={[styles.infoText, { color: colors.text }]}>{restaurant.profile.cuisine || 'Various Cuisine'}</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Ionicons name="cash-outline" size={20} color={colors.primary} />
+              <Text style={[styles.infoText, { color: colors.text }]}>{restaurant.profile.priceRange || '$$$'}</Text>
+            </View>
+          </View>
+          
+          {/* About Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
+            <Text style={[styles.aboutText, { color: colors.text }]}>
+              {restaurant.profile.about || 'No description available.'}
+            </Text>
+          </View>
+          
+          {/* Location Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Location</Text>
+            <TouchableOpacity style={styles.locationContainer}>
               <Ionicons name="location-outline" size={20} color="#007AFF" />
               <View style={styles.locationTextContainer}>
                 <Text style={styles.locationAddress}>
-                  {locationData.branches[0]?.address || 'View location'}
+                  {selectedBranch?.address || 'View location'}
                 </Text>
-                {locationData.branches[0]?.distance && (
+                {selectedBranch?.distance && (
                   <Text style={styles.locationDistance}>
-                    {locationData.branches[0].distance.toFixed(1)} km away
+                    {selectedBranch.distance.toFixed(1)} km away
                   </Text>
                 )}
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#999" />
-            </View>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.loadingMapContainer}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={styles.loadingMapText}>Loading location information...</Text>
+              <Ionicons name="chevron-forward" size={16} color="#999" />
+            </TouchableOpacity>
+
           </View>
-        )}
-        
-        {showMap && (
-          <Modal visible={showMap} animationType="slide">
-            <RestaurantMap 
-              branches={selectedBranch ? [selectedBranch as unknown as Branch] : []} 
-              restaurantName={locationData?.name || restaurant?.name || ''} 
-              onClose={() => setShowMap(false)}
-            />
-          </Modal>
-        )}
-        
-        <View style={styles.divider} />
-        
-        <View style={styles.bookingDetails}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Booking Details</Text>
           
-          <View style={styles.bookingInfoContainer}>
-            <TouchableOpacity 
-              style={styles.bookingInfoItem} 
-              onPress={() => setIsDatePickerVisible(true)}
-            >
-              <View style={styles.bookingInfoRow}>
-                <Ionicons name="calendar-outline" size={16} color={colors.primary} style={styles.infoIcon} />
-                <Text style={styles.infoText}>{format(selectedDate, 'MMM d')}</Text>
-                <View style={{flex: 1}} />
-                <Ionicons name="chevron-forward" size={16} color="#999" />
-              </View>
-            </TouchableOpacity>
+          {/* Booking Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Make a Reservation</Text>
             
-            <TouchableOpacity 
-              style={styles.bookingInfoItem} 
-              onPress={() => setIsTimePickerVisible(true)}
-            >
-              <View style={styles.bookingInfoRow}>
-                <Ionicons name="time-outline" size={16} color={colors.primary} style={styles.infoIcon} />
-                <Text style={styles.infoText}>{selectedTime || getDefaultTimeForDisplay()}</Text>
-                <View style={{flex: 1}} />
-                <Ionicons name="chevron-forward" size={16} color="#999" />
-              </View>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.bookingInfoItem} 
-              onPress={() => setIsPartySizePickerVisible(true)}
-            >
-              <View style={styles.bookingInfoRow}>
-                <Ionicons name="people-outline" size={16} color={colors.primary} style={styles.infoIcon} />
-                <Text style={styles.infoText}>{selectedPartySize} {selectedPartySize === 1 ? 'person' : 'people'}</Text>
-                <View style={{flex: 1}} />
-                <Ionicons name="chevron-forward" size={16} color="#999" />
-              </View>
-            </TouchableOpacity>
+            <View style={styles.bookingContainer}>
+              {/* Date Picker Button */}
+              <TouchableOpacity 
+                style={styles.bookingInfoContainer}
+                onPress={() => setIsDatePickerVisible(true)}
+              >
+                <View style={styles.bookingInfoRow}>
+                  <Ionicons name="calendar-outline" size={16} color={colors.primary} style={styles.infoIcon} />
+                  <Text style={styles.infoText}>{format(selectedDate, 'EEEE, MMMM d, yyyy')}</Text>
+                  <View style={{flex: 1}} />
+                  <Ionicons name="chevron-forward" size={16} color="#999" />
+                </View>
+              </TouchableOpacity>
+              
+              {/* Time Picker Button */}
+              <TouchableOpacity 
+                style={styles.bookingInfoContainer}
+                onPress={() => setIsTimePickerVisible(true)}
+              >
+                <View style={styles.bookingInfoRow}>
+                  <Ionicons name="time-outline" size={16} color={colors.primary} style={styles.infoIcon} />
+                  <Text style={styles.infoText}>
+                    {selectedTimeSlot 
+                      ? formatTimeWithAMPM(selectedTimeSlot.startTime)
+                      : 'Select time'}
+                  </Text>
+                  <View style={{flex: 1}} />
+                  <Ionicons name="chevron-forward" size={16} color="#999" />
+                </View>
+              </TouchableOpacity>
+              
+              {/* Party Size Picker Button */}
+              <TouchableOpacity 
+                style={styles.bookingInfoContainer}
+                onPress={() => setIsPartySizePickerVisible(true)}
+              >
+                <View style={styles.bookingInfoRow}>
+                  <Ionicons name="people-outline" size={16} color={colors.primary} style={styles.infoIcon} />
+                  <Text style={styles.infoText}>{selectedPartySize} {selectedPartySize === 1 ? 'person' : 'people'}</Text>
+                  <View style={{flex: 1}} />
+                  <Ionicons name="chevron-forward" size={16} color="#999" />
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
         
@@ -453,31 +269,24 @@ export default function RestaurantDetailScreen() {
             animationType="slide"
             onRequestClose={() => setIsDatePickerVisible(false)}
           >
-            <TouchableOpacity 
-              style={styles.modalOverlay} 
-              activeOpacity={1} 
-              onPress={() => setIsDatePickerVisible(false)}
-            >
-              <View style={styles.pickerContainer}>
-                <View style={styles.pickerHeader}>
-                  <Text style={styles.pickerTitle}>Select Date</Text>
-                  <TouchableOpacity onPress={() => setIsDatePickerVisible(false)}>
-                    <Ionicons name="close" size={24} color="#333" />
-                  </TouchableOpacity>
-                </View>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Select Date</Text>
                 <DateTimePicker
-                  testID="dateTimePicker"
                   value={selectedDate}
                   mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  display="spinner"
                   onChange={handleDateChange}
-                  style={{ width: '100%' }}
                   minimumDate={new Date()}
-                  themeVariant="light"
-                  textColor="black"
+                  maximumDate={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)} // 30 days from now
+                />
+                <EhgezliButton 
+                  title="Confirm"
+                  onPress={() => setIsDatePickerVisible(false)}
+                  style={styles.confirmButton}
                 />
               </View>
-            </TouchableOpacity>
+            </View>
           </Modal>
         )}
         
@@ -489,31 +298,39 @@ export default function RestaurantDetailScreen() {
             animationType="slide"
             onRequestClose={() => setIsTimePickerVisible(false)}
           >
-            <TouchableOpacity 
-              style={styles.modalOverlay} 
-              activeOpacity={1} 
-              onPress={() => setIsTimePickerVisible(false)}
-            >
-              <View style={styles.pickerContainer}>
-                <View style={styles.pickerHeader}>
-                  <Text style={styles.pickerTitle}>Select Time</Text>
-                  <TouchableOpacity onPress={() => setIsTimePickerVisible(false)}>
-                    <Ionicons name="close" size={24} color="#333" />
-                  </TouchableOpacity>
-                </View>
-                <DateTimePicker
-                  testID="timeTimePicker"
-                  value={getTimePickerValue()}
-                  mode="time"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={handleTimeChange}
-                  style={{ width: '100%' }}
-                  minimumDate={getMinimumTime()}
-                  themeVariant="light"
-                  textColor="black"
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Select Time</Text>
+                <ScrollView style={styles.timeSlotContainer}>
+                  {availableTimeSlots.map((slot) => (
+                    <TouchableOpacity
+                      key={slot.id}
+                      style={[
+                        styles.timeSlotButton,
+                        selectedTimeSlot?.id === slot.id && styles.selectedTimeSlot
+                      ]}
+                      onPress={() => setSelectedTimeSlot(slot)}
+                    >
+                      <Text style={[
+                        styles.timeSlotText,
+                        selectedTimeSlot?.id === slot.id && styles.selectedTimeSlotText
+                      ]}>
+                        {formatTimeWithAMPM(slot.startTime)}
+                      </Text>
+                      <Text style={styles.seatsText}>
+                        {slot.remainingSeats} seats available
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <EhgezliButton 
+                  title="Confirm"
+                  onPress={() => setIsTimePickerVisible(false)}
+                  style={styles.confirmButton}
+                  disabled={!selectedTimeSlot}
                 />
               </View>
-            </TouchableOpacity>
+            </View>
           </Modal>
         )}
         
@@ -521,137 +338,106 @@ export default function RestaurantDetailScreen() {
         {isPartySizePickerVisible && (
           <Modal
             visible={isPartySizePickerVisible}
-            animationType="slide"
             transparent={true}
+            animationType="slide"
             onRequestClose={() => setIsPartySizePickerVisible(false)}
           >
-            <TouchableOpacity 
-              style={styles.modalOverlay} 
-              activeOpacity={1} 
-              onPress={() => setIsPartySizePickerVisible(false)}
-            >
-              <View style={styles.partySizePickerContainer}>
-                <View style={styles.partySizePickerHeader}>
-                  <Text style={styles.partySizePickerTitle}>Select Party Size</Text>
-                  <TouchableOpacity onPress={() => setIsPartySizePickerVisible(false)}>
-                    <Ionicons name="close" size={24} color="#333" />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView style={styles.partySizePickerScrollView}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(size => (
-                    <TouchableOpacity 
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Select Party Size</Text>
+                <ScrollView style={styles.partySizeContainer}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((size) => (
+                    <TouchableOpacity
                       key={size}
-                      style={[styles.partySizeOption, selectedPartySize === size && styles.selectedOption]}
-                      onPress={() => handlePartySizeSelect(size)}
+                      style={[
+                        styles.partySizeButton,
+                        selectedPartySize === size && styles.selectedPartySize
+                      ]}
+                      onPress={() => setSelectedPartySize(size)}
                     >
-                      <Text style={[styles.partySizeText, selectedPartySize === size && styles.selectedOptionText]}>
+                      <Text style={[
+                        styles.partySizeText,
+                        selectedPartySize === size && styles.selectedPartySizeText
+                      ]}>
                         {size} {size === 1 ? 'person' : 'people'}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
+                <EhgezliButton 
+                  title="Confirm"
+                  onPress={() => setIsPartySizePickerVisible(false)}
+                  style={styles.confirmButton}
+                />
               </View>
-            </TouchableOpacity>
+            </View>
           </Modal>
         )}
-        
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          marginTop: 0,
-        }}>
-          <EhgezliButton
-            title="Book Now"
-            variant="ehgezli"
-            onPress={handleBooking}
-            loading={bookingMutation.isPending}
-            disabled={!selectedTime || bookingMutation.isPending}
-            style={styles.bookButton}
-          />
-        </View>
+      </ScrollView>
+      
+      {/* Booking Button */}
+      <View style={styles.bookingButtonContainer}>
+        <EhgezliButton 
+          title="Book Now"
+          onPress={handleBooking}
+          disabled={!selectedTimeSlot}
+        />
       </View>
-      </SafeAreaView>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
   },
-  loadingContainer: {
+  scrollView: {
     flex: 1,
-    justifyContent: 'center',
+  },
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  errorButton: {
-    minWidth: 150,
+    padding: 16,
+    position: 'absolute',
+    zIndex: 10,
   },
   backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    zIndex: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 20,
     padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
   },
-  coverImage: {
-    width: '100%',
+  imageContainer: {
     height: 200,
-    resizeMode: 'cover',
+    width: '100%',
+  },
+  restaurantImage: {
+    width: '100%',
+    height: '100%',
   },
   content: {
-    padding: 20,
+    padding: 16,
   },
   restaurantName: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   infoRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     marginBottom: 16,
   },
   infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 16,
-    marginBottom: 8,
-  },
-  infoIcon: {
-    marginRight: 4,
   },
   infoText: {
+    marginLeft: 4,
     fontSize: 14,
   },
-  priceText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#e0e0e0',
-    marginVertical: 16,
+  section: {
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
@@ -659,190 +445,131 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   aboutText: {
-    fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
   },
-  bookingDetails: {
-    marginBottom: 0,
+  locationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  locationTextContainer: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  locationAddress: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  locationDistance: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  mapContainer: {
+    height: 200,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  bookingContainer: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 16,
   },
   bookingInfoContainer: {
-    marginBottom: 16,
-  },
-  bookingInfoItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
   },
   bookingInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  buttonsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
+  infoIcon: {
+    marginRight: 8,
   },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'hsl(355,79%,36%)', 
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginRight: 5,
-    marginBottom: 5,
-    borderWidth: 0,
+  bookingButtonContainer: {
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
   },
-  buttonIcon: {
-    marginRight: 4,
-  },
-  buttonText: {
-    fontSize: 12,
-    color: '#fff',
-  },
-  modalOverlay: {
+  modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  bottomSheetContainer: {
+  modalContent: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
-    width: '100%',
+    maxHeight: '80%',
   },
-  bottomSheetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  bottomSheetTitle: {
+  modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  timePickerWheelContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  timeSlotContainer: {
+    maxHeight: 300,
   },
-  timePickerColumn: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  timePickerLabel: {
-    fontSize: 14,
+  timeSlotButton: {
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
     marginBottom: 8,
   },
-  timePickerScrollView: {
-    maxHeight: 150,
+  selectedTimeSlot: {
+    backgroundColor: '#007AFF',
   },
-  timePickerItem: {
+  timeSlotText: {
     fontSize: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    fontWeight: '500',
   },
-  timePickerItemText: {
-    fontSize: 16,
-  },
-  selectedTimePickerItem: {
-    backgroundColor: 'hsl(355,79%,36%)',
+  selectedTimeSlotText: {
     color: '#fff',
   },
-  partySizeOption: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  seatsText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
-  selectedOption: {
-    backgroundColor: 'hsl(355,79%,36%)',
+  partySizeContainer: {
+    maxHeight: 300,
+  },
+  partySizeButton: {
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  selectedPartySize: {
+    backgroundColor: '#007AFF',
   },
   partySizeText: {
     fontSize: 16,
+    fontWeight: '500',
   },
-  selectedOptionText: {
+  selectedPartySizeText: {
     color: '#fff',
   },
-  bookButton: {
-    marginBottom: 10,
-    width: '100%',
+  confirmButton: {
+    marginTop: 16,
   },
-  locationContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  locationContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  locationTextContainer: {
+  loadingContainer: {
     flex: 1,
-    marginLeft: 16,
-  },
-  locationAddress: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  locationDistance: {
-    fontSize: 14,
-    color: '#666',
-  },
-  loadingMapContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 16,
   },
-  loadingMapText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  pickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    width: '100%',
-  },
-  pickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  pickerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  partySizePickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    width: '100%',
-  },
-  partySizePickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  partySizePickerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  partySizePickerScrollView: {
-    maxHeight: 200,
   },
 });
