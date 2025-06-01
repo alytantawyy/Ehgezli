@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, SafeAreaView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { format } from 'date-fns';
+import { format, isToday, isTomorrow } from 'date-fns';
 
 // Components
 import { BookingCard } from '../../../components/restaurantScreen/BookingCard';
 import { StatusBadge } from '../../../components/common/StatusBadge';
 import ModalPicker from '@/components/common/ModalPicker';
+import DatePickerModal from '@/components/common/DatePickerModal';
 
 // Stores and hooks
 import { useBookingStore } from '../../../store/booking-store';
@@ -26,7 +27,7 @@ export default function RestaurantBookingsScreen() {
   const { user } = useAuth();
   
   // Get store hooks
-  const { getBookingsForBranch, loading: bookingsLoading } = useBookingStore();
+  const { getBookingsForBranch, getBookingsForBranchOnDate, loading: bookingsLoading } = useBookingStore();
   const { getRestaurantBranches, loading: branchesLoading } = useBranchStore();
   
   // State
@@ -37,11 +38,20 @@ export default function RestaurantBookingsScreen() {
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [branchPickerVisible, setBranchPickerVisible] = useState(false);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
   // Load initial data
   useEffect(() => {
     loadData();
   }, []);
+  
+  // Refresh bookings when branch or date changes
+  useEffect(() => {
+    if (selectedBranchId) {
+      loadBookings();
+    }
+  }, [selectedBranchId, selectedDate]);
   
   // Load branches and bookings
   const loadData = async () => {
@@ -55,9 +65,9 @@ export default function RestaurantBookingsScreen() {
       // Set default selected branch to the first one
       if (branchesData.length > 0 && selectedBranchId === null) {
         setSelectedBranchId(branchesData[0].branchId.toString());
-        await loadAllBookings(branchesData[0].branchId);
+        await loadBookings();
       } else if (selectedBranchId) {
-        await loadAllBookings(Number(selectedBranchId));
+        await loadBookings();
       }
     } catch (error) {
       console.error('Error loading branches data:', error);
@@ -67,32 +77,46 @@ export default function RestaurantBookingsScreen() {
     }
   };
   
-  // Load ALL bookings for a specific branch
-  const loadAllBookings = async (branchId: number) => {
+  // Load bookings for selected branch
+  const loadBookings = async () => {
+    if (!selectedBranchId) return;
+    
     try {
-      // Use getBookingsForBranch to get all bookings regardless of date
-      const bookingsData = await getBookingsForBranch(branchId);
-      setBookings(bookingsData);
+      setLoading(true);
+      
+      let fetchedBookings: BookingWithDetails[] = [];
+      
+      if (selectedDate) {
+        // Fetch bookings for the selected date
+        const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+        fetchedBookings = await getBookingsForBranchOnDate(parseInt(selectedBranchId), formattedDate);
+      } else {
+        // Fetch all bookings for the branch
+        fetchedBookings = await getBookingsForBranch(parseInt(selectedBranchId));
+      }
+      
+      setBookings(fetchedBookings);
     } catch (error) {
-      console.error('Error loading all bookings:', error);
+      console.error('Error loading bookings:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  };
-  
-  // Handle pull-to-refresh
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
   };
   
   // Handle branch selection
   const handleBranchSelect = (branchId: string) => {
     setSelectedBranchId(branchId);
-    loadAllBookings(Number(branchId));
   };
   
-  // Handle date selection - now just updates the selected date without filtering
-  const handleDateSelect = (date: string) => {
-    // We're not filtering by date anymore, so no need to reload bookings
+  // Handle date selection
+  const handleDateSelect = (date: Date | null) => {
+    setSelectedDate(date);
+  };
+  
+  // Clear date filter
+  const clearDateFilter = () => {
+    setSelectedDate(null);
   };
   
   // Handle status filter
@@ -104,6 +128,14 @@ export default function RestaurantBookingsScreen() {
   const filteredBookings = filterStatus === 'all' 
     ? bookings 
     : bookings.filter(booking => booking.status === filterStatus);
+  
+  // Format date for display
+  const formatDateForDisplay = (date: Date | null) => {
+    if (!date) return 'All Bookings';
+    if (isToday(date)) return 'Today';
+    if (isTomorrow(date)) return 'Tomorrow';
+    return format(date, 'MMM d, yyyy');
+  };
   
   // Render loading state
   if (loading || branchesLoading) {
@@ -195,35 +227,37 @@ export default function RestaurantBookingsScreen() {
         </View>
       )}
       
-      {/* Date Selector - Kept for UI consistency but not functional for filtering */}
+      {/* Date Selector */}
       <View style={styles.dateSelector}>
         <TouchableOpacity 
           style={styles.dateButton}
-          onPress={() => handleDateSelect(format(new Date(), 'yyyy-MM-dd'))}
+          onPress={() => setDatePickerVisible(true)}
         >
-          <Text style={styles.dateButtonText}>Today</Text>
+          <Text style={styles.dateButtonText}>
+            {selectedDate ? formatDateForDisplay(selectedDate) : 'All Bookings'}
+          </Text>
+          <Ionicons name="calendar-outline" size={16} color="#B22222" style={{ marginLeft: 5 }} />
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.dateButton}
-          onPress={() => {
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            handleDateSelect(format(tomorrow, 'yyyy-MM-dd'));
-          }}
-        >
-          <Text style={styles.dateButtonText}>Tomorrow</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.dateButton}
-          onPress={() => {
-            // Open date picker
-            // This would be implemented with a date picker component
-          }}
-        >
-          <Text style={styles.dateButtonText}>Select Date</Text>
-          <Ionicons name="calendar-outline" size={16} color="#B22222" />
-        </TouchableOpacity>
+        
+        {selectedDate && (
+          <TouchableOpacity 
+            style={styles.clearDateButton}
+            onPress={clearDateFilter}
+          >
+            <Ionicons name="close-circle" size={18} color="#666" />
+          </TouchableOpacity>
+        )}
       </View>
+      
+      <DatePickerModal
+        visible={datePickerVisible}
+        onClose={() => setDatePickerVisible(false)}
+        onSelect={(date) => {
+          handleDateSelect(date);
+          setDatePickerVisible(false);
+        }}
+        selectedDate={selectedDate || new Date()}
+      />
       
       {/* Status Filter */}
       <View style={styles.statusFilter}>
@@ -268,7 +302,10 @@ export default function RestaurantBookingsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await loadData();
+            }}
             colors={['#B22222']}
           />
         }
@@ -325,6 +362,7 @@ const styles = StyleSheet.create({
   },
   dateSelector: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 15,
     paddingVertical: 10,
     backgroundColor: '#fff',
@@ -338,12 +376,16 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: '#f0f0f0',
     borderRadius: 20,
-    marginRight: 10,
+    flex: 1,
   },
   dateButtonText: {
     fontSize: 14,
     color: '#B22222',
-    marginRight: 5,
+    fontWeight: '500',
+  },
+  clearDateButton: {
+    marginLeft: 10,
+    padding: 5,
   },
   statusFilter: {
     flexDirection: 'row',
