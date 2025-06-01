@@ -18,7 +18,6 @@ import { createBooking } from '@/api/booking';
 import { DetailedRestaurantResponse } from '@/types/restaurant';
 import { BranchWithDetails, RestaurantBranch } from '@/types/branch';
 import { Branch, CreateBookingData } from '@/types/booking';
-import { RestaurantMap } from '@/components/restaurantScreen/RestaurantMap';
 
 // Define time slot interface for type safety
 interface TimeSlot {
@@ -208,17 +207,7 @@ export default function RestaurantDetailScreen() {
               </View>
               <Ionicons name="chevron-forward" size={16} color="#999" />
             </TouchableOpacity>
-            
-            {/* Map */}
-            <View style={styles.mapContainer}>
-              {selectedBranch && (
-                <RestaurantMap 
-                  branches={[selectedBranch as Branch]}
-                  restaurantName={restaurant.user.name}
-                  isPreview={true}  
-                />
-              )}
-            </View>
+
           </View>
           
           {/* Booking Section */}

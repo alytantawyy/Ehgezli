@@ -151,7 +151,7 @@ export const getBookingOverride = async (overrideId: number): Promise<BookingOve
 // Create a booking override (restaurant owners only)
 export const createBookingOverride = async (branchId: number, override: CreateBookingOverrideData): Promise<BookingOverride> => {
   try {
-    const { data } = await apiClient.post<BookingOverride>(`/restaurant/branch/${branchId}/override`, override);
+    const { data } = await apiClient.post<BookingOverride>(`/booking/branch/${branchId}/override`, override);
     return data;
   } catch (error: any) {
     console.error(`Error creating booking override for branch ${branchId}:`, error.response?.data || error.message);

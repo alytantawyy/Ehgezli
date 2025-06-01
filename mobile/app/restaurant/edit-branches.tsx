@@ -117,21 +117,6 @@ export default function EditBranchesScreen() {
           </View>
         )}
       </View>
-      
-      <View style={styles.branchActions}>
-        <TouchableOpacity 
-          style={styles.editButton}
-          onPress={() => handleEditBranch(item.id)}
-        >
-          <Ionicons name="pencil" size={18} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.deleteButton}
-          onPress={() => handleDeleteBranch(item.id)}
-        >
-          <Ionicons name="trash" size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
     </TouchableOpacity>
   );
 
@@ -269,27 +254,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginLeft: 5,
-  },
-  branchActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  editButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 20,
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  deleteButton: {
-    backgroundColor: '#B22222',
-    borderRadius: 20,
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   addButton: {
     backgroundColor: '#B22222',

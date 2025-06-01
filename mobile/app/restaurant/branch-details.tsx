@@ -1,15 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Switch, Linking, Platform } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Switch, Linking, Platform, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 
 // Hooks and utilities
 import { useBranchStore } from '@/store/branch-store';
+import { useBookingStore } from '@/store/booking-store';
+import { RestaurantBranch, BookingSettings, BookingOverride } from '@/types/branch';
+import DatePickerModal from '@/components/common/DatePickerModal';
+import TimePickerModal from '@/components/common/TimePickerModal';
 import { RestaurantRoute } from '@/types/navigation';
-import { RestaurantBranch, BookingOverride, BookingSettings } from '@/types/branch';
+
+// Custom components
+import BookingSettingsSection from '@/components/restaurantScreen/BookingSettingsSection';
+import BookingOverridesSection from '@/components/restaurantScreen/BookingOverridesSection';
 
 /**
  * Branch Details Screen
@@ -24,13 +31,58 @@ export default function BranchDetailsScreen() {
   
   // State for branch data
   const [branch, setBranch] = useState<RestaurantBranch | null>(null);
-  const [bookingSettings, setBookingSettings] = useState<BookingSettings | null>(null);
-  const [bookingOverrides, setBookingOverrides] = useState<BookingOverride[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // Get branch data from branch store
-  const { fetchBranchById, getBranchAvailability } = useBranchStore();
+  const { fetchBranchById } = useBranchStore();
+  
+  // Get booking settings and overrides from booking store
+  const { 
+    bookingSettings,
+    bookingOverrides,
+    loading: bookingLoading,
+    error: bookingError,
+    fetchBookingSettings,
+    fetchBookingOverrides,
+    updateBranchBookingSettings,
+    createNewBookingOverride,
+    updateExistingBookingOverride,
+    deleteBookingOverride
+  } = useBookingStore();
+  
+  // Wrapper function to match the expected signature
+  const updateBookingSettingsWrapper = async (branchId: number, settings: BookingSettings): Promise<void> => {
+    await updateBranchBookingSettings(branchId, settings);
+    // No return value needed as the component expects Promise<void>
+  };
+  
+  // Wrapper functions for booking overrides
+  const createBookingOverrideWrapper = async (branchId: number, override: BookingOverride): Promise<void> => {
+    await createNewBookingOverride(branchId, override as any);
+  };
+  
+  const updateBookingOverrideWrapper = async (overrideId: number, override: BookingOverride): Promise<void> => {
+    await updateExistingBookingOverride(overrideId, override as any);
+  };
+  
+  const deleteBookingOverrideWrapper = async (overrideId: number): Promise<void> => {
+    await deleteBookingOverride(overrideId);
+  };
+  
+  // State for editing modes
+  const [isEditingBookingSettings, setIsEditingBookingSettings] = useState(false);
+  const [editedBookingSettings, setEditedBookingSettings] = useState<Partial<BookingSettings> | null>(null);
+  const [isEditingOverride, setIsEditingOverride] = useState(false);
+  const [selectedOverride, setSelectedOverride] = useState<BookingOverride | null>(null);
+  const [editedOverride, setEditedOverride] = useState<Partial<BookingOverride> | null>(null);
+  const [isAddingOverride, setIsAddingOverride] = useState(false);
+  const [newOverride, setNewOverride] = useState<Partial<BookingOverride>>({});
+  
+  // State for date and time picker
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   
   // Fetch branch data on component mount
   useEffect(() => {
@@ -42,8 +94,6 @@ export default function BranchDetailsScreen() {
         // Fetch branch details
         await fetchBranchById(branchId);
         
-        // In a real implementation, you would fetch booking settings and overrides here
-        // For now, we'll use the branch data from the branch store
         const branchStore = useBranchStore.getState();
         const branchData = branchStore.selectedBranch;
         
@@ -53,13 +103,9 @@ export default function BranchDetailsScreen() {
         
         setBranch(branchData as unknown as RestaurantBranch);
         
-        // In a real implementation, you would fetch booking settings separately
-        // For now, we'll use null
-        setBookingSettings(null);
-        
-        // In a real implementation, you would fetch booking overrides here
-        // For now, we'll use an empty array
-        setBookingOverrides([]);
+        // Fetch booking settings and overrides
+        await fetchBookingSettings(branchId);
+        await fetchBookingOverrides(branchId);
         
       } catch (err) {
         console.error('Error loading branch data:', err);
@@ -70,7 +116,7 @@ export default function BranchDetailsScreen() {
     };
     
     loadBranchData();
-  }, [branchId, fetchBranchById]);
+  }, [branchId, fetchBranchById, fetchBookingSettings, fetchBookingOverrides]);
   
   // Handle branch deletion
   const handleDeleteBranch = () => {
@@ -100,14 +146,159 @@ export default function BranchDetailsScreen() {
   
   // Handle booking settings edit
   const handleEditBookingSettings = () => {
-    // In a real implementation, you would navigate to a booking settings edit screen
-    Alert.alert('Edit Booking Settings', 'This feature is not yet implemented.');
+    if (!bookingSettings) {
+      // Create new booking settings
+      Alert.alert(
+        'Configure Booking Settings',
+        'Please enter the booking settings for this branch:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Configure',
+            onPress: () => {
+              // Default settings to start with
+              const defaultSettings = {
+                openTime: '09:00',
+                closeTime: '22:00',
+                interval: 30,
+                maxSeatsPerSlot: 50,
+                maxTablesPerSlot: 10,
+                branchId: branchId
+              };
+              
+              updateBookingSettingsWrapper(branchId, defaultSettings as BookingSettings)
+                .then(() => {
+                  Alert.alert('Success', 'Booking settings created successfully');
+                })
+                .catch((err) => {
+                  Alert.alert('Error', 'Failed to create booking settings');
+                  console.error('Error creating booking settings:', err);
+                });
+            }
+          }
+        ]
+      );
+    } else {
+      // Show a dialog to edit existing settings
+      Alert.alert(
+        'Edit Booking Settings',
+        'What would you like to update?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Operating Hours',
+            onPress: () => {
+              // In a real app, you would show a time picker here
+              // For now, we'll just update with fixed values
+              const updatedSettings = {
+                ...bookingSettings,
+                openTime: '08:00',
+                closeTime: '23:00'
+              };
+              
+              updateBookingSettingsWrapper(branchId, updatedSettings as BookingSettings)
+                .then(() => {
+                  Alert.alert('Success', 'Operating hours updated successfully');
+                })
+                .catch((err) => {
+                  Alert.alert('Error', 'Failed to update operating hours');
+                  console.error('Error updating operating hours:', err);
+                });
+            }
+          },
+          {
+            text: 'Booking Interval',
+            onPress: () => {
+              // In a real app, you would show a number input here
+              // For now, we'll just update with a fixed value
+              const updatedSettings = {
+                ...bookingSettings,
+                interval: 45
+              };
+              
+              updateBookingSettingsWrapper(branchId, updatedSettings)
+                .then(() => {
+                  Alert.alert('Success', 'Booking interval updated successfully');
+                })
+                .catch((err) => {
+                  Alert.alert('Error', 'Failed to update booking interval');
+                  console.error('Error updating booking interval:', err);
+                });
+            }
+          },
+          {
+            text: 'Capacity',
+            onPress: () => {
+              // In a real app, you would show number inputs here
+              // For now, we'll just update with fixed values
+              const updatedSettings = {
+                ...bookingSettings,
+                maxSeatsPerSlot: 60,
+                maxTablesPerSlot: 15
+              };
+              
+              updateBookingSettingsWrapper(branchId, updatedSettings)
+                .then(() => {
+                  Alert.alert('Success', 'Capacity updated successfully');
+                })
+                .catch((err) => {
+                  Alert.alert('Error', 'Failed to update capacity');
+                  console.error('Error updating capacity:', err);
+                });
+            }
+          }
+        ]
+      );
+    }
   };
   
-  // Handle booking override creation
+  // Handle adding a new booking override
   const handleAddBookingOverride = () => {
-    // In a real implementation, you would navigate to a booking override creation screen
-    Alert.alert('Add Booking Override', 'This feature is not yet implemented.');
+    const today = new Date();
+    setIsAddingOverride(true);
+    setNewOverride({
+      date: format(today, 'yyyy-MM-dd'),
+      startTime: '09:00',
+      endTime: '17:00',
+      overrideType: 'MODIFIED',
+      newMaxSeats: 0,
+      newMaxTables: 0,
+      note: ''
+    });
+  };
+
+  // Handle editing a booking override
+  const handleEditBookingOverride = (override: BookingOverride) => {
+    setIsEditingOverride(true);
+    setSelectedOverride(override);
+    setEditedOverride({
+      ...override
+    });
+  };
+
+  // Handle deleting a booking override
+  const handleDeleteBookingOverride = (overrideId: number) => {
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this booking override?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => {
+            deleteBookingOverrideWrapper(overrideId)
+              .then(() => {
+                Alert.alert('Success', 'Booking override deleted successfully');
+              })
+              .catch((err) => {
+                Alert.alert('Error', 'Failed to delete booking override');
+                console.error('Error deleting booking override:', err);
+              });
+          }
+        }
+      ]
+    );
   };
   
   // Handle branch status toggle
@@ -147,8 +338,28 @@ export default function BranchDetailsScreen() {
     openMapsWithConfirmation();
   };
   
+  // Function to format time to AM/PM format
+  const formatTimeToAMPM = (time: string) => {
+    try {
+      // Check if the time string is in ISO format
+      if (time.includes('T') && time.includes('Z')) {
+        // Parse ISO date string
+        const date = new Date(time);
+        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      } else {
+        // Handle HH:MM format
+        const [hours, minutes] = time.split(':');
+        const formattedTime = new Date(`1970-01-01T${hours}:${minutes}:00`);
+        return formattedTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return 'Invalid Time';
+    }
+  };
+  
   // Loading state
-  if (loading) {
+  if (loading || bookingLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#B22222" />
@@ -158,11 +369,11 @@ export default function BranchDetailsScreen() {
   }
   
   // Error state
-  if (error || !branch) {
+  if (error || bookingError || !branch) {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="alert-circle" size={50} color="#B22222" />
-        <Text style={styles.errorText}>{error || 'Branch not found'}</Text>
+        <Text style={styles.errorText}>{error || bookingError || 'Branch not found'}</Text>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
@@ -197,46 +408,22 @@ export default function BranchDetailsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color="#B22222" />
         </TouchableOpacity>
-        
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.editButton]}
-            onPress={handleEditBranch}
-          >
-            <Ionicons name="pencil" size={20} color="#fff" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={handleDeleteBranch}
-          >
-            <Ionicons name="trash" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
       </View>
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Branch Header */}
         <View style={styles.header}>
-          <Text style={styles.branchName}>{branch.restaurantName}</Text>
-          
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusLabel}>Status:</Text>
-            <View style={styles.statusToggleContainer}>
-              <Text style={styles.statusText}>{branch.isActive ? 'Active' : 'Inactive'}</Text>
-              <Switch
-                value={branch.isActive}
-                onValueChange={handleToggleStatus}
-                trackColor={{ false: '#ccc', true: '#B22222' }}
-                thumbColor="#fff"
-              />
-            </View>
-          </View>
+          <Text style={styles.branchName}>{branch.restaurantName}</Text>     
         </View>
         
         {/* Branch Details Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Branch Details</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Branch Details</Text>
+            <TouchableOpacity onPress={handleEditBranch}>
+              <Text style={styles.editText}>Edit</Text>
+            </TouchableOpacity>
+          </View>
           
           <View style={styles.detailItem}>
             <Ionicons name="location-outline" size={20} color="#666" />
@@ -257,35 +444,6 @@ export default function BranchDetailsScreen() {
             </View>
           )}
           
-          {(branch.openingHours || branch.closingHours) && (
-            <View style={styles.detailItem}>
-              <Ionicons name="time-outline" size={20} color="#666" />
-              <Text style={styles.detailText}>
-                {branch.openingHours && branch.closingHours 
-                  ? `${branch.openingHours} - ${branch.closingHours}`
-                  : branch.openingHours 
-                    ? `Opens: ${branch.openingHours}` 
-                    : `Closes: ${branch.closingHours}`
-                }
-              </Text>
-            </View>
-          )}
-          
-          <View style={styles.detailItem}>
-            <Ionicons name="calendar-outline" size={20} color="#666" />
-            <Text style={styles.detailText}>
-              Created: {branch.createdAt ? format(new Date(branch.createdAt), 'MMM d, yyyy') : 'N/A'}
-            </Text>
-          </View>
-          
-          {branch.updatedAt && (
-            <View style={styles.detailItem}>
-              <Ionicons name="refresh-outline" size={20} color="#666" />
-              <Text style={styles.detailText}>
-                Last Updated: {format(new Date(branch.updatedAt), 'MMM d, yyyy')}
-              </Text>
-            </View>
-          )}
         </View>
         
         {/* Location Map */}
@@ -334,117 +492,24 @@ export default function BranchDetailsScreen() {
         )}
         
         {/* Booking Settings Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Booking Settings</Text>
-            <TouchableOpacity onPress={handleEditBookingSettings}>
-              <Text style={styles.editText}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {bookingSettings ? (
-            <View style={styles.bookingSettingsContainer}>
-              <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>Operating Hours:</Text>
-                <Text style={styles.settingValue}>
-                  {bookingSettings.openTime} - {bookingSettings.closeTime}
-                </Text>
-              </View>
-              
-              <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>Booking Interval:</Text>
-                <Text style={styles.settingValue}>{bookingSettings.interval} minutes</Text>
-              </View>
-              
-              <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>Max Seats per Slot:</Text>
-                <Text style={styles.settingValue}>{bookingSettings.maxSeatsPerSlot}</Text>
-              </View>
-              
-              <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>Max Tables per Slot:</Text>
-                <Text style={styles.settingValue}>{bookingSettings.maxTablesPerSlot}</Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.emptyStateContainer}>
-              <Text style={styles.emptyStateText}>No booking settings configured</Text>
-              <TouchableOpacity 
-                style={styles.addButton}
-                onPress={handleEditBookingSettings}
-              >
-                <Text style={styles.addButtonText}>Configure Booking Settings</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        <BookingSettingsSection 
+          bookingSettings={bookingSettings}
+          branchId={branchId}
+          isEditingBookingSettings={isEditingBookingSettings}
+          setIsEditingBookingSettings={setIsEditingBookingSettings}
+          editedSettings={editedBookingSettings as BookingSettings | null}
+          setEditedSettings={setEditedBookingSettings}
+          updateBranchBookingSettings={updateBookingSettingsWrapper}
+        />
         
         {/* Booking Overrides Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Booking Overrides</Text>
-            <TouchableOpacity onPress={handleAddBookingOverride}>
-              <Text style={styles.editText}>Add Override</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {bookingOverrides.length > 0 ? (
-            bookingOverrides.map((override) => (
-              <View key={override.id} style={styles.overrideItem}>
-                <View style={styles.overrideHeader}>
-                  <Text style={styles.overrideDate}>
-                    {format(new Date(override.date), 'MMM d, yyyy')}
-                  </Text>
-                  <View style={[styles.overrideTypeBadge, 
-                    override.overrideType === 'CLOSED' 
-                      ? styles.closedBadge 
-                      : styles.modifiedBadge
-                  ]}>
-                    <Text style={styles.overrideTypeText}>
-                      {override.overrideType === 'CLOSED' ? 'Closed' : 'Modified'}
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.overrideDetails}>
-                  <Text style={styles.overrideTime}>
-                    {override.startTime} - {override.endTime}
-                  </Text>
-                  
-                  {override.overrideType !== 'CLOSED' && (
-                    <>
-                      {override.newMaxSeats && (
-                        <Text style={styles.overrideDetail}>
-                          Max Seats: {override.newMaxSeats}
-                        </Text>
-                      )}
-                      
-                      {override.newMaxTables && (
-                        <Text style={styles.overrideDetail}>
-                          Max Tables: {override.newMaxTables}
-                        </Text>
-                      )}
-                    </>
-                  )}
-                  
-                  {override.note && (
-                    <Text style={styles.overrideNote}>{override.note}</Text>
-                  )}
-                </View>
-              </View>
-            ))
-          ) : (
-            <View style={styles.emptyStateContainer}>
-              <Text style={styles.emptyStateText}>No booking overrides configured</Text>
-              <TouchableOpacity 
-                style={styles.addButton}
-                onPress={handleAddBookingOverride}
-              >
-                <Text style={styles.addButtonText}>Add Booking Override</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        <BookingOverridesSection 
+          bookingOverrides={bookingOverrides}
+          branchId={branchId}
+          createNewBookingOverride={createBookingOverrideWrapper}
+          updateExistingBookingOverride={updateBookingOverrideWrapper}
+          deleteBookingOverride={deleteBookingOverrideWrapper}
+        />
         
         {/* Bottom Spacing */}
         <View style={{ height: 40 }} />
@@ -480,14 +545,14 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
   },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
+  // actionButton: {
+  //   width: 40,
+  //   height: 40,
+  //   borderRadius: 20,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  //   marginLeft: 10,
+  // },
   editButton: {
     backgroundColor: '#4CAF50',
   },
@@ -549,6 +614,7 @@ const styles = StyleSheet.create({
   editText: {
     fontSize: 14,
     color: '#B22222',
+    fontWeight: '500',
   },
   detailItem: {
     flexDirection: 'row',
@@ -621,7 +687,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   overrideTypeBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     paddingVertical: 4,
     borderRadius: 4,
   },
@@ -654,6 +720,23 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
     marginTop: 5,
+  },
+  overrideActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 10,
+  },
+  overrideActionButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    marginRight: 10,
+  },
+  overrideDeleteButton: {
+    backgroundColor: '#B22222',
   },
   emptyStateContainer: {
     alignItems: 'center',
@@ -702,5 +785,119 @@ const styles = StyleSheet.create({
     color: '#B22222',
     fontSize: 16,
     fontWeight: '500',
+  },
+  overrideEditContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 16,
+  },
+  editSectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  formRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  formLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginRight: 8,
+  },
+  textInput: {
+    flex: 1,
+    height: 40,
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    fontSize: 14,
+    color: '#333',
+  },
+  textAreaInput: {
+    height: 80,
+    textAlignVertical: 'top',
+    paddingTop: 10,
+  },
+  typeButtonsContainer: {
+    flexDirection: 'row',
+  },
+  typeButton: {
+    minWidth: 120,
+    height: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    marginHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  activeTypeButton: {
+    backgroundColor: '#B22222',
+    borderColor: '#B22222',
+  },
+  typeButtonText: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
+  },
+  activeTypeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  formValue: {
+    fontSize: 14,
+    color: '#333',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  actionButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    minWidth: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  saveButton: {
+    backgroundColor: '#B22222',
+  },
+  actionButtonText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  cancelButtonText: {
+    color: '#333',
+  },
+  dateTimeInput: {
+    flex: 1,
+    height: 40,
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  dateTimeText: {
+    fontSize: 14,
+    color: '#333',
   },
 });

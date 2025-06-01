@@ -9,7 +9,17 @@ import {
   deleteBooking,
   getBookingsForBranch,
   getBookingsForBranchOnDate,
-  createGuestReservation} from '../api/booking';
+  createGuestReservation,
+  getBookingSettings,
+  updateBookingSettings,
+  getBookingOverrides,
+  getBookingOverride,
+  createBookingOverride,
+  updateBookingOverride,
+  deleteBookingOverride
+} from '../api/booking';
+import { BookingSettings, BookingOverride } from '../types/branch';
+import { CreateBookingOverrideData } from '../types/booking';
 
 interface BookingState {
   // Data
@@ -18,6 +28,11 @@ interface BookingState {
   loading: boolean;
   error: string | null;
   
+  // Booking Settings
+  bookingSettings: BookingSettings | null;
+  bookingOverrides: BookingOverride[];
+  selectedOverride: BookingOverride | null;
+  
   // Actions
   fetchUserBookings: () => Promise<BookingWithDetails[]>;
   fetchBookingById: (id: number) => Promise<BookingWithDetails | null>;
@@ -25,7 +40,7 @@ interface BookingState {
   updateExistingBooking: (id: number, bookingData: UpdateBookingData) => Promise<Booking | null>;
   cancelBooking: (id: number) => Promise<boolean>;
   getBookingsForBranch: (branchId: number) => Promise<BookingWithDetails[]>;
-  getBookingsForBranchOnDate: (branchId: number, date: string) => Promise<BookingWithDetails[]>;
+  getBookingsForBranchOnDate: (branchId: number, date: string | Date) => Promise<BookingWithDetails[]>;
   createReservationForCustomer: (reservationData: {
     customerName: string;
     phoneNumber: string;
@@ -43,6 +58,18 @@ interface BookingState {
     timeSlotId: number;
     notes?: string;
   }) => Promise<Booking | null>;
+  
+  // Booking Settings Actions
+  fetchBookingSettings: (branchId: number) => Promise<BookingSettings | null>;
+  updateBranchBookingSettings: (branchId: number, settings: Partial<BookingSettings>) => Promise<BookingSettings | null>;
+  
+  // Booking Overrides Actions
+  fetchBookingOverrides: (branchId: number) => Promise<BookingOverride[]>;
+  fetchBookingOverride: (overrideId: number) => Promise<BookingOverride | null>;
+  createNewBookingOverride: (branchId: number, override: CreateBookingOverrideData) => Promise<BookingOverride | null>;
+  updateExistingBookingOverride: (overrideId: number, override: Partial<BookingOverride>) => Promise<BookingOverride | null>;
+  deleteBookingOverride: (overrideId: number) => Promise<boolean>;
+  
   clearError: () => void;
 }
 
@@ -52,6 +79,11 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   selectedBooking: null,
   loading: false,
   error: null,
+  
+  // Booking Settings
+  bookingSettings: null,
+  bookingOverrides: [],
+  selectedOverride: null,
   
   // Fetch user bookings
   fetchUserBookings: async () => {
@@ -111,7 +143,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     try {
       set({ loading: true, error: null });
       const updatedBooking = await updateBooking(id, bookingData);
-      // Refresh user bookings to include the updated booking
+      // Refresh user bookings to reflect the update
       get().fetchUserBookings();
       set({ loading: false });
       return updatedBooking;
@@ -130,9 +162,9 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     try {
       set({ loading: true, error: null });
       await deleteBooking(id);
-      // Remove the cancelled booking from the state
-      const updatedBookings = get().userBookings.filter(booking => booking.id !== id);
-      set({ userBookings: updatedBookings, loading: false });
+      // Refresh user bookings to remove the cancelled booking
+      get().fetchUserBookings();
+      set({ loading: false });
       return true;
     } catch (error: any) {
       console.error(`Error cancelling booking ${id}:`, error);
@@ -162,27 +194,30 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   },
   
   // Get bookings for a branch on a specific date
-  getBookingsForBranchOnDate: async (branchId: number, date: string) => {
+  getBookingsForBranchOnDate: async (branchId: number, date: string | Date) => {
     try {
       set({ loading: true, error: null });
-      
-      // Validate inputs
-      if (!branchId) {
-        throw new Error('Branch ID is required');
+      // Format the date to match the API's expected format (if needed)
+      let formattedDate = '';
+      if (date instanceof Date) {
+        formattedDate = format(date, 'yyyy-MM-dd');
+      } else if (typeof date === 'string') {
+        if (date.includes('/')) {
+          // Convert from MM/DD/YYYY to YYYY-MM-DD if needed
+          const parts = date.split('/');
+          formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+        } else {
+          formattedDate = date; // Already in the correct format
+        }
       }
       
-      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        throw new Error('Valid date in YYYY-MM-DD format is required');
-      }
-      
-      // Call the API to get bookings for the branch on the specified date
-      const bookings = await getBookingsForBranchOnDate(branchId, date);
+      const bookings = await getBookingsForBranchOnDate(branchId, formattedDate);
       set({ loading: false });
       return bookings;
     } catch (error: any) {
-      console.error(`Error fetching bookings for branch ${branchId} on ${date}:`, error);
+      console.error(`Error fetching bookings for branch ${branchId} on date ${date}:`, error);
       set({ 
-        error: error.message || 'Failed to fetch branch bookings', 
+        error: error.message || 'Failed to fetch bookings for the selected date', 
         loading: false 
       });
       return [];
@@ -203,23 +238,26 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     try {
       set({ loading: true, error: null });
       
-      // Transform the data to match what createGuestReservation expects
-      const guestData = {
+      // Format the data for the API
+      const bookingData = {
         guestName: reservationData.customerName,
         guestPhone: reservationData.phoneNumber,
-        timeSlotId: reservationData.timeSlotId,
         partySize: reservationData.partySize,
-        specialRequests: reservationData.notes
+        timeSlotId: reservationData.timeSlotId,
+        specialRequests: reservationData.notes || ''
       };
       
-      const newBooking = await createGuestReservation(guestData);
-      
-      // Refresh bookings
-      get().fetchUserBookings();
+      const newBooking = await createGuestReservation({
+        guestName: bookingData.guestName,
+        guestPhone: bookingData.guestPhone,
+        partySize: bookingData.partySize,
+        timeSlotId: bookingData.timeSlotId,
+        specialRequests: bookingData.specialRequests
+      });
       set({ loading: false });
       return newBooking;
     } catch (error: any) {
-      console.error('Error creating reservation for customer:', error);
+      console.error('Error creating customer reservation:', error);
       set({ 
         error: error.message || 'Failed to create reservation', 
         loading: false 
@@ -239,20 +277,16 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     try {
       set({ loading: true, error: null });
       
-      // Format the data to match what the API expects
-      const apiData = {
+      // Format the data for the API
+      const bookingData = {
         guestName: reservationData.customerName,
         guestPhone: reservationData.phoneNumber,
-        timeSlotId: reservationData.timeSlotId,
         partySize: reservationData.partySize,
-        specialRequests: reservationData.notes
+        timeSlotId: reservationData.timeSlotId,
+        specialRequests: reservationData.notes || ''
       };
       
-      const newBooking = await createGuestReservation(apiData);
-      
-      // Refresh bookings
-      get().getBookingsForBranchOnDate(109, format(new Date(), 'yyyy-MM-dd'));
-      
+      const newBooking = await createGuestReservation(bookingData);
       set({ loading: false });
       return newBooking;
     } catch (error: any) {
@@ -265,6 +299,149 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     }
   },
   
+  // Fetch booking settings for a branch
+  fetchBookingSettings: async (branchId: number) => {
+    try {
+      set({ loading: true, error: null });
+      const settings = await getBookingSettings(branchId);
+      set({ bookingSettings: settings, loading: false });
+      return settings;
+    } catch (error: any) {
+      console.error(`Error fetching booking settings for branch ${branchId}:`, error);
+      set({ 
+        error: error.message || 'Failed to fetch booking settings', 
+        loading: false 
+      });
+      return null;
+    }
+  },
+  
+  // Update booking settings for a branch
+  updateBranchBookingSettings: async (branchId: number, settings: Partial<BookingSettings>) => {
+    try {
+      set({ loading: true, error: null });
+      const updatedSettings = await updateBookingSettings(branchId, settings);
+      set({ bookingSettings: updatedSettings, loading: false });
+      return updatedSettings;
+    } catch (error: any) {
+      console.error(`Error updating booking settings for branch ${branchId}:`, error);
+      set({ 
+        error: error.message || 'Failed to update booking settings', 
+        loading: false 
+      });
+      return null;
+    }
+  },
+  
+  // Fetch booking overrides for a branch
+  fetchBookingOverrides: async (branchId: number) => {
+    try {
+      set({ loading: true, error: null });
+      const overrides = await getBookingOverrides(branchId);
+      set({ bookingOverrides: overrides, loading: false });
+      return overrides;
+    } catch (error: any) {
+      console.error(`Error fetching booking overrides for branch ${branchId}:`, error);
+      set({ 
+        error: error.message || 'Failed to fetch booking overrides', 
+        loading: false 
+      });
+      return [];
+    }
+  },
+  
+  // Fetch a specific booking override
+  fetchBookingOverride: async (overrideId: number) => {
+    try {
+      set({ loading: true, error: null });
+      const override = await getBookingOverride(overrideId);
+      set({ selectedOverride: override, loading: false });
+      return override;
+    } catch (error: any) {
+      console.error(`Error fetching booking override ${overrideId}:`, error);
+      set({ 
+        error: error.message || 'Failed to fetch booking override', 
+        loading: false 
+      });
+      return null;
+    }
+  },
+  
+  // Create a new booking override
+  createNewBookingOverride: async (branchId: number, override: CreateBookingOverrideData) => {
+    try {
+      set({ loading: true, error: null });
+      const newOverride = await createBookingOverride(branchId, override);
+      // Refresh overrides list
+      const overrides = await getBookingOverrides(branchId);
+      set({ bookingOverrides: overrides, loading: false });
+      return newOverride;
+    } catch (error: any) {
+      console.error(`Error creating booking override for branch ${branchId}:`, error);
+      set({ 
+        error: error.message || 'Failed to create booking override', 
+        loading: false 
+      });
+      return null;
+    }
+  },
+  
+  // Update an existing booking override
+  updateExistingBookingOverride: async (overrideId: number, override: Partial<BookingOverride>) => {
+    try {
+      set({ loading: true, error: null });
+      const updatedOverride = await updateBookingOverride(overrideId, override);
+      // Update the selected override if it's the one being updated
+      if (get().selectedOverride?.id === overrideId) {
+        set({ selectedOverride: updatedOverride });
+      }
+      // Refresh overrides list if we have a branch ID
+      if (updatedOverride.branchId) {
+        const overrides = await getBookingOverrides(updatedOverride.branchId);
+        set({ bookingOverrides: overrides });
+      }
+      set({ loading: false });
+      return updatedOverride;
+    } catch (error: any) {
+      console.error(`Error updating booking override ${overrideId}:`, error);
+      set({ 
+        error: error.message || 'Failed to update booking override', 
+        loading: false 
+      });
+      return null;
+    }
+  },
+  
+  // Delete a booking override
+  deleteBookingOverride: async (overrideId: number) => {
+    try {
+      set({ loading: true, error: null });
+      // Store the branch ID before deleting the override
+      const branchId = get().selectedOverride?.branchId;
+      await deleteBookingOverride(overrideId);
+      // Clear the selected override if it's the one being deleted
+      if (get().selectedOverride?.id === overrideId) {
+        set({ selectedOverride: null });
+      }
+      // Refresh overrides list if we have a branch ID
+      if (branchId) {
+        const overrides = await getBookingOverrides(branchId);
+        set({ bookingOverrides: overrides });
+      }
+      set({ loading: false });
+      return true;
+    } catch (error: any) {
+      console.error(`Error deleting booking override ${overrideId}:`, error);
+      set({ 
+        error: error.message || 'Failed to delete booking override', 
+        loading: false 
+      });
+      return false;
+    }
+  },
+  
   // Clear error
-  clearError: () => set({ error: null }),
+  clearError: () => {
+    set({ error: null });
+  },
 }));
