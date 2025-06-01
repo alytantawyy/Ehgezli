@@ -76,7 +76,7 @@ export const changeBookingStatus = async (bookingId: number, status: BookingStat
 // Get all bookings for a branch (restaurant owners only)
 export const getBookingsForBranch = async (branchId: number): Promise<BookingWithDetails[]> => {
   try {
-    const { data } = await apiClient.get<BookingWithDetails[]>(`/restaurant/branch/${branchId}/bookings`);
+    const { data } = await apiClient.get<BookingWithDetails[]>(`/booking/branch/${branchId}`);
     return data;
   } catch (error: any) {
     console.error(`Error fetching bookings for branch ${branchId}:`, error.response?.data || error.message);
@@ -87,7 +87,8 @@ export const getBookingsForBranch = async (branchId: number): Promise<BookingWit
 // Get bookings for a branch on a specific date (restaurant owners only)
 export const getBookingsForBranchOnDate = async (branchId: number, date: string): Promise<BookingWithDetails[]> => {
   try {
-    console.log(`Fetching bookings for branch ${branchId} on date ${date}`);
+    console.log(`Fetching bookings for branch ${branchId} on ${date}`);
+    // Use the endpoint that returns bookings for a branch on a specific date
     const { data } = await apiClient.get<BookingWithDetails[]>(`/booking/branch/${branchId}/date/${date}`);
     console.log(`Successfully fetched ${data.length} bookings`);
     return data;

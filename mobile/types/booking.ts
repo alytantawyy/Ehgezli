@@ -83,6 +83,10 @@ export interface BookingWithDetails extends Booking {
     address: string;
     city: string;
   };
+  user?: {
+    firstName: string;
+    lastName: string;
+  } | null;
 }
 
 // Extended booking with customer details for restaurant view

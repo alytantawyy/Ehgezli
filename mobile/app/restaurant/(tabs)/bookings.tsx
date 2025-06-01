@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 // Components
 import { BookingCard } from '../../../components/restaurantScreen/BookingCard';
 import { StatusBadge } from '../../../components/common/StatusBadge';
+import ModalPicker from '@/components/common/ModalPicker';
 
 // Stores and hooks
 import { useBookingStore } from '../../../store/booking-store';
@@ -25,7 +26,7 @@ export default function RestaurantBookingsScreen() {
   const { user } = useAuth();
   
   // Get store hooks
-  const { getBookingsForBranchOnDate, loading: bookingsLoading } = useBookingStore();
+  const { getBookingsForBranch, loading: bookingsLoading } = useBookingStore();
   const { getRestaurantBranches, loading: branchesLoading } = useBranchStore();
   
   // State
@@ -33,9 +34,9 @@ export default function RestaurantBookingsScreen() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [branches, setBranches] = useState<BranchListItem[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
+  const [branchPickerVisible, setBranchPickerVisible] = useState(false);
   
   // Load initial data
   useEffect(() => {
@@ -54,9 +55,9 @@ export default function RestaurantBookingsScreen() {
       // Set default selected branch to the first one
       if (branchesData.length > 0 && selectedBranchId === null) {
         setSelectedBranchId(branchesData[0].branchId.toString());
-        await loadBookings(branchesData[0].branchId.toString(), selectedDate);
+        await loadAllBookings(branchesData[0].branchId);
       } else if (selectedBranchId) {
-        await loadBookings(selectedBranchId, selectedDate);
+        await loadAllBookings(Number(selectedBranchId));
       }
     } catch (error) {
       console.error('Error loading branches data:', error);
@@ -66,13 +67,14 @@ export default function RestaurantBookingsScreen() {
     }
   };
   
-  // Load bookings for a specific branch and date
-  const loadBookings = async (branchId: string, date: string) => {
+  // Load ALL bookings for a specific branch
+  const loadAllBookings = async (branchId: number) => {
     try {
-      const bookingsData = await getBookingsForBranchOnDate(Number(branchId), date);
+      // Use getBookingsForBranch to get all bookings regardless of date
+      const bookingsData = await getBookingsForBranch(branchId);
       setBookings(bookingsData);
     } catch (error) {
-      console.error('Error loading bookings:', error);
+      console.error('Error loading all bookings:', error);
     }
   };
   
@@ -85,15 +87,12 @@ export default function RestaurantBookingsScreen() {
   // Handle branch selection
   const handleBranchSelect = (branchId: string) => {
     setSelectedBranchId(branchId);
-    loadBookings(branchId, selectedDate);
+    loadAllBookings(Number(branchId));
   };
   
-  // Handle date selection
+  // Handle date selection - now just updates the selected date without filtering
   const handleDateSelect = (date: string) => {
-    setSelectedDate(date);
-    if (selectedBranchId) {
-      loadBookings(selectedBranchId, date);
-    }
+    // We're not filtering by date anymore, so no need to reload bookings
   };
   
   // Handle status filter
@@ -122,12 +121,37 @@ export default function RestaurantBookingsScreen() {
       <Ionicons name="calendar-outline" size={48} color="#999" />
       <Text style={styles.emptyStateText}>
         {filterStatus === 'all' 
-          ? 'No bookings found for this date' 
+          ? 'No bookings found' 
           : `No ${filterStatus} bookings found`}
       </Text>
     </View>
   );
   
+  // Render booking item
+  const renderBookingItem = ({ item }: { item: BookingWithDetails }) => {
+    // Format the booking data for display
+    const bookingData = {
+      ...item,
+      // If we don't have timeSlot data, create it from the booking's own data
+      timeSlot: item.timeSlot || {
+        startTime: item.createdAt ? new Date(item.createdAt).toTimeString().substring(0, 5) : 'N/A',
+        endTime: 'N/A',
+        date: item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : 'N/A'
+      },
+      // Use user information from the backend if available, otherwise fall back to guest name
+      userName: item.user ? `${item.user.firstName} ${item.user.lastName}` : (item.guestName),
+      // Ensure we have a party size
+      partySize: item.partySize || 2
+    };
+    
+    return (
+      <BookingCard 
+        booking={bookingData}
+        onPress={() => router.push(`/restaurant/booking/${item.id}`)}
+      />
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen 
@@ -144,35 +168,34 @@ export default function RestaurantBookingsScreen() {
       {branches.length > 0 && (
         <View style={styles.branchSelector}>
           <Text style={styles.sectionTitle}>Branch:</Text>
-          <FlatList
-            horizontal
-            data={branches}
-            keyExtractor={(item) => item.branchId.toString()}
-            showsHorizontalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.branchButton,
-                  selectedBranchId === item.branchId.toString() && styles.branchButtonActive
-                ]}
-                onPress={() => handleBranchSelect(item.branchId.toString())}
-              >
-                <Text 
-                  style={[
-                    styles.branchButtonText,
-                    selectedBranchId === item.branchId.toString() && styles.branchButtonTextActive
-                  ]}
-                >
-                  {item.address || item.city}
-                </Text>
-              </TouchableOpacity>
-            )}
-            style={styles.branchScroll}
+          <TouchableOpacity 
+            style={styles.branchDropdown}
+            onPress={() => setBranchPickerVisible(true)}
+          >
+            <Text style={styles.branchDropdownText}>
+              {selectedBranchId ? branches.find(b => b.branchId.toString() === selectedBranchId)?.address || 'Select Branch' : 'Select Branch'}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#fff" />
+          </TouchableOpacity>
+          
+          <ModalPicker 
+            visible={branchPickerVisible}
+            onClose={() => setBranchPickerVisible(false)}
+            title="Select a Branch"
+            options={branches.map(branch => ({ 
+              label: branch.address || branch.city || 'Branch', 
+              value: branch.branchId.toString() 
+            }))}
+            onSelect={(branchId) => {
+              handleBranchSelect(branchId);
+              setBranchPickerVisible(false);
+            }}
+            selectedValue={selectedBranchId || undefined}
           />
         </View>
       )}
       
-      {/* Date Selector */}
+      {/* Date Selector - Kept for UI consistency but not functional for filtering */}
       <View style={styles.dateSelector}>
         <TouchableOpacity 
           style={styles.dateButton}
@@ -205,64 +228,34 @@ export default function RestaurantBookingsScreen() {
       {/* Status Filter */}
       <View style={styles.statusFilter}>
         <TouchableOpacity 
-          style={[
-            styles.statusButton,
-            filterStatus === 'all' && styles.statusButtonActive
-          ]}
+          style={[styles.statusButton, filterStatus === 'all' && styles.statusButtonActive]}
           onPress={() => handleStatusFilter('all')}
         >
-          <Text style={[
-            styles.statusButtonText,
-            filterStatus === 'all' && styles.statusButtonTextActive
-          ]}>All</Text>
+          <Text style={[styles.statusButtonText, filterStatus === 'all' && styles.statusButtonTextActive]}>All</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[
-            styles.statusButton,
-            filterStatus === 'pending' && styles.statusButtonActive
-          ]}
+          style={[styles.statusButton, filterStatus === 'pending' && styles.statusButtonActive]}
           onPress={() => handleStatusFilter('pending')}
         >
-          <Text style={[
-            styles.statusButtonText,
-            filterStatus === 'pending' && styles.statusButtonTextActive
-          ]}>Pending</Text>
+          <Text style={[styles.statusButtonText, filterStatus === 'pending' && styles.statusButtonTextActive]}>Pending</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[
-            styles.statusButton,
-            filterStatus === 'confirmed' && styles.statusButtonActive
-          ]}
+          style={[styles.statusButton, filterStatus === 'confirmed' && styles.statusButtonActive]}
           onPress={() => handleStatusFilter('confirmed')}
         >
-          <Text style={[
-            styles.statusButtonText,
-            filterStatus === 'confirmed' && styles.statusButtonTextActive
-          ]}>Confirmed</Text>
+          <Text style={[styles.statusButtonText, filterStatus === 'confirmed' && styles.statusButtonTextActive]}>Confirmed</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[
-            styles.statusButton,
-            filterStatus === 'completed' && styles.statusButtonActive
-          ]}
+          style={[styles.statusButton, filterStatus === 'completed' && styles.statusButtonActive]}
           onPress={() => handleStatusFilter('completed')}
         >
-          <Text style={[
-            styles.statusButtonText,
-            filterStatus === 'completed' && styles.statusButtonTextActive
-          ]}>Completed</Text>
+          <Text style={[styles.statusButtonText, filterStatus === 'completed' && styles.statusButtonTextActive]}>Completed</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[
-            styles.statusButton,
-            filterStatus === 'cancelled' && styles.statusButtonActive
-          ]}
+          style={[styles.statusButton, filterStatus === 'cancelled' && styles.statusButtonActive]}
           onPress={() => handleStatusFilter('cancelled')}
         >
-          <Text style={[
-            styles.statusButtonText,
-            filterStatus === 'cancelled' && styles.statusButtonTextActive
-          ]}>Cancelled</Text>
+          <Text style={[styles.statusButtonText, filterStatus === 'cancelled' && styles.statusButtonTextActive]}>Cancelled</Text>
         </TouchableOpacity>
       </View>
       
@@ -270,14 +263,18 @@ export default function RestaurantBookingsScreen() {
       <FlatList
         data={filteredBookings}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <BookingCard booking={item} />
-        )}
-        ListEmptyComponent={renderEmptyState}
+        renderItem={renderBookingItem}
+        contentContainerStyle={styles.bookingsList}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#B22222']}
+          />
         }
-        style={styles.bookingsList}
+        ListEmptyComponent={renderEmptyState}
+        showsVerticalScrollIndicator={true}
+        style={styles.flatListContainer}
       />
     </SafeAreaView>
   );
@@ -299,10 +296,9 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   branchSelector: {
-    paddingHorizontal: 15,
-    paddingTop: 15,
-    paddingBottom: 5,
+    padding: 15,
     backgroundColor: '#fff',
+    marginBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
@@ -312,26 +308,20 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     color: '#333',
   },
-  branchScroll: {
-    flexGrow: 0,
-    marginBottom: 10,
-  },
-  branchButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  branchButtonActive: {
+  branchDropdown: {
+    marginTop: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 25,
     backgroundColor: '#B22222',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  branchButtonText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  branchButtonTextActive: {
+  branchDropdownText: {
+    fontSize: 16,
     color: '#fff',
+    fontWeight: '500',
   },
   dateSelector: {
     flexDirection: 'row',
@@ -383,8 +373,11 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   bookingsList: {
+    paddingHorizontal: 15,
+    paddingBottom: 20,
+  },
+  flatListContainer: {
     flex: 1,
-    padding: 15,
   },
   emptyState: {
     flex: 1,

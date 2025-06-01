@@ -61,12 +61,15 @@ export default function RestaurantDashboardScreen() {
       const branchesData: BranchListItem[] = await getRestaurantBranches(user?.id);
       setBranches(branchesData);
       
-      // Always use branch 109 for the dashboard
-      setSelectedBranchId('109');
-      
-      // Load bookings for branch 109
-      console.log('Loading bookings for branch 109...');
-      await loadBookings('109');
+      // Set default selected branch to the first one
+      if (branchesData.length > 0) {
+        const defaultBranchId = branchesData[0].branchId.toString();
+        setSelectedBranchId(defaultBranchId);
+        
+        // Load bookings for the selected branch
+        console.log(`Loading bookings for branch ${defaultBranchId}...`);
+        await loadBookings(defaultBranchId);
+      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -81,19 +84,17 @@ export default function RestaurantDashboardScreen() {
       // Get today's date in YYYY-MM-DD format
       const today = format(new Date(), 'yyyy-MM-dd');
       
-      // Always use branch 109 for the dashboard
-      const bookingsData = await getBookingsForBranchOnDate(109, today);
+      // Load bookings for the selected branch
+      const bookingsData = await getBookingsForBranchOnDate(parseInt(branchId), today);
       setTodayBookings(bookingsData);
       
       // Calculate stats
-      const stats = {
+      setStats({
         total: bookingsData.length,
-        upcoming: bookingsData.filter(b => ['pending', 'confirmed'].includes(b.status.toLowerCase())).length,
-        completed: bookingsData.filter(b => b.status.toLowerCase() === 'completed').length,
-        cancelled: bookingsData.filter(b => b.status.toLowerCase() === 'cancelled').length
-      };
-      
-      setStats(stats);
+        upcoming: bookingsData.filter(b => b.status === 'pending' || b.status === 'confirmed').length,
+        completed: bookingsData.filter(b => b.status === 'completed').length,
+        cancelled: bookingsData.filter(b => b.status === 'cancelled').length
+      });
     } catch (error) {
       console.error('Error loading bookings:', error);
     }

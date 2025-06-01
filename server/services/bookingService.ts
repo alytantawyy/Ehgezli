@@ -22,43 +22,68 @@
 
 import { db } from "@server/db/db";
 import { eq, and } from "drizzle-orm";
-import { Booking, InsertBooking, bookings, timeSlots, bookingSettings, BookingSettings, InsertBookingSettings, bookingOverrides, InsertBookingOverride, BookingOverride, BookingStatus, restaurantBranches, restaurantUsers, ExtendedBooking } from "@server/db/schema"; 
+import { Booking, InsertBooking, bookings, timeSlots, bookingSettings, BookingSettings, InsertBookingSettings, bookingOverrides, InsertBookingOverride, BookingOverride, BookingStatus, restaurantBranches, restaurantUsers, ExtendedBooking, users } from "@server/db/schema"; 
 
 // ==================== Booking Service ====================
 
+// Define a type for the extended booking with user information
+export type BookingWithUser = Booking & {
+  user?: { 
+    firstName: string; 
+    lastName: string;
+  } | null;
+  restaurantId?: number;
+};
+
 //--Get Bookings for Branch--   
 
-export const getBookingsForBranch = async (branchId: number): Promise<Booking[]> => {
+export const getBookingsForBranch = async (branchId: number): Promise<BookingWithUser[]> => {
   const branchBookings = await db
-    .select()
+    .select({
+      booking: bookings,
+      timeSlot: timeSlots,
+      user: users
+    })
     .from(bookings)
     .innerJoin(timeSlots, eq(timeSlots.id, bookings.timeSlotId))
+    .leftJoin(users, eq(users.id, bookings.userId))
     .where(eq(timeSlots.branchId, branchId));
 
-    if (!branchBookings) {
+    if (!branchBookings || branchBookings.length === 0) {
       return [];
     }
+  
   return branchBookings.map(row => ({
-    id: row.bookings.id,
-    userId: row.bookings.userId,
-    timeSlotId: row.bookings.timeSlotId,
-    partySize: row.bookings.partySize,
-    status: row.bookings.status,
-    createdAt: row.bookings.createdAt,
-    updatedAt: row.bookings.updatedAt,
-    guestName: row.bookings.guestName,
-    guestPhone: row.bookings.guestPhone,
-    guestEmail: row.bookings.guestEmail
+    id: row.booking.id,
+    userId: row.booking.userId,
+    timeSlotId: row.booking.timeSlotId,
+    partySize: row.booking.partySize,
+    status: row.booking.status,
+    createdAt: row.booking.createdAt,
+    updatedAt: row.booking.updatedAt,
+    guestName: row.booking.guestName,
+    guestPhone: row.booking.guestPhone,
+    guestEmail: row.booking.guestEmail,
+    // Include user information if available
+    user: row.user ? {
+      firstName: row.user.firstName,
+      lastName: row.user.lastName
+    } : null
   }));
 };
 
 //--- Get Bookings for Branch on Date ---
 
-export const getBookingsForBranchOnDate = async (branchId: number, date: Date): Promise<Booking[]> => {
+export const getBookingsForBranchOnDate = async (branchId: number, date: Date): Promise<BookingWithUser[]> => {
   const branchBookings = await db
-    .select()
+    .select({
+      booking: bookings,
+      timeSlot: timeSlots,
+      user: users
+    })
     .from(bookings)
     .innerJoin(timeSlots, eq(timeSlots.id, bookings.timeSlotId))
+    .leftJoin(users, eq(users.id, bookings.userId))
     .where(
       and(
         eq(timeSlots.date, date),
@@ -71,50 +96,64 @@ export const getBookingsForBranchOnDate = async (branchId: number, date: Date): 
     }
   
   return branchBookings.map(row => ({
-    id: row.bookings.id,
-    userId: row.bookings.userId,
-    timeSlotId: row.bookings.timeSlotId,
-    partySize: row.bookings.partySize,
-    status: row.bookings.status,
-    createdAt: row.bookings.createdAt,
-    updatedAt: row.bookings.updatedAt,
-    guestName: row.bookings.guestName,
-    guestPhone: row.bookings.guestPhone,
-    guestEmail: row.bookings.guestEmail
+    id: row.booking.id,
+    userId: row.booking.userId,
+    timeSlotId: row.booking.timeSlotId,
+    partySize: row.booking.partySize,
+    status: row.booking.status,
+    createdAt: row.booking.createdAt,
+    updatedAt: row.booking.updatedAt,
+    guestName: row.booking.guestName,
+    guestPhone: row.booking.guestPhone,
+    guestEmail: row.booking.guestEmail,
+    user: row.user ? {
+      firstName: row.user.firstName,
+      lastName: row.user.lastName
+    } : null
   }));
 };
 
 //--Get Booking by ID--
 
-export const getBookingById = async (bookingId: number): Promise<(Booking & { restaurantId?: number }) | undefined> => {
+export const getBookingById = async (bookingId: number): Promise<BookingWithUser | undefined> => {
   // Get booking with restaurant information
   const result = await db
     .select({
       booking: bookings,
-      restaurantId: restaurantBranches.restaurantId
+      restaurantId: restaurantBranches.restaurantId,
+      user: users
     })
     .from(bookings)
     .innerJoin(timeSlots, eq(bookings.timeSlotId, timeSlots.id))
     .innerJoin(restaurantBranches, eq(timeSlots.branchId, restaurantBranches.id))
+    .leftJoin(users, eq(bookings.userId, users.id))
     .where(eq(bookings.id, bookingId));
 
   if (!result || result.length === 0) {
     return undefined;
   }
 
-  // Return booking with restaurantId for authorization checks
+  // Return booking with restaurantId for authorization checks and user information
   return {
     ...result[0].booking,
-    restaurantId: result[0].restaurantId
+    restaurantId: result[0].restaurantId,
+    user: result[0].user ? {
+      firstName: result[0].user.firstName,
+      lastName: result[0].user.lastName
+    } : null
   };
 };
 
 //--Get Booking by ID and User ID--
 
-export const getBookingByIdAndUserId = async (bookingId: number, userId: number): Promise<Booking | undefined> => {
-  const [booking] = await db
-    .select()
+export const getBookingByIdAndUserId = async (bookingId: number, userId: number): Promise<BookingWithUser | undefined> => {
+  const result = await db
+    .select({
+      booking: bookings,
+      user: users
+    })
     .from(bookings)
+    .leftJoin(users, eq(bookings.userId, users.id))
     .where(
       and(
         eq(bookings.id, bookingId),
@@ -122,43 +161,61 @@ export const getBookingByIdAndUserId = async (bookingId: number, userId: number)
       )
     );
 
-  if (!booking) {
+  if (!result || result.length === 0) {
     return undefined;
   }
 
-  return booking;
+  return {
+    ...result[0].booking,
+    user: result[0].user ? {
+      firstName: result[0].user.firstName,
+      lastName: result[0].user.lastName
+    } : null
+  };
 };
 
 //--Get User Bookings--
 
-export const getUserBookings = async (userId: number): Promise<ExtendedBooking[]> => {
+export const getUserBookings = async (userId: number): Promise<BookingWithUser[]> => {
     const userBookings = await db
-        .select()
+        .select({
+            booking: bookings,
+            timeSlot: timeSlots,
+            branch: restaurantBranches,
+            restaurant: restaurantUsers,
+            user: users
+        })
         .from(bookings)
         .innerJoin(timeSlots, eq(bookings.timeSlotId, timeSlots.id))
         .innerJoin(restaurantBranches, eq(timeSlots.branchId, restaurantBranches.id))
         .innerJoin(restaurantUsers, eq(restaurantBranches.restaurantId, restaurantUsers.id))
+        .leftJoin(users, eq(bookings.userId, users.id))
         .where(eq(bookings.userId, userId));
     
-    if (!userBookings) {
+    if (!userBookings || userBookings.length === 0) {
         return [];
     }
-    
-    return userBookings.map(({ bookings, time_slots, restaurant_branches, restaurant_users }) => ({
-        ...bookings,
-        timeSlot: {
-        startTime: time_slots.startTime,
-        endTime: time_slots.endTime,
-        date: time_slots.date,
-        },
-        branch: {
-        id: restaurant_branches.id,
-        restaurantName: restaurant_users.name,
-        address: restaurant_branches.address,
-        city: restaurant_branches.city,
-        },
+
+    return userBookings.map(row => ({
+        id: row.booking.id,
+        userId: row.booking.userId,
+        timeSlotId: row.booking.timeSlotId,
+        partySize: row.booking.partySize,
+        status: row.booking.status,
+        createdAt: row.booking.createdAt,
+        updatedAt: row.booking.updatedAt,
+        guestName: row.booking.guestName,
+        guestPhone: row.booking.guestPhone,
+        guestEmail: row.booking.guestEmail,
+        // Include user information
+        user: row.user ? {
+            firstName: row.user.firstName,
+            lastName: row.user.lastName
+        } : null,
+        // Include restaurant information for the extended booking details
+        restaurantId: row.branch.restaurantId
     }));
-    };
+};
 
 //--Get Booking Settings--
 
@@ -356,14 +413,15 @@ export const deleteBooking = async (bookingId: number): Promise<void> => {
 export const changeBookingStatus = async (
     bookingId: number,
     status: BookingStatus
-  ): Promise<Booking | undefined> => {
-    const [updatedBooking] = await db
+  ): Promise<BookingWithUser | undefined> => {
+    // Update the booking status
+    await db
       .update(bookings)
       .set({ status })
-      .where(eq(bookings.id, bookingId))
-      .returning();
-  
-    return updatedBooking;
+      .where(eq(bookings.id, bookingId));
+    
+    // Fetch the updated booking with user information
+    return getBookingById(bookingId);
   };
 
 /**

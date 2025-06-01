@@ -24,6 +24,7 @@ interface BookingState {
   createNewBooking: (bookingData: CreateBookingData) => Promise<Booking | null>;
   updateExistingBooking: (id: number, bookingData: UpdateBookingData) => Promise<Booking | null>;
   cancelBooking: (id: number) => Promise<boolean>;
+  getBookingsForBranch: (branchId: number) => Promise<BookingWithDetails[]>;
   getBookingsForBranchOnDate: (branchId: number, date: string) => Promise<BookingWithDetails[]>;
   createReservationForCustomer: (reservationData: {
     customerName: string;
@@ -140,6 +141,23 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         loading: false 
       });
       return false;
+    }
+  },
+  
+  // Get bookings for a branch
+  getBookingsForBranch: async (branchId: number) => {
+    try {
+      set({ loading: true, error: null });
+      const bookings = await getBookingsForBranch(branchId);
+      set({ loading: false });
+      return bookings;
+    } catch (error: any) {
+      console.error(`Error fetching bookings for branch ${branchId}:`, error);
+      set({ 
+        error: error.message || 'Failed to fetch branch bookings', 
+        loading: false 
+      });
+      return [];
     }
   },
   

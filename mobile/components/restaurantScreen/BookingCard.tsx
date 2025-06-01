@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 
 interface BookingCardProps {
   booking: any; // Replace with proper booking type
+  onPress?: () => void; // Optional onPress handler
 }
 
 /**
@@ -14,7 +15,7 @@ interface BookingCardProps {
  * Displays booking information in a card format
  * Used in the restaurant dashboard to show bookings
  */
-export const BookingCard: React.FC<BookingCardProps> = ({ booking }) => {
+export const BookingCard: React.FC<BookingCardProps> = ({ booking, onPress }) => {
   // Get status color based on booking status
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -60,7 +61,12 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking }) => {
 
   // Navigate to booking details
   const handlePress = () => {
-    router.push(`/restaurant/booking/${booking.id}` as any);
+    // Use the provided onPress handler if available, otherwise use default navigation
+    if (onPress) {
+      onPress();
+    } else {
+      router.push(`/restaurant/booking/${booking.id}` as any);
+    }
   };
 
   return (
