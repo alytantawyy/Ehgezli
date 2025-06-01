@@ -22,8 +22,6 @@ export const CUISINE_OPTIONS = [
   'Korean', 
   'Vietnamese', 
   'Turkish',
-  'Asian',
-  'Fast Food',
   'Seafood',
 ];
 

@@ -53,7 +53,14 @@ export default function RestaurantLayout() {
         name="add-branch"
         options={{
           title: 'Add Branch',
-          presentation: 'modal',
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="review-branch"
+        options={{
+          title: 'Review Branch',
+          presentation: 'card',
         }}
       />
       <Stack.Screen
