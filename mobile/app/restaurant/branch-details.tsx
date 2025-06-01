@@ -79,6 +79,10 @@ export default function BranchDetailsScreen() {
   const [isAddingOverride, setIsAddingOverride] = useState(false);
   const [newOverride, setNewOverride] = useState<Partial<BookingOverride>>({});
   
+  // State for editing branch details
+  const [isEditingBranchDetails, setIsEditingBranchDetails] = useState(false);
+  const [editedBranchDetails, setEditedBranchDetails] = useState<Partial<RestaurantBranch> | null>(null);
+  
   // State for date and time picker
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
@@ -141,7 +145,34 @@ export default function BranchDetailsScreen() {
   
   // Handle branch edit
   const handleEditBranch = () => {
-    router.push(RestaurantRoute.editBranch(branchId.toString()));
+    if (!branch) return;
+    
+    setIsEditingBranchDetails(true);
+    setEditedBranchDetails({
+      ...branch
+    });
+  };
+  
+  // Handle saving edited branch details
+  const handleSaveBranchDetails = async () => {
+    if (!editedBranchDetails || !branch) return;
+    
+    try {
+      // Here you would call the API to update the branch details
+      // For now, we'll just update the local state
+      setBranch({
+        ...branch,
+        ...editedBranchDetails
+      });
+      
+      setIsEditingBranchDetails(false);
+      setEditedBranchDetails(null);
+      
+      Alert.alert('Success', 'Branch details updated successfully');
+    } catch (error) {
+      console.error('Error updating branch details:', error);
+      Alert.alert('Error', 'Failed to update branch details');
+    }
   };
   
   // Handle booking settings edit
@@ -301,19 +332,7 @@ export default function BranchDetailsScreen() {
     );
   };
   
-  // Handle branch status toggle
-  const handleToggleStatus = () => {
-    if (!branch) return;
-    
-    // In a real implementation, you would call the API to update the branch status
-    const newStatus = !branch.isActive;
-    setBranch({ ...branch, isActive: newStatus });
-    
-    Alert.alert(
-      'Branch Status Updated',
-      `Branch is now ${newStatus ? 'active' : 'inactive'}.`
-    );
-  };
+
   
   // Function to open maps app with confirmation
   const openMapsWithConfirmation = () => {
@@ -425,25 +444,90 @@ export default function BranchDetailsScreen() {
             </TouchableOpacity>
           </View>
           
-          <View style={styles.detailItem}>
-            <Ionicons name="location-outline" size={20} color="#666" />
-            <Text style={styles.detailText}>{branch.address}</Text>
-          </View>
-          
-          {branch.city && (
-            <View style={styles.detailItem}>
-              <Ionicons name="business-outline" size={20} color="#666" />
-              <Text style={styles.detailText}>{branch.city}</Text>
+          {isEditingBranchDetails && editedBranchDetails ? (
+            <View style={styles.settingsEditContainer}>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Branch Name:</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editedBranchDetails.restaurantName}
+                  onChangeText={(text) => setEditedBranchDetails({ ...editedBranchDetails, restaurantName: text })}
+                  placeholder="Branch Name"
+                />
+              </View>
+              
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Address:</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editedBranchDetails.address}
+                  onChangeText={(text) => setEditedBranchDetails({ ...editedBranchDetails, address: text })}
+                  placeholder="Address"
+                />
+              </View>
+              
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>City:</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editedBranchDetails.city}
+                  onChangeText={(text) => setEditedBranchDetails({ ...editedBranchDetails, city: text })}
+                  placeholder="City"
+                />
+              </View>
+              
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Phone:</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editedBranchDetails.phone}
+                  onChangeText={(text) => setEditedBranchDetails({ ...editedBranchDetails, phone: text })}
+                  placeholder="Phone"
+                  keyboardType="phone-pad"
+                />
+              </View>
+              
+              <View style={styles.buttonRow}>
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.cancelButton]}
+                  onPress={() => {
+                    setIsEditingBranchDetails(false);
+                    setEditedBranchDetails(null);
+                  }}
+                >
+                  <Text style={[styles.actionButtonText, styles.cancelButtonText]}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.saveButton]}
+                  onPress={handleSaveBranchDetails}
+                >
+                  <Text style={styles.actionButtonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
             </View>
+          ) : (
+            <>
+              <View style={styles.detailItem}>
+                <Ionicons name="location-outline" size={20} color="#666" />
+                <Text style={styles.detailText}>{branch.address}</Text>
+              </View>
+              
+              {branch.city && (
+                <View style={styles.detailItem}>
+                  <Ionicons name="business-outline" size={20} color="#666" />
+                  <Text style={styles.detailText}>{branch.city}</Text>
+                </View>
+              )}
+              
+              {branch.phone && (
+                <View style={styles.detailItem}>
+                  <Ionicons name="call-outline" size={20} color="#666" />
+                  <Text style={styles.detailText}>{branch.phone}</Text>
+                </View>
+              )}
+            </>
           )}
-          
-          {branch.phone && (
-            <View style={styles.detailItem}>
-              <Ionicons name="call-outline" size={20} color="#666" />
-              <Text style={styles.detailText}>{branch.phone}</Text>
-            </View>
-          )}
-          
         </View>
         
         {/* Location Map */}
@@ -899,5 +983,19 @@ const styles = StyleSheet.create({
   dateTimeText: {
     fontSize: 14,
     color: '#333',
+  },
+  settingsEditContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 16,
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  switchLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginRight: 10,
   },
 });

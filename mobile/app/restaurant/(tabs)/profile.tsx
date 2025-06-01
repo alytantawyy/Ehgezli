@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert, Switch } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert, Switch, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -7,8 +7,14 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 // Stores and hooks
 import { useAuth } from '@/hooks/useAuth';
 import { useRestaurant } from '@/hooks/useRestaurant';
+import { useRestaurantUserStore } from '@/store/restaurantUser-store';
 import { Restaurant } from '@/types/restaurant';
+import { UpdateRestaurantUserData } from '@/types/restaurantUser';
 import { AuthRoute, RestaurantRoute } from '@/types/navigation';
+import { CUISINE_OPTIONS } from '@/constants/FilterOptions';
+import ModalPicker from '@/components/common/ModalPicker';
+import { updateRestaurantUserProfile } from '@/api/restaurantUser';
+import { useRestaurantUser } from '@/hooks/useRestaurantUser';
 
 /**
  * Restaurant Profile Screen
@@ -18,12 +24,24 @@ import { AuthRoute, RestaurantRoute } from '@/types/navigation';
 export default function RestaurantProfileScreen() {
   const { logout } = useAuth();
   const { restaurant, isLoading, refreshRestaurantData } = useRestaurant();
+  const { updateProfile } = useRestaurantUserStore();
   
   // State
   const [loading, setLoading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [autoConfirmEnabled, setAutoConfirmEnabled] = useState(false);
   
+  // State for in-place profile editing
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedProfile, setEditedProfile] = useState<UpdateRestaurantUserData>({});
+  const [showCuisineModal, setShowCuisineModal] = useState(false);
+
+  // Transform CUISINE_OPTIONS to format expected by ModalPicker
+  const cuisineOptions = CUISINE_OPTIONS.map(cuisine => ({
+    label: cuisine,
+    value: cuisine
+  }));
+
   /**
    * Type guard to check if user is a Restaurant
    */
@@ -69,6 +87,44 @@ export default function RestaurantProfileScreen() {
     );
   };
   
+  // Start editing profile
+  const handleEditProfile = () => {
+    if (!restaurant) return;
+    
+    setEditedProfile({
+      name: restaurant.name || '',
+      email: restaurant.email || '',
+      cuisine: restaurant.cuisine || '',
+    });
+    setIsEditing(true);
+  };
+  
+  // Save profile changes
+  const handleSaveProfile = async () => {
+    if (!restaurant) return;
+    
+    try {
+      setLoading(true);
+      await updateRestaurantUserProfile(editedProfile);
+      
+      // Refresh restaurant data after update
+      await refreshRestaurantData();
+      
+      setIsEditing(false);
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Error', 'Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+  };
+  
   useEffect(() => {
     refreshRestaurantData();
   }, []);
@@ -111,23 +167,55 @@ export default function RestaurantProfileScreen() {
           {/* Restaurant Information */}
           <View style={styles.infoSection}>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Full Name</Text>
-              <Text style={styles.infoValue}>{restaurant ? restaurant.name : 'Your Restaurant'}</Text>
+              <Text style={styles.infoLabel}>Restaurant Name</Text>
+              {isEditing ? (
+                <TextInput
+                  style={styles.textInput}
+                  value={editedProfile.name}
+                  onChangeText={(text) => setEditedProfile({ ...editedProfile, name: text })}
+                  placeholder="Restaurant Name"
+                />
+              ) : (
+                <Text style={styles.infoValue}>{restaurant ? restaurant.name : 'Your Restaurant'}</Text>
+              )}
             </View>
 
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{restaurant ? restaurant.email : ''}</Text>
+              {isEditing ? (
+                <TextInput
+                  style={styles.textInput}
+                  value={editedProfile.email}
+                  onChangeText={(text) => setEditedProfile({ ...editedProfile, email: text })}
+                  placeholder="Email"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              ) : (
+                <Text style={styles.infoValue}>{restaurant ? restaurant.email : ''}</Text>
+              )}
             </View>
 
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Cuisine</Text>
-              <View style={styles.cuisineContainer}>
-                <Ionicons name="restaurant-outline" size={16} color="#666" />
-                <Text style={styles.infoValue}>
-                  {restaurant && restaurant.cuisine ? restaurant.cuisine : 'Not specified'}
-                </Text>
-              </View>
+              {isEditing ? (
+                <TouchableOpacity
+                  style={[styles.textInput, styles.dropdownInput]}
+                  onPress={() => setShowCuisineModal(true)}
+                >
+                  <Text style={editedProfile.cuisine ? styles.dropdownText : styles.dropdownPlaceholder}>
+                    {editedProfile.cuisine || "Select cuisine"}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color="#666" />
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.cuisineContainer}>
+                  <Ionicons name="restaurant-outline" size={16} color="#666" />
+                  <Text style={styles.infoValue}>
+                    {restaurant && restaurant.cuisine ? restaurant.cuisine : 'Not specified'}
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.infoItem}>
@@ -150,9 +238,9 @@ export default function RestaurantProfileScreen() {
                         </View>
                         {branch.city && (
                           <View style={styles.branchLocation}>
-                            <Ionicons name="business-outline" size={14} color="#666" />
-                            <Text style={styles.branchCity}>{branch.city}</Text>
-                          </View>
+                          <Ionicons name="business-outline" size={14} color="#666" />
+                          <Text style={styles.branchCity}>{branch.city}</Text>
+                        </View>
                         )}
                       </View>
                     </View>
@@ -173,21 +261,57 @@ export default function RestaurantProfileScreen() {
           </View>
         </View>
 
-        {/* Edit Profile Button */}
-        <TouchableOpacity 
-          activeOpacity={0.7}
-          style={styles.editButton} 
-          onPress={() => router.push(RestaurantRoute.editProfile)}
-        >
-          <Text style={styles.editButtonText}>Edit Profile</Text>
-        </TouchableOpacity>
+        {/* Edit/Save Profile Buttons */}
+        <View style={styles.buttonContainer}>
+          {isEditing ? (
+            <View style={styles.editButtonsContainer}>
+              <TouchableOpacity 
+                activeOpacity={0.7}
+                style={[styles.editButton, styles.cancelButton]} 
+                onPress={handleCancelEdit}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                activeOpacity={0.7}
+                style={styles.editButton} 
+                onPress={handleSaveProfile}
+              >
+                <Text style={styles.editButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              style={styles.editButton} 
+              onPress={handleEditProfile}
+            >
+              <Text style={styles.editButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={20} color="#B22222" />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <View style={styles.logoutButtonContainer}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
+            <Ionicons name="log-out-outline" size={20} color="#B22222" />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
+      
+      {/* Cuisine Picker Modal */}
+      <ModalPicker
+        visible={showCuisineModal}
+        onClose={() => setShowCuisineModal(false)}
+        title="Select Cuisine"
+        options={cuisineOptions}
+        onSelect={(value) => {
+          setEditedProfile({ ...editedProfile, cuisine: value });
+        }}
+        selectedValue={editedProfile.cuisine}
+      />
     </SafeAreaView>
   );
 }
@@ -204,58 +328,77 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
-    marginBottom: 20,
+    marginTop: 5,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
   profileCard: {
     backgroundColor: '#fff',
-    padding: 20,
     borderRadius: 10,
-    marginBottom: 20,
+    marginHorizontal: 20,
+    marginTop: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   userInfoSection: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 15,
+    marginBottom: 15,
   },
   profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    overflow: 'hidden',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
   profileImagePlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    overflow: 'hidden',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#B22222',
     justifyContent: 'center',
     alignItems: 'center',
   },
   userDetails: {
-    marginLeft: 20,
+    marginLeft: 15,
+    justifyContent: 'center',
   },
   greeting: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 5,
   },
   memberSince: {
     fontSize: 14,
     color: '#666',
+    marginTop: 2,
   },
   infoSection: {
+    marginBottom: 10,
   },
   infoItem: {
-    marginBottom: 10,
+    marginBottom: 15,
   },
   infoLabel: {
     fontSize: 14,
@@ -266,6 +409,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
+  textInput: {
+    height: 40,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    fontSize: 16,
+    color: '#333',
+  },
+  dropdownInput: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  dropdownPlaceholder: {
+    fontSize: 16,
+    color: '#666',
+  },
   cuisineContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -274,34 +439,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 10,
   },
   manageText: {
-    fontSize: 14,
     color: '#B22222',
+    fontSize: 14,
+    fontWeight: '600',
   },
   branchList: {
-    marginBottom: 0,
+    marginTop: 5,
   },
   branchItem: {
+    flexDirection: 'row',
     padding: 10,
-    backgroundColor: '#f8f8f8',
-    borderRadius: 10,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    marginBottom: 10,
   },
   branchDetails: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
+    flex: 1,
   },
   branchName: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#333',
     marginBottom: 5,
   },
   branchLocation: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: 3,
   },
   branchAddress: {
     fontSize: 14,
@@ -314,62 +481,66 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   emptyBranches: {
-    justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 15,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     marginBottom: 10,
   },
   addBranchButton: {
     backgroundColor: '#B22222',
-    padding: 10,
-    borderRadius: 10,
-    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 5,
   },
   addBranchText: {
-    fontSize: 14,
-    fontWeight: 'bold',
     color: '#fff',
+    fontWeight: '600',
+  },
+  buttonContainer: {
+    marginHorizontal: 20,
+    marginTop: 20,
+  },
+  editButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
   },
   editButton: {
     backgroundColor: '#B22222',
     borderRadius: 10,
     padding: 15,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 20,
+    marginHorizontal: 10,
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
   },
   editButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  logoutButtonContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 30,
+  },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 15,
-    marginBottom: 30,
   },
   logoutText: {
     color: '#B22222',
     fontSize: 16,
-    fontWeight: '500',
     marginLeft: 5,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
   },
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, SafeAreaView } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, SafeAreaView, TextInput, Image } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -10,11 +10,13 @@ import ModalPicker from '@/components/common/ModalPicker';
 import { BookingCard } from '@/components/restaurantScreen/BookingCard';
 import { StatCard } from '@/components/restaurantScreen/StatCard';
 import { ActivityItem } from '@/components/restaurantScreen/ActivityItem';
+import { Avatar } from '@/components/common/Avatar';
 
 // Stores and hooks
 import { useBranchStore } from '@/store/branch-store';
 import { useBookingStore } from '../../../store/booking-store';
 import { useAuth } from '../../../hooks/useAuth';
+import { useRestaurant } from '../../../hooks/useRestaurant';
 import { BranchListItem } from '../../../types/branch';
 import { BookingWithDetails } from '../../../types/booking';
 import { RestaurantRoute } from '../../../types/navigation';
@@ -39,9 +41,11 @@ export default function RestaurantDashboardScreen() {
     completed: 0,
     cancelled: 0
   });
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Get auth context
   const { user } = useAuth();
+  const { restaurant } = useRestaurant();
   
   // Get store hooks
   const { getRestaurantBranches, loading: branchesLoading } = useBranchStore();
@@ -131,8 +135,26 @@ export default function RestaurantDashboardScreen() {
             backgroundColor: '#B22222',
           },
           headerTintColor: '#fff',
+          headerShown: false, // Hide default header
         }} 
       />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.appTitle}>ehgezli</Text>
+          <Text style={styles.appSubtitle}>Manage your restaurant</Text>
+        </View>
+        
+        <TouchableOpacity onPress={() => router.push(RestaurantRoute.profile)}>
+          <View style={styles.profileAvatar}>
+            <Image 
+              source={{ uri: restaurant?.logo }} 
+              style={styles.profileImage} 
+            />
+          </View>
+        </TouchableOpacity>
+      </View>
       
       <ScrollView 
         style={styles.scrollView}
@@ -141,33 +163,20 @@ export default function RestaurantDashboardScreen() {
         }
       >
         {/* Branch Selector */}
-        <View style={styles.branchSelector}>
-          <Text style={styles.sectionTitle}>Select Branch:</Text>
-          <TouchableOpacity 
-            style={styles.branchDropdown}
-            onPress={() => setBranchPickerVisible(true)}
-          >
-            <Text style={styles.branchDropdownText}>
-              {selectedBranchId ? branches.find(b => b.branchId.toString() === selectedBranchId.toString())?.address || 'Select Branch' : 'Select Branch'}
-            </Text>
-            <Ionicons name="chevron-down" size={16} color="#fff" />
-          </TouchableOpacity>
-          
-          <ModalPicker 
-            visible={branchPickerVisible}
-            onClose={() => setBranchPickerVisible(false)}
-            title="Select a Branch"
-            options={branches.map(branch => ({ 
-              label: branch.address || branch.city || 'Branch', 
-              value: branch.branchId.toString() 
-            }))}
-            onSelect={(branchId) => {
-              handleBranchSelect(branchId);
-              setBranchPickerVisible(false);
-            }}
-            selectedValue={selectedBranchId?.toString()}
-          />
-        </View>
+        <ModalPicker 
+          visible={branchPickerVisible}
+          onClose={() => setBranchPickerVisible(false)}
+          title="Select a Branch"
+          options={branches.map(branch => ({ 
+            label: branch.address || branch.city || 'Branch', 
+            value: branch.branchId.toString() 
+          }))}
+          onSelect={(branchId) => {
+            handleBranchSelect(branchId);
+            setBranchPickerVisible(false);
+          }}
+          selectedValue={selectedBranchId?.toString()}
+        />
         
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
@@ -283,10 +292,69 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  branchSelector: {
+  header: {
+    backgroundColor: '#f5f5f5',
     padding: 15,
-    backgroundColor: '#fff',
     marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  appTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  appSubtitle: {
+    fontSize: 16,
+    color: '#666',
+  },
+  profileAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#B22222',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  profileInitial: {
+    fontSize: 18,
+    color: '#fff',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#f5f5f5',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    padding: 10,
+    borderRadius: 10,
+    flex: 1,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 16,
+    color: '#333',
+    padding: 10,
   },
   branchDropdown: {
     marginTop: 10,
@@ -297,6 +365,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginLeft: 10,
   },
   branchDropdownText: {
     fontSize: 16,

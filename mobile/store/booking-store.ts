@@ -2,21 +2,21 @@ import { create } from 'zustand';
 import { format } from 'date-fns';
 import { BookingWithDetails, Booking, CreateBookingData, UpdateBookingData } from '../types/booking';
 import {
-  getBookingById,
   getUserBookings,
+  getBookingById,
   createBooking,
   updateBooking,
   deleteBooking,
   getBookingsForBranch,
   getBookingsForBranchOnDate,
-  createGuestReservation,
   getBookingSettings,
   updateBookingSettings,
   getBookingOverrides,
   getBookingOverride,
   createBookingOverride,
   updateBookingOverride,
-  deleteBookingOverride
+  deleteBookingOverride,
+  createGuestReservation
 } from '../api/booking';
 import { BookingSettings, BookingOverride } from '../types/branch';
 import { CreateBookingOverrideData } from '../types/booking';
@@ -89,9 +89,44 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   fetchUserBookings: async () => {
     try {
       set({ loading: true, error: null });
-      const bookings = await getUserBookings();
-      set({ userBookings: bookings, loading: false });
-      return bookings;
+      const rawBookings = await getUserBookings();
+      
+      console.log('Raw API response count:', rawBookings.length);
+      if (rawBookings.length > 0) {
+        console.log('Raw API response sample:', JSON.stringify(rawBookings.slice(0, 1), null, 2));
+      }
+      
+      // Transform the API response to match the expected BookingWithDetails structure
+      const transformedBookings = rawBookings.map(booking => {
+        // Use type assertion to access properties not in the BookingWithDetails type
+        const rawBooking = booking as any;
+        
+        // Create the expected structure with values from the API
+        return {
+          ...booking,
+          // Use real timeSlot data from the API
+          timeSlot: {
+            date: rawBooking.date,
+            startTime: rawBooking.startTime,
+            endTime: rawBooking.endTime
+          },
+          // Add branch object with restaurant info from the API
+          branch: {
+            id: booking.branchId,
+            restaurantName: rawBooking.restaurantName,
+            address: rawBooking.branchAddress,
+            city: rawBooking.branchCity
+          }
+        };
+      });
+      
+      console.log('Transformed bookings count:', transformedBookings.length);
+      if (transformedBookings.length > 0) {
+        console.log('First transformed booking:', JSON.stringify(transformedBookings[0], null, 2));
+      }
+      
+      set({ userBookings: transformedBookings, loading: false });
+      return transformedBookings;
     } catch (error: any) {
       console.error('Error fetching user bookings:', error);
       set({ 

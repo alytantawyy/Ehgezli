@@ -22,7 +22,7 @@
 
 import { db } from "@server/db/db";
 import { eq, and } from "drizzle-orm";
-import { Booking, InsertBooking, bookings, timeSlots, bookingSettings, BookingSettings, InsertBookingSettings, bookingOverrides, InsertBookingOverride, BookingOverride, BookingStatus, restaurantBranches, restaurantUsers, ExtendedBooking, users } from "@server/db/schema"; 
+import { Booking, InsertBooking, bookings, timeSlots, bookingSettings, BookingSettings, InsertBookingSettings, bookingOverrides, InsertBookingOverride, BookingOverride, BookingStatus, restaurantBranches, restaurantUsers, ExtendedBooking, users, restaurantProfiles } from "@server/db/schema"; 
 
 // ==================== Booking Service ====================
 
@@ -189,6 +189,7 @@ export const getUserBookings = async (userId: number): Promise<BookingWithUser[]
         .innerJoin(timeSlots, eq(bookings.timeSlotId, timeSlots.id))
         .innerJoin(restaurantBranches, eq(timeSlots.branchId, restaurantBranches.id))
         .innerJoin(restaurantUsers, eq(restaurantBranches.restaurantId, restaurantUsers.id))
+        .innerJoin(restaurantProfiles, eq(restaurantUsers.id, restaurantProfiles.restaurantId))
         .leftJoin(users, eq(bookings.userId, users.id))
         .where(eq(bookings.userId, userId));
     
@@ -200,6 +201,9 @@ export const getUserBookings = async (userId: number): Promise<BookingWithUser[]
         id: row.booking.id,
         userId: row.booking.userId,
         timeSlotId: row.booking.timeSlotId,
+        startTime: row.timeSlot.startTime,
+        endTime: row.timeSlot.endTime,  
+        date: row.timeSlot.date,
         partySize: row.booking.partySize,
         status: row.booking.status,
         createdAt: row.booking.createdAt,
@@ -213,7 +217,10 @@ export const getUserBookings = async (userId: number): Promise<BookingWithUser[]
             lastName: row.user.lastName
         } : null,
         // Include restaurant information for the extended booking details
-        restaurantId: row.branch.restaurantId
+        restaurantId: row.branch.restaurantId,
+        branchAddress: row.branch.address,
+        branchCity: row.branch.city,
+        restaurantName: row.restaurant.name,
     }));
 };
 

@@ -84,7 +84,23 @@ export default function BookingsScreen() {
   };
 
   // Get filtered and sorted bookings
-  const filteredBookings = getFilteredAndSortedBookings(activeFilter, sortOrder);
+  const filteredBookings = userBookings ? getFilteredAndSortedBookings(activeFilter, sortOrder) : [];
+  
+  // Debug logs
+  console.log('User Bookings:', userBookings?.length || 0);
+  console.log('Filtered Bookings:', filteredBookings?.length || 0);
+  console.log('Active Filter:', activeFilter);
+  console.log('Sort Order:', sortOrder);
+  
+  if (userBookings && userBookings.length > 0) {
+    console.log('First booking:', JSON.stringify(userBookings[0], null, 2));
+    console.log('First booking timeSlot:', userBookings[0]?.timeSlot);
+    
+    // Check if any bookings pass the filter
+    const upcomingCount = userBookings.filter(b => b.timeSlot && new Date(b.timeSlot.date) >= new Date()).length;
+    const pastCount = userBookings.filter(b => b.timeSlot && new Date(b.timeSlot.date) < new Date()).length;
+    console.log(`Manual count - Upcoming: ${upcomingCount}, Past: ${pastCount}, Missing timeSlot: ${userBookings.length - upcomingCount - pastCount}`);
+  }
 
   // Render a booking item
   const renderBookingItem = ({ item }: { item: BookingWithDetails }) => {
@@ -96,19 +112,21 @@ export default function BookingsScreen() {
         onPress={() => router.push((UserRoute.bookingDetails(item.id.toString())) as any)}
       >
         <View style={styles.bookingHeader}>
-          <Text style={styles.restaurantName}>{item.branch.restaurantName}</Text>
+          <Text style={styles.restaurantName}>{item.branch?.restaurantName || 'Restaurant'}</Text>
           <StatusBadge status={item.status} />
         </View>
         
         <View style={styles.bookingDetails}>
           <DetailRow 
             icon="calendar" 
-            text={safeFormatDate(item.timeSlot.date, 'EEE, MMM d, yyyy')} 
+            text={item.timeSlot?.date ? safeFormatDate(item.timeSlot.date, 'EEE, MMM d, yyyy') : 'Date not available'} 
           />
           
           <DetailRow 
             icon="time" 
-            text={safeFormatTime(item.timeSlot.date, item.timeSlot.startTime, 'h:mm a')} 
+            text={item.timeSlot?.date && item.timeSlot?.startTime ? 
+              safeFormatTime(item.timeSlot.date, item.timeSlot.startTime, 'h:mm a') : 
+              'Time not available'} 
           />
           
           <DetailRow 
@@ -118,7 +136,7 @@ export default function BookingsScreen() {
           
           <DetailRow 
             icon="location" 
-            text={`${item.branch.address}, ${item.branch.city}`} 
+            text={item.branch ? `${item.branch.address || ''}, ${item.branch.city || ''}`.trim() : 'Location not available'} 
           />
         </View>
         
@@ -257,7 +275,7 @@ export default function BookingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
     padding: 16,
   },
   headerContainer: {
