@@ -156,6 +156,22 @@ export default function RestaurantDashboardScreen() {
         </TouchableOpacity>
       </View>
       
+      {/* Branch Selector Button */}
+      <TouchableOpacity 
+        style={styles.branchSelectorButton}
+        onPress={() => setBranchPickerVisible(true)}
+      >
+        <View style={styles.branchSelectorContent}>
+          <Text style={styles.branchSelectorLabel}>Selected Branch:</Text>
+          <Text style={styles.selectedBranchText}>
+            {selectedBranchId ? 
+              branches.find(b => b.branchId.toString() === selectedBranchId)?.address || 'Select Branch' : 
+              'Select Branch'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-down" size={20} color="#666" />
+      </TouchableOpacity>
+      
       <ScrollView 
         style={styles.scrollView}
         refreshControl={
@@ -244,30 +260,43 @@ export default function RestaurantDashboardScreen() {
           )}
         </View>
         
-        {/* Recent Activity */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <Text style={styles.sectionTitle}>Manage Branches</Text>
           </View>
           
-          <View style={styles.activityList}>
-            {/* These would be populated from an activity log API */}
-            <ActivityItem 
-              type="new_booking"
-              message="New booking from John Doe"
-              time="10 minutes ago"
-            />
-            <ActivityItem 
-              type="cancellation"
-              message="Booking #1234 was cancelled"
-              time="1 hour ago"
-            />
-            <ActivityItem 
-              type="completed"
-              message="Booking #1230 was marked as completed"
-              time="3 hours ago"
-            />
-          </View>
+          {branchesLoading ? (
+            <ActivityIndicator size="large" color="#B22222" style={styles.loader} />
+          ) : branches.length > 0 ? (
+            <View style={styles.branchList}>
+              {branches.map((branch) => (
+                <TouchableOpacity 
+                  key={branch.branchId} 
+                  style={styles.branchCard}
+                  onPress={() => router.push(`/restaurant/branch-details?id=${branch.branchId}`)}
+                >
+                  <View style={styles.branchInfo}>
+                    <Text style={styles.branchAddress}>{branch.address}</Text>
+                    <Text style={styles.branchCity}>{branch.city}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={24} color="#888" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="business-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyStateText}>No branches found</Text>
+            </View>
+          )}
+          
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => router.push('/restaurant/add-branch')}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#fff" />
+            <Text style={styles.addButtonText}>Add New Branch</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -440,5 +469,71 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     marginLeft: 5,
+  },
+  branchList: {
+    marginTop: 10,
+  },
+  branchCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  branchInfo: {
+    flex: 1,
+  },
+  branchAddress: {
+    fontSize: 16,
+    color: '#333',
+  },
+  branchCity: {
+    fontSize: 14,
+    color: '#666',
+  },
+  addButton: {
+    backgroundColor: '#B22222',
+    padding: 10,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginLeft: 5,
+  },
+  loader: {
+    marginVertical: 20,
+  },
+  branchSelectorButton: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 15,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  branchSelectorContent: {
+    flex: 1,
+  },
+  branchSelectorLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  selectedBranchText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: 'bold',
   },
 });

@@ -75,8 +75,13 @@ export default function BranchDetailsScreen() {
       fetchBranchById(branchId);
       
       // Parse the selectedDate string into a Date object and use it for fetching time slots
-      const dateObj = new Date(selectedDate);
-      changeDate(dateObj);
+      const dateObj = new Date(selectedDate + 'T00:00:00');
+      
+      // Log the selected date and time for debugging
+      console.log(`Branch details: Loading with date=${selectedDate}, time=${initialSelectedTime}`);
+      
+      // Fetch time slots for the selected date, passing the selected time to ensure it's included
+      fetchTimeSlots(dateObj, initialSelectedTime);
     }
   }, [branchId]);
   
@@ -388,7 +393,7 @@ export default function BranchDetailsScreen() {
               <Text style={styles.reservationLabel}>Date</Text>
               <View style={styles.dateDisplay}>
                 <Text style={styles.dateText}>
-                  {format(new Date(selectedDate), 'EEEE, d MMMM')}
+                  {format(new Date(selectedDate + 'T00:00:00'), 'EEEE, d MMMM')}
                 </Text>
               </View>
             </View>

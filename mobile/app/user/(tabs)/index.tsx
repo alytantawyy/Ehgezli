@@ -542,7 +542,7 @@ export default function HomeScreen() {
               pathname: '/user/branch-details',
               params: {
                 id: branchId.toString(),
-                selectedDate: format(date.toISOString().split('T')[0], 'yyyy-MM-dd'),
+                selectedDate: format(date, 'yyyy-MM-dd'),
                 selectedTime: time
               }
             })}
@@ -559,7 +559,7 @@ export default function HomeScreen() {
                     pathname: '/user/branch-details',
                     params: {
                       id: branchId.toString(),
-                      selectedDate: format(date.toISOString().split('T')[0], 'yyyy-MM-dd'),
+                      selectedDate: format(date, 'yyyy-MM-dd'),
                       selectedTime: time
                     }
                   })}

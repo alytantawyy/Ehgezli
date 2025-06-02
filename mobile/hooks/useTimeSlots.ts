@@ -17,7 +17,7 @@ export const useTimeSlots = (branchId: number) => {
   const { updateBranchTimeSlots } = useBranchStore();
   
   // Fetch time slots from the API
-  const fetchTimeSlots = async (date: Date = selectedDate) => {
+  const fetchTimeSlots = async (date: Date = selectedDate, selectedTimeParam?: string) => {
     setLoading(true);
     setError(null);
     
@@ -25,17 +25,31 @@ export const useTimeSlots = (branchId: number) => {
       // Format date for API
       const formattedDate = format(date, 'yyyy-MM-dd');
       
+      // Log the API call for debugging
+      console.log(`Fetching time slots for branch ${branchId} on ${formattedDate}`);
+      
       // Call the API to get availability data
       const response = await getBranchAvailability(branchId, formattedDate);
       
-      // Transform API response to TimeSlot array
-      const allSlots: TimeSlot[] = response.availableSlots.map(slot => ({
-        time: slot.time,
-        isFull: !slot.isAvailable
-      }));
+      // Transform API response to TimeSlot array - ONLY include available slots
+      const allSlots: TimeSlot[] = response.availableSlots
+        .filter(slot => slot.isAvailable) // Only include available slots
+        .map(slot => ({
+          time: slot.time,
+          isFull: false // These are all available since we filtered
+        }));
       
       // Filter out past time slots if the selected date is today
       const filteredSlots = filterPastTimeSlots(allSlots, date);
+      
+      // Log the available slots for debugging
+      console.log(`Available slots for branch ${branchId} on ${formattedDate}:`, 
+        filteredSlots.map(s => s.time).join(', ') || 'None');
+      
+      // Check if selected time is available
+      if (selectedTimeParam && !filteredSlots.some(slot => slot.time === selectedTimeParam)) {
+        console.log(`Selected time ${selectedTimeParam} is not available on ${formattedDate}`);
+      }
       
       // Update local state
       setTimeSlots(filteredSlots);

@@ -6,12 +6,16 @@ import {
   BranchFilter,
   BranchSearchResponse,
   BranchApiResponse,
-  TimeSlot} from '../types/branch';
+  TimeSlot,
+  CreateBranchData,
+  RestaurantBranch
+} from '../types/branch';
 import {
   getAllBranches,
   getBranchById,
   searchBranches,
   getBranchAvailability,
+  createBranch,
   BranchAvailabilityResponse
 } from '../api/branch';
 import { updateLocationPermission, getLocationPermissionStatus } from '../api/user';
@@ -90,6 +94,7 @@ interface BranchState {
   setHasRequestedLocationPermission: (value: boolean) => void;
   getRestaurantBranches: (restaurantId?: number) => Promise<BranchListItem[]>;
   getBranchAvailability: (branchId: number, date: string) => Promise<BranchAvailabilityResponse | null>;
+  createBranch: (branchData: CreateBranchData) => Promise<RestaurantBranch>;
 }
 
 export const useBranchStore = create<BranchState>((set, get) => ({
@@ -651,6 +656,52 @@ export const useBranchStore = create<BranchState>((set, get) => ({
     } catch (error) {
       console.error('Error fetching branch availability:', error);
       return null;
+    }
+  },
+  
+  // Create a new branch
+  createBranch: async (branchData: CreateBranchData) => {
+    try {
+      set({ loading: true, error: null });
+      
+      console.log('Creating new branch with data:', branchData);
+      
+      // Call the API to create the branch
+      const newBranch = await createBranch(branchData);
+      
+      // Update the branches list with the new branch
+      const { branches } = get();
+      
+      // Transform the new branch to match our BranchListItem format
+      const newBranchItem: BranchListItem = {
+        branchId: newBranch.id,
+        address: newBranch.address || '',
+        city: newBranch.city || '',
+        latitude: newBranch.latitude || 0,
+        longitude: newBranch.longitude || 0,
+        restaurantId: newBranch.restaurantId,
+        restaurantName: newBranch.restaurantName || '',
+        distance: null,
+        cuisine: '',
+        priceRange: '',
+        logo: ''
+      };
+      
+      // Add the new branch to our state
+      set({ 
+        branches: [...branches, newBranchItem],
+        loading: false 
+      });
+      
+      // Return the created branch
+      return newBranch;
+    } catch (error) {
+      console.error('Error creating branch:', error);
+      set({ 
+        error: 'Failed to create branch. Please try again.', 
+        loading: false 
+      });
+      throw error;
     }
   },
 }));

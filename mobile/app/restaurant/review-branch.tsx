@@ -4,8 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useRestaurant } from '@/hooks/useRestaurant';
-import { createBranch } from '@/api/branch';
 import { CreateBranchData, CreateBookingSettingsData } from '@/types/branch';
+import { useBranchStore } from '@/store/branch-store';
 
 /**
  * Review Branch Screen
@@ -14,6 +14,7 @@ import { CreateBranchData, CreateBookingSettingsData } from '@/types/branch';
  */
 export default function ReviewBranchScreen() {
   const { refreshRestaurantData } = useRestaurant();
+  const { createBranch } = useBranchStore();
   const params = useLocalSearchParams<{
     address: string;
     city: string;
@@ -28,11 +29,13 @@ export default function ReviewBranchScreen() {
   }>();
   
   const [loading, setLoading] = React.useState(false);
+  const [loadingMessage, setLoadingMessage] = React.useState('');
   
   // Handle form submission
   const handleSubmit = async () => {
     try {
       setLoading(true);
+      setLoadingMessage('Generating time slots...');
       
       // Prepare booking settings data
       const bookingSettings: CreateBookingSettingsData = {
@@ -53,7 +56,7 @@ export default function ReviewBranchScreen() {
         bookingSettings
       };
       
-      // Call API to create branch
+      // Call branch store to create branch
       await createBranch(branchData);
       
       // Refresh restaurant data to include the new branch
@@ -73,6 +76,7 @@ export default function ReviewBranchScreen() {
       );
     } finally {
       setLoading(false);
+      setLoadingMessage('');
     }
   };
 
@@ -169,7 +173,12 @@ export default function ReviewBranchScreen() {
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={{ color: '#fff', marginLeft: 8, fontWeight: '500' }}>
+                      Generating time slots...
+                    </Text>
+                  </View>
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
