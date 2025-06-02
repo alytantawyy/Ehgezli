@@ -37,7 +37,7 @@ import { UserRoute } from '@/types/navigation';
 
 // Constants
 import { CITY_OPTIONS, CUISINE_OPTIONS, PRICE_RANGE_OPTIONS } from '@/constants/FilterOptions';
-import { BranchCard } from '@/components/userScreen/BranchCard';
+import { BranchCard, BranchCardRefType } from '@/components/userScreen/BranchCard';
 import { BranchListItem } from '@/types/branch';
 import { AuthRoute } from '@/types/navigation';
 
@@ -125,8 +125,8 @@ export default function HomeScreen() {
   // Track if we've just mounted the component to avoid initial refresh
   const isInitialMount = useRef(true);
   
-  // Store references to branch cards
-  const branchCardsRef = useRef(new Map());
+  // Create a ref to store branch card references
+  const branchCardsRef = useRef<Map<number, BranchCardRefType>>(new Map());
   
   // Filter state
   const [cityFilter, setCityFilter] = useState('all');
@@ -150,6 +150,18 @@ export default function HomeScreen() {
     }
     return filteredBranches;
   }, [filteredBranches, showSavedOnly, user, isBranchSaved]);
+
+  // Effect to refresh time slots when date or time changes
+  useEffect(() => {
+    // Update time slots in all branch cards when date or time changes
+    branchCardsRef.current.forEach((cardRef) => {
+      if (cardRef && cardRef.refreshTimeSlots) {
+        cardRef.refreshTimeSlots(date, time);
+      }
+    });
+    
+    console.log(`DEBUG: Refreshing time slots for all branches with date=${format(date, 'yyyy-MM-dd')} and time=${time}`);
+  }, [date, time]);
 
   // Refresh time slots when date or time changes
   useEffect(() => {

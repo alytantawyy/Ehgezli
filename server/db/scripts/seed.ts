@@ -767,8 +767,12 @@ async function seed() {
               db.insert(bookings).values({
                 userId: user.id,
                 timeSlotId: randomTimeSlot.id,
+                branchId: branch.id,
+                restaurantId: branch.restaurantId,
                 partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                status: 'completed'
+                status: 'completed',
+                startTime: randomTimeSlot.startTime,
+                endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
               })
             );
           }
@@ -790,7 +794,8 @@ async function seed() {
             const randomTimeSlot = todayTimeSlots[Math.floor(Math.random() * todayTimeSlots.length)];
             bookingPromises.push(
               db.insert(bookings).values({
-                userId: user.id,
+                restaurantId: branch.restaurantId,
+                branchId: branch.id,
                 timeSlotId: randomTimeSlot.id,
                 partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
                 status: 'arrived'
@@ -826,8 +831,12 @@ async function seed() {
                   guestPhone: `+20${Math.floor(Math.random() * 1000000000)}`,
                   guestEmail: `guest${Math.floor(Math.random() * 1000)}@example.com`,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'confirmed'
+                  status: 'confirmed',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             } else {
@@ -836,8 +845,12 @@ async function seed() {
                 db.insert(bookings).values({
                   userId: user.id,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'confirmed'
+                  status: 'confirmed',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             }
@@ -870,8 +883,12 @@ async function seed() {
                   guestPhone: `+20${Math.floor(Math.random() * 1000000000)}`,
                   guestEmail: `futureguest${Math.floor(Math.random() * 1000)}@example.com`,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'confirmed'
+                  status: 'confirmed',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             } else {
@@ -880,8 +897,12 @@ async function seed() {
                 db.insert(bookings).values({
                   userId: user.id,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'confirmed'
+                  status: 'confirmed',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             }
@@ -910,8 +931,12 @@ async function seed() {
                   guestPhone: `+20${Math.floor(Math.random() * 1000000000)}`,
                   guestEmail: `cancelledguest${Math.floor(Math.random() * 1000)}@example.com`,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'cancelled'
+                  status: 'cancelled',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             } else {
@@ -920,8 +945,12 @@ async function seed() {
                 db.insert(bookings).values({
                   userId: user.id,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'cancelled'
+                  status: 'cancelled',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             }

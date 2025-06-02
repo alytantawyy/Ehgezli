@@ -24,7 +24,7 @@ export type BranchCardRefType = {
 export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
   ({ branch, onPress, isSaved = false, onToggleSave }, ref) => {
     // Use our custom hook
-    const { timeSlots, loading, fetchTimeSlots } = useTimeSlots(branch.branchId);
+    const { timeSlots, loading, fetchTimeSlots, getRelevantTimeSlots } = useTimeSlots(branch.branchId);
     
     // State to track the current selected date for this card
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -46,8 +46,10 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
       // Store the date and time for later use when navigating
       setCurrentDate(date);
       setCurrentTimeStr(time);
-      // Fetch time slots for this date
-      fetchTimeSlots(date);
+      // Fetch time slots for this date and pass the selected time
+      fetchTimeSlots(date, time);
+      
+      console.log(`🔍 DEBUG: Refreshing time slots for branch ${branch.branchId} with date=${format(date, 'yyyy-MM-dd')} and time=${time}`);
     };
     
     // Expose the refreshTimeSlots method via ref
@@ -140,7 +142,7 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
               {/* Distance (if available) */}
               {locationPermissionGranted && branch.distance !== null && 
                branch.distance !== undefined && 
-               typeof branch.distance === 'number' && 
+               typeof branch.distance === 'number' &&
                !isNaN(branch.distance) && (
                 <>
                   <Text style={styles.dot}>•</Text>
@@ -160,8 +162,8 @@ export const BranchCard = forwardRef<BranchCardRefType, BranchCardProps>(
             // Show loading indicator while fetching slots
             <ActivityIndicator size="small" color="#B22222" />
           ) : timeSlots.length > 0 ? (
-            // Show only the three closest available slots
-            timeSlots.slice(0, 3).map((time, index) => (
+            // Show the 3 most relevant time slots based on user's selected time
+            getRelevantTimeSlots(timeSlots, currentTimeStr).map((time, index) => (
               <TouchableOpacity 
                 key={index}
                 style={styles.timeSlot}

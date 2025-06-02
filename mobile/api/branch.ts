@@ -12,6 +12,7 @@ export interface BranchAvailabilityResponse {
     availableSeats: number;
     availableTables: number;
     isAvailable: boolean;
+    overlappingBookingsCount?: number; // Added for debugging overlapping bookings
   }[];
   hasAvailability: boolean;
 }
