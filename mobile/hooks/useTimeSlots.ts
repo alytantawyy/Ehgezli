@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format, parse, isAfter, isSameDay } from 'date-fns';
 import { TimeSlot } from '@/types/branch';
-import { getBranchAvailability } from '@/api/branch';
 import { useBranchStore } from '@/store/branch-store';
 
 /**
@@ -14,8 +13,8 @@ export const useTimeSlots = (branchId: number) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTimeForSlots, setSelectedTimeForSlots] = useState<string | null>(null);
   
-  // Get the updateBranchTimeSlots function from the branch store
-  const { updateBranchTimeSlots } = useBranchStore();
+  // Get the updateBranchTimeSlots and getBranchAvailability functions from the branch store
+  const { updateBranchTimeSlots, getBranchAvailability } = useBranchStore();
   
   // Filter out time slots that are in the past if the date is today
   const filterPastTimeSlots = (slots: TimeSlot[], date: Date) => {
@@ -63,8 +62,12 @@ export const useTimeSlots = (branchId: number) => {
       console.log(`Fetching time slots for branch ${branchId} on ${formattedDate}`);
       console.log(`ud83dudd0d DEBUG: Date=${formattedDate}, Time=${selectedTime}, Selected Time=${selectedTime}`);
       
-      // Call the API to get availability data
+      // Call the API to get availability data through the branch store
       const response = await getBranchAvailability(branchId, formattedDate);
+      
+      if (!response) {
+        throw new Error('Failed to fetch branch availability');
+      }
       
       // Transform API response to TimeSlot array - ONLY include available slots
       const allSlots: TimeSlot[] = response.availableSlots
@@ -199,14 +202,17 @@ export const useTimeSlots = (branchId: number) => {
       
       // If we found distributed slots, return them (up to 3)
       if (distributedSlots.length > 0) {
-        return distributedSlots.slice(0, 3);
+        // Sort by time before returning
+        return distributedSlots.slice(0, 3).sort((a, b) => {
+          const [aHours, aMinutes] = a.time.split(':').map(Number);
+          const [bHours, bMinutes] = b.time.split(':').map(Number);
+          return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
+        });
       }
       
       // Fallback to first 3 slots if we couldn't find distributed slots
       return allSlots.slice(0, 3);
     }
-
-    console.log(`Finding relevant time slots around target time: ${effectiveTargetTime}`);
 
     // Convert target time to minutes since midnight for easier comparison
     const [targetHours, targetMinutes] = effectiveTargetTime.split(':').map(Number);
@@ -223,8 +229,15 @@ export const useTimeSlots = (branchId: number) => {
     // Sort by distance from target time
     slotsWithDistance.sort((a, b) => a.distance - b.distance);
 
-    // Return the 3 closest slots
-    return slotsWithDistance.slice(0, 3);
+    // Get the 3 closest slots
+    const closestSlots = slotsWithDistance.slice(0, 3);
+    
+    // Re-sort them chronologically before returning
+    return closestSlots.sort((a, b) => {
+      const [aHours, aMinutes] = a.time.split(':').map(Number);
+      const [bHours, bMinutes] = b.time.split(':').map(Number);
+      return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
+    });
   };
 
   // Change the selected date and fetch new time slots

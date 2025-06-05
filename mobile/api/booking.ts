@@ -11,10 +11,12 @@ import { BookingSettings, BookingOverride, CreateBookingOverrideData } from '../
 // Create a new booking
 export const createBooking = async (bookingData: CreateBookingData): Promise<Booking> => {
   try {
+    console.log(`🔍 DEBUG: Sending booking data to server:`, JSON.stringify(bookingData));
     const { data } = await apiClient.post<Booking>('/booking', bookingData);
+    console.log(`✅ DEBUG: Server response for booking creation:`, JSON.stringify(data));
     return data;
   } catch (error: any) {
-    console.error('Error creating booking:', error.response?.data || error.message);
+    console.error('❌ ERROR in createBooking base function:', error.response?.data || error.message);
     throw error;
   }
 };
@@ -189,8 +191,18 @@ export const createBookingWithTimeInfo = async (
   specialRequests?: string
 ): Promise<Booking> => {
   try {
+    console.log(`🔍 DEBUG: Starting createBookingWithTimeInfo - Branch: ${branchId}, Date: ${date}, Time: ${time}`);
+    
+    // Log local timezone information for debugging
+    const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const tzOffset = new Date().getTimezoneOffset() / -60;
+    const offsetStr = tzOffset >= 0 ? `UTC+${tzOffset}` : `UTC${tzOffset}`;
+    console.log(`🔍 DEBUG: Local timezone: ${localTZ} (${offsetStr})`);
+    
     // First, get the time slot ID from the branch availability
+    console.log(`🔍 DEBUG: Fetching availability data from /branch/${branchId}/availability/${date}`);
     const { data: availabilityData } = await apiClient.get<any>(`/branch/${branchId}/availability/${date}`);
+    console.log(`🔍 DEBUG: Received availability data with ${availabilityData?.availableSlots?.length || 0} slots`);
     
     // Find the time slot that matches our selected time
     const selectedTimeSlot = availabilityData.availableSlots.find(
@@ -198,20 +210,51 @@ export const createBookingWithTimeInfo = async (
     );
     
     if (!selectedTimeSlot || !selectedTimeSlot.id) {
+      console.error(`❌ ERROR: Could not find time slot for ${time} on ${date}`);
       throw new Error(`Could not find time slot for ${time} on ${date}`);
     }
+    console.log(`🔍 DEBUG: Found matching time slot with ID: ${selectedTimeSlot.id}`);
     
-    // Create the booking with the time slot ID
+    // Get branch details to extract the restaurant ID
+    console.log(`🔍 DEBUG: Fetching branch details from /branch/${branchId}`);
+    const { data: branchDetails } = await apiClient.get<any>(`/branch/${branchId}`);
+    console.log(`🔍 DEBUG: Received branch details:`, JSON.stringify(branchDetails));
+    
+    // The API returns an array, so we need to get the first item
+    if (!branchDetails || !branchDetails[0] || !branchDetails[0].restaurantId) {
+      console.error(`❌ ERROR: Could not find restaurant ID for branch ${branchId}`, branchDetails);
+      throw new Error(`Could not find restaurant ID for branch ${branchId}`);
+    }
+    
+    const restaurantId = branchDetails[0].restaurantId;
+    console.log(`🔍 DEBUG: Found restaurant ID: ${restaurantId} for branch: ${branchId}`);
+    
+    // Create the booking with the time slot ID, branch ID, and restaurant ID
     const bookingData: CreateBookingData = {
       timeSlotId: selectedTimeSlot.id,
       partySize,
-      specialRequests
+      specialRequests,
+      branchId,
+      restaurantId
     };
     
+    console.log(`🔍 DEBUG: Creating booking with data:`, JSON.stringify(bookingData));
+    
     // Call the existing createBooking function
-    return await createBooking(bookingData);
+    const result = await createBooking(bookingData);
+    console.log(`✅ DEBUG: Successfully created booking with ID: ${result.id}`);
+    
+    // Log the time conversion for clarity
+    if (result.startTime && result.endTime) {
+      const localStartTime = new Date(result.startTime).toLocaleString();
+      const localEndTime = new Date(result.endTime).toLocaleString();
+      console.log(`🔍 DEBUG: Booking time in UTC: ${result.startTime} to ${result.endTime}`);
+      console.log(`🔍 DEBUG: Booking time in local timezone: ${localStartTime} to ${localEndTime}`);
+    }
+    
+    return result;
   } catch (error: any) {
-    console.error('Error creating booking with time info:', error.response?.data || error.message);
+    console.error('❌ ERROR creating booking with time info:', error.response?.data || error.message);
     throw error;
   }
 };

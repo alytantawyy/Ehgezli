@@ -649,9 +649,9 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   },
   
   // Get branch availability
-  getBranchAvailability: async (branchId: number) => {
+  getBranchAvailability: async (branchId: number, date: string) => {
     try {
-      const data = await getBranchAvailability(branchId, format(new Date(), 'yyyy-MM-dd'));
+      const data = await getBranchAvailability(branchId, date);
       return data;
     } catch (error) {
       console.error('Error fetching branch availability:', error);

@@ -94,6 +94,7 @@ export const getBranchById = async (branchId: number): Promise<any | undefined> 
         longitude: restaurantBranches.longitude,
       
         // Restaurant user fields
+        restaurantId: restaurantUsers.id,
         restaurantName: restaurantUsers.name,
         
         // Restaurant profile fields
