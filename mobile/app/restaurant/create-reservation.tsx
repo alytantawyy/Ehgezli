@@ -30,8 +30,10 @@ export default function CreateReservationScreen() {
   const [loading, setLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showTimeSlotPicker, setShowTimeSlotPicker] = useState(false);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<any[]>([]);
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<number | null>(null);
+  const [timeSlotsLoading, setTimeSlotsLoading] = useState(false);
   
   // Get store hooks
   const { getRestaurantBranches, getBranchAvailability } = useBranchStore();
@@ -106,16 +108,38 @@ export default function CreateReservationScreen() {
       // Convert selectedBranchId from string to number
       const branchId = parseInt(selectedBranchId);
       
+      setTimeSlotsLoading(true);
       const timeSlotsData = await getBranchAvailability(branchId, formattedDate);
       if (timeSlotsData) {
         setAvailableTimeSlots(timeSlotsData.availableSlots || []);
       } else {
         setAvailableTimeSlots([]);
       }
+      setTimeSlotsLoading(false);
     } catch (error) {
       console.error('Error fetching time slots:', error);
       setAvailableTimeSlots([]); // Add error handling to set empty time slots
+      setTimeSlotsLoading(false);
     }
+  };
+  
+  // Helper function to format time with AM/PM
+  const formatTimeWithAMPM = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const formattedHours = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+    return `${formattedHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
+  
+  // Handle time slot selection
+  const handleTimeSlotSelect = (slotId: number, slotTime: string) => {
+    setSelectedTimeSlotId(slotId);
+    
+    // Update the time state with the selected time slot
+    const [hours, minutes] = slotTime.split(':').map(Number);
+    const newTime = new Date(time);
+    newTime.setHours(hours, minutes, 0, 0);
+    setTime(newTime);
   };
   
   // Handle form submission

@@ -12,6 +12,7 @@ import {
 import ModalPicker from '../common/ModalPicker';
 import * as ImagePicker from 'expo-image-picker';
 import { EhgezliButton } from '../common/EhgezliButton';
+import { CUISINE_OPTIONS } from '@/constants/FilterOptions';
 
 interface RestaurantRegisterFormProps {
   onSuccess?: () => void;
@@ -241,21 +242,7 @@ const RestaurantRegisterForm: React.FC<RestaurantRegisterFormProps> = ({
           onClose={() => setShowCuisineDropdown && setShowCuisineDropdown(false)}
           title="Select Cuisine"
           options={[
-            { label: 'Italian', value: 'Italian' },
-            { label: 'Chinese', value: 'Chinese' },
-            { label: 'Japanese', value: 'Japanese' },
-            { label: 'Mexican', value: 'Mexican' },
-            { label: 'Indian', value: 'Indian' },
-            { label: 'Thai', value: 'Thai' },
-            { label: 'Mediterranean', value: 'Mediterranean' },
-            { label: 'American', value: 'American' },
-            { label: 'Middle Eastern', value: 'Middle Eastern' },
-            { label: 'Seafood', value: 'Seafood' },
-            { label: 'Vegetarian', value: 'Vegetarian' },
-            { label: 'Steakhouse', value: 'Steakhouse' },
-            { label: 'Fast Food', value: 'Fast Food' },
-            { label: 'Bakery', value: 'Bakery' },
-            { label: 'Other', value: 'Other' }
+           ...CUISINE_OPTIONS.map((cuisine) => ({ label: cuisine, value: cuisine })),
           ]}
           selectedValue={restaurantCuisine}
           onSelect={(value) => setRestaurantCuisine && setRestaurantCuisine(value)}
