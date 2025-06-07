@@ -26,6 +26,9 @@ export default function ReviewBranchScreen() {
     maxTables: string;
     formattedOpenTime: string;
     formattedCloseTime: string;
+    latitude: string;
+    longitude: string;
+    hasValidCoordinates: string;
   }>();
   
   const [loading, setLoading] = React.useState(false);
@@ -46,13 +49,19 @@ export default function ReviewBranchScreen() {
         maxTablesPerSlot: Number(params.maxTables)
       };
       
+      // Parse coordinates from params
+      const latitude = parseFloat(params.latitude || '0');
+      const longitude = parseFloat(params.longitude || '0');
+      
+      console.log('📍 Creating branch with coordinates:', { latitude, longitude });
+      
       // Prepare branch data
       const branchData: CreateBranchData = {
         address: params.address,
         city: params.city,
         phone: params.phone || undefined,
-        latitude: 0, // These would be set by geocoding in a real implementation
-        longitude: 0,
+        latitude,
+        longitude,
         bookingSettings
       };
       

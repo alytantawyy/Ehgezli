@@ -31,6 +31,8 @@ export type BookingWithUser = Booking & {
   user?: { 
     firstName: string; 
     lastName: string;
+    phone?: string;
+    email?: string;
   } | null;
   restaurantId?: number;
 };
@@ -71,7 +73,9 @@ export const getBookingsForBranch = async (branchId: number): Promise<BookingWit
     // Include user information if available
     user: row.user ? {
       firstName: row.user.firstName,
-      lastName: row.user.lastName
+      lastName: row.user.lastName,
+      phone: row.user.phone,
+      email: row.user.email
     } : null
   }));
 };
@@ -116,7 +120,9 @@ export const getBookingsForBranchOnDate = async (branchId: number, date: Date): 
     guestEmail: row.booking.guestEmail,
     user: row.user ? {
       firstName: row.user.firstName,
-      lastName: row.user.lastName
+      lastName: row.user.lastName,
+      phone: row.user.phone,
+      email: row.user.email
     } : null
   }));
 };
@@ -147,7 +153,9 @@ export const getBookingById = async (bookingId: number): Promise<BookingWithUser
     restaurantId: result[0].restaurantId,
     user: result[0].user ? {
       firstName: result[0].user.firstName,
-      lastName: result[0].user.lastName
+      lastName: result[0].user.lastName,
+      phone: result[0].user.phone,
+      email: result[0].user.email
     } : null
   };
 };
@@ -177,7 +185,9 @@ export const getBookingByIdAndUserId = async (bookingId: number, userId: number)
     ...result[0].booking,
     user: result[0].user ? {
       firstName: result[0].user.firstName,
-      lastName: result[0].user.lastName
+      lastName: result[0].user.lastName,
+      phone: result[0].user.phone,
+      email: result[0].user.email
     } : null
   };
 };
@@ -223,7 +233,9 @@ export const getUserBookings = async (userId: number): Promise<BookingWithUser[]
         // Include user information
         user: row.user ? {
             firstName: row.user.firstName,
-            lastName: row.user.lastName
+            lastName: row.user.lastName,
+            phone: row.user.phone,
+            email: row.user.email
         } : null,
         // Include restaurant information for the extended booking details
         restaurantId: row.branch.restaurantId,

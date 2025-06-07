@@ -9,8 +9,7 @@ import ModalPicker from '@/components/common/ModalPicker';
 // Components
 import { BookingCard } from '@/components/restaurantScreen/BookingCard';
 import { StatCard } from '@/components/restaurantScreen/StatCard';
-import { ActivityItem } from '@/components/restaurantScreen/ActivityItem';
-import { Avatar } from '@/components/common/Avatar';
+
 
 // Stores and hooks
 import { useBranchStore } from '@/store/branch-store';
@@ -42,6 +41,7 @@ export default function RestaurantDashboardScreen() {
     cancelled: 0
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // Get auth context
   const { user } = useAuth();
@@ -54,7 +54,7 @@ export default function RestaurantDashboardScreen() {
   // Load initial data
   useEffect(() => {
     loadData();
-  }, []);
+  }, [refreshTrigger]);
   
   // Load all necessary data
   const loadData = async () => {
@@ -90,6 +90,13 @@ export default function RestaurantDashboardScreen() {
       
       // Load bookings for the selected branch
       const bookingsData = await getBookingsForBranchOnDate(parseInt(branchId), today);
+      
+      // Debug: Log the first booking to see its structure
+      if (bookingsData.length > 0) {
+        console.log('First booking data structure:', JSON.stringify(bookingsData[0], null, 2));
+        console.log('User object in first booking:', bookingsData[0].user);
+      }
+      
       setTodayBookings(bookingsData);
       
       // Calculate stats
@@ -254,7 +261,15 @@ export default function RestaurantDashboardScreen() {
           ) : (
             <View style={styles.bookingsList}>
               {todayBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
+                <BookingCard 
+                  key={booking.id} 
+                  booking={booking} 
+                  onStatusChange={() => {
+                    console.log('⚡️ Status change detected, refreshing bookings...');
+                    // Force a refresh by incrementing the refresh trigger
+                    setRefreshTrigger(prev => prev + 1);
+                  }}
+                />
               ))}
             </View>
           )}

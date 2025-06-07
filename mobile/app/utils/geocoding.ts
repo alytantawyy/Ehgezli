@@ -5,10 +5,6 @@
  * and vice versa using third-party geocoding services.
  */
 
-// Note: In a production app, you would need to add your API key to the .env file
-// and import it using the dotenv package
-// const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-
 /**
  * Geocode an address to get latitude and longitude
  * 
@@ -25,43 +21,80 @@ export const geocodeAddress = async (
   city: string
 ): Promise<{ latitude: number; longitude: number } | null> => {
   try {
+    console.log('🔍 Geocoding request for:', { address, city });
+    
     // Combine address and city for better results
     const searchQuery = `${address}, ${city} Governorate, Egypt`;
+    console.log('🔍 Search query:', searchQuery);
     
     // URL encode the search query
     const encodedQuery = encodeURIComponent(searchQuery);
     
     // Using OpenStreetMap Nominatim API (free, no API key required for low usage)
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodedQuery}&format=json&limit=1`;
+    console.log('🔍 Request URL:', url);
+    
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodedQuery}&format=json&limit=1`,
+      url,
       {
         headers: {
           // Adding a user agent is required by Nominatim's usage policy
-          'User-Agent': 'Ehgezli-Restaurant-App',
+          'User-Agent': 'Ehgezli-Restaurant-App/1.0',
+          'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8', // Add Arabic as fallback
         },
       }
     );
 
+    console.log('🔍 Response status:', response.status);
+
     if (!response.ok) {
+      console.error('❌ Geocoding API error:', response.status, response.statusText);
       throw new Error(`Geocoding failed with status: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log('🔍 Raw API response:', JSON.stringify(data));
 
     // Check if we got any results
     if (data && data.length > 0) {
       const result = data[0];
+      console.log('✅ Found location:', result);
+      
+      // Validate the coordinates
+      const lat = parseFloat(result.lat);
+      const lon = parseFloat(result.lon);
+      
+      console.log('📍 Parsed coordinates:', { lat, lon });
+      
+      // Check for invalid coordinates (0,0 is in the Gulf of Guinea, unlikely to be a valid result)
+      if (isNaN(lat) || isNaN(lon)) {
+        console.error('❌ Invalid coordinates (NaN)');
+        return null;
+      }
+      
+      if (Math.abs(lat) < 0.0001 && Math.abs(lon) < 0.0001) {
+        console.error('❌ Suspicious coordinates near (0,0)');
+        return null;
+      }
+      
+      // Egypt's approximate bounding box
+      const isInEgypt = lat >= 22.0 && lat <= 31.5 && lon >= 25.0 && lon <= 36.0;
+      if (!isInEgypt) {
+        console.warn('⚠️ Coordinates outside Egypt:', { lat, lon });
+        // Still return the coordinates, but log the warning
+      }
+      
       return {
-        latitude: parseFloat(result.lat),
-        longitude: parseFloat(result.lon),
+        latitude: lat,
+        longitude: lon,
       };
     }
     
     // No results found
-    console.warn('No geocoding results found for address:', searchQuery);
+    console.warn('❌ No geocoding results found for address:', searchQuery);
     return null;
   } catch (error) {
-    console.error('Error geocoding address:', error);
+    console.error('❌ Error geocoding address:', error);
     return null;
   }
 };

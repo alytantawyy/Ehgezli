@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { format } from 'date-fns';
-import { BookingWithDetails, Booking, CreateBookingData, UpdateBookingData } from '../types/booking';
+import { BookingWithDetails, Booking, CreateBookingData, UpdateBookingData, BookingStatus } from '../types/booking';
 import {
   getUserBookings,
   getBookingById,
@@ -16,7 +16,8 @@ import {
   createBookingOverride,
   updateBookingOverride,
   deleteBookingOverride,
-  createGuestReservation
+  createGuestReservation,
+  changeBookingStatus
 } from '../api/booking';
 import { BookingSettings, BookingOverride } from '../types/branch';
 import { CreateBookingOverrideData } from '../types/booking';
@@ -39,6 +40,7 @@ interface BookingState {
   createNewBooking: (bookingData: CreateBookingData) => Promise<Booking | null>;
   updateExistingBooking: (id: number, bookingData: UpdateBookingData) => Promise<Booking | null>;
   cancelBooking: (id: number) => Promise<boolean>;
+  changeBookingStatus: (id: number, status: BookingStatus) => Promise<Booking | null>;
   getBookingsForBranch: (branchId: number) => Promise<BookingWithDetails[]>;
   getBookingsForBranchOnDate: (branchId: number, date: string | Date) => Promise<BookingWithDetails[]>;
   createReservationForCustomer: (reservationData: {
@@ -208,6 +210,36 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         loading: false 
       });
       return false;
+    }
+  },
+  
+  // Change booking status
+  changeBookingStatus: async (id: number, status: BookingStatus) => {
+    try {
+      set({ loading: true, error: null });
+      const updatedBooking = await changeBookingStatus(id, status);
+      
+      // Refresh bookings to reflect the status change
+      if (updatedBooking) {
+        // If we're viewing a specific branch's bookings, refresh those
+        const { selectedBooking } = get();
+        if (selectedBooking && selectedBooking.branchId) {
+          await get().getBookingsForBranchOnDate(selectedBooking.branchId, new Date());
+        } else {
+          // Otherwise refresh user bookings
+          await get().fetchUserBookings();
+        }
+      }
+      
+      set({ loading: false });
+      return updatedBooking;
+    } catch (error: any) {
+      console.error(`Error changing booking status ${id}:`, error);
+      set({ 
+        error: error.message || 'Failed to change booking status', 
+        loading: false 
+      });
+      return null;
     }
   },
   

@@ -37,7 +37,7 @@ export default function BranchDetailsScreen() {
   
   // Get branch data from custom hook
   const { 
-    selectedBranch, 
+    selectedBranch: branchDetails, 
     loading: branchLoading, 
     error: branchError, 
     fetchBranchById,
@@ -67,7 +67,7 @@ export default function BranchDetailsScreen() {
   const [bookingError, setBookingError] = useState<string | null>(null);
   
   // Check if this branch is saved
-  const isSaved = selectedBranch ? isBranchSaved(selectedBranch.branchId) : false;
+  const isSaved = branchDetails ? isBranchSaved(branchDetails.branchId) : false;
   
   // Fetch branch details and time slots on mount
   useEffect(() => {
@@ -105,8 +105,8 @@ export default function BranchDetailsScreen() {
   
   // Handle save/unsave branch
   const handleToggleSave = () => {
-    if (selectedBranch) {
-      toggleSavedBranch(selectedBranch.branchId);
+    if (branchDetails) {
+      toggleSavedBranch(branchDetails.branchId);
     }
   };
   
@@ -179,7 +179,25 @@ export default function BranchDetailsScreen() {
         },
         {
           text: 'OK',
-          onPress: () => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`),
+          onPress: () => {
+            // Use Apple Maps on iOS, Google Maps on Android
+            const scheme = Platform.OS === 'ios' ? 'maps:' : 'geo:';
+            const latLng = `${latitude},${longitude}`;
+            const label = branchDetails?.address || 'Restaurant Location';
+            
+            const url = Platform.OS === 'ios' 
+              ? `${scheme}?q=${label}&ll=${latLng}`
+              : `${scheme}${latLng}?q=${encodeURIComponent(label)}`;
+            
+            Linking.canOpenURL(url).then(supported => {
+              if (supported) {
+                Linking.openURL(url);
+              } else {
+                // Fallback to Google Maps web URL if native maps app doesn't work
+                Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latLng}`);
+              }
+            });
+          },
         },
       ],
     );
@@ -196,7 +214,7 @@ export default function BranchDetailsScreen() {
   }
   
   // Render error state
-  if (branchError || !selectedBranch) {
+  if (branchError || !branchDetails) {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="alert-circle-outline" size={48} color="#B22222" />
@@ -209,20 +227,20 @@ export default function BranchDetailsScreen() {
   }
   
   // Log the selected branch data to help debug
-  console.log('Selected branch in component:', selectedBranch);
+  console.log('Selected branch in component:', branchDetails);
   
   // Check if we have valid coordinates for the map
   const hasValidCoordinates = 
-    selectedBranch.latitude !== undefined && 
-    selectedBranch.longitude !== undefined &&
-    !isNaN(parseFloat(String(selectedBranch.latitude))) && 
-    !isNaN(parseFloat(String(selectedBranch.longitude))) &&
-    parseFloat(String(selectedBranch.latitude)) !== 0 &&
-    parseFloat(String(selectedBranch.longitude)) !== 0;
+    branchDetails.latitude !== undefined && 
+    branchDetails.longitude !== undefined &&
+    !isNaN(parseFloat(String(branchDetails.latitude))) && 
+    !isNaN(parseFloat(String(branchDetails.longitude))) &&
+    parseFloat(String(branchDetails.latitude)) !== 0 &&
+    parseFloat(String(branchDetails.longitude)) !== 0;
     
   // Parse coordinates to ensure they're valid numbers
-  const latitude = hasValidCoordinates ? parseFloat(String(selectedBranch.latitude)) : 0;
-  const longitude = hasValidCoordinates ? parseFloat(String(selectedBranch.longitude)) : 0;
+  const latitude = hasValidCoordinates ? parseFloat(String(branchDetails.latitude)) : 0;
+  const longitude = hasValidCoordinates ? parseFloat(String(branchDetails.longitude)) : 0;
   
   return (
     <>
@@ -248,9 +266,9 @@ export default function BranchDetailsScreen() {
           {/* Restaurant Header Section */}
           <View style={styles.headerSection}>
             <View style={styles.headerLeft}>
-              {selectedBranch.logo ? (
+              {branchDetails.logo ? (
                 <Image 
-                  source={{ uri: selectedBranch.logo }} 
+                  source={{ uri: branchDetails.logo }} 
                   style={styles.logo} 
                   resizeMode="cover"
                   onError={() => console.log('Error loading logo')}
@@ -258,33 +276,33 @@ export default function BranchDetailsScreen() {
               ) : (
                 <View style={[styles.logo, styles.placeholderLogo]}>
                   <Text style={styles.placeholderLogoText}>
-                    {selectedBranch.restaurantName?.substring(0, 1).toUpperCase() || "R"}
+                    {branchDetails.restaurantName?.substring(0, 1).toUpperCase() || "R"}
                   </Text>
                 </View>
               )}
               
               <View style={styles.headerContent}>
                 <Text style={styles.restaurantName} numberOfLines={2}>
-                  {selectedBranch.restaurantName || "Restaurant"}
+                  {branchDetails.restaurantName || "Restaurant"}
                 </Text>
                 
                 <View style={styles.addressRow}>
                   <Ionicons name="location-outline" size={16} color="#666" />
                   <Text style={styles.address} numberOfLines={2}>
-                    {selectedBranch.address || "Address not available"}
-                    {selectedBranch.city ? `, ${selectedBranch.city}` : ""}
+                    {branchDetails.address || "Address not available"}
+                    {branchDetails.city ? `, ${branchDetails.city}` : ""}
                   </Text>
                 </View>
                 
                 <View style={styles.infoRow}>
-                  {selectedBranch.cuisine && (
+                  {branchDetails.cuisine && (
                     <>
-                      <Text style={styles.infoText}>{selectedBranch.cuisine}</Text>
-                      {selectedBranch.priceRange && <Text style={styles.dot}>•</Text>}
+                      <Text style={styles.infoText}>{branchDetails.cuisine}</Text>
+                      {branchDetails.priceRange && <Text style={styles.dot}>•</Text>}
                     </>
                   )}
-                  {selectedBranch.priceRange && (
-                    <Text style={styles.infoText}>{selectedBranch.priceRange}</Text>
+                  {branchDetails.priceRange && (
+                    <Text style={styles.infoText}>{branchDetails.priceRange}</Text>
                   )}
                 </View>
               </View>
@@ -336,8 +354,8 @@ export default function BranchDetailsScreen() {
                           latitude,
                           longitude,
                         }}
-                        title={selectedBranch.restaurantName || "Restaurant"}
-                        description={selectedBranch.address || ""}
+                        title={branchDetails.restaurantName || "Restaurant"}
+                        description={branchDetails.address || ""}
                         pinColor="#B22222"
                         onPress={openMapsWithConfirmation}
                       />
@@ -352,7 +370,7 @@ export default function BranchDetailsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>About</Text>
             <Text style={styles.aboutText}>
-              {selectedBranch.about || 'No information available.'}
+              {branchDetails.about || 'No information available.'}
             </Text>
           </View>
           
@@ -360,7 +378,7 @@ export default function BranchDetailsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Description</Text>
             <Text style={styles.descriptionText}>
-              {selectedBranch.description || 'No description available.'}
+              {branchDetails.description || 'No description available.'}
             </Text>
           </View>
           
@@ -371,14 +389,14 @@ export default function BranchDetailsScreen() {
               <View style={styles.locationItem}>
                 <Ionicons name="location" size={20} color="#B22222" />
                 <Text style={styles.locationText}>
-                  {selectedBranch.address || 'Address not available'}
+                  {branchDetails.address || 'Address not available'}
                 </Text>
               </View>
               
               <View style={styles.locationItem}>
                 <Ionicons name="business" size={20} color="#B22222" />
                 <Text style={styles.locationText}>
-                  {selectedBranch.city || 'City not available'}
+                  {branchDetails.city || 'City not available'}
                 </Text>
               </View>
             </View>

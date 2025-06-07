@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import TimePickerModal from '@/components/common/TimePickerModal';
 import ModalPicker from '@/components/common/ModalPicker';
 import { CITY_OPTIONS } from '@/constants/FilterOptions';
-import { geocodeAddress } from '@/utils/geocoding';
+import { geocodeAddress } from '../utils/geocoding';
 
 /**
  * Add Branch Screen
