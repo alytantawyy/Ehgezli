@@ -13,14 +13,37 @@ export interface Booking {
   userId: number;
   timeSlotId: number;
   branchId: number;
+  restaurantId: number;
   partySize: number;
-  guestName?: string;
-  guestEmail?: string;
-  guestPhone?: string;
-  specialRequests?: string;
+  guestName?: string | null;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
+  specialRequests?: string | null;
   status: BookingStatus;
+  startTime: string;
+  endTime: string;
+  date: string;
   createdAt: string;
   updatedAt: string;
+  // Optional fields that might be included in responses
+  restaurantName?: string;
+  branchAddress?: string;
+  branchCity?: string;
+  user?: {
+    firstName: string;
+    lastName: string;
+  } | null;
+  timeSlot?: {
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null;
+  branch?: {
+    id: number;
+    restaurantName: string;
+    address: string;
+    city: string;
+  } | null;
 }
 
 // Time slot information
@@ -98,6 +121,10 @@ export interface BookingWithCustomer extends Booking {
   };
   branch: {
     name: string;
+    id: number;
+    restaurantName: string;
+    address: string;
+    city: string;
   };
   user: {
     firstName: string;
@@ -112,6 +139,8 @@ export interface BookingWithCustomer extends Booking {
 export interface CreateBookingData {
   timeSlotId: number;
   partySize: number;
+  branchId?: number;
+  restaurantId?: number;
   guestName?: string;
   guestPhone?: string;
   guestEmail?: string;

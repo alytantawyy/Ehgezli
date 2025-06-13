@@ -61,4 +61,31 @@ export const modalStyles = StyleSheet.create({
     fontSize: 16,
     color: 'white',
   },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  noDataContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+  },
+  noDataText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  disabledOption: {
+    opacity: 0.5,
+  },
+  disabledOptionText: {
+    color: '#ccc',
+  },
 });

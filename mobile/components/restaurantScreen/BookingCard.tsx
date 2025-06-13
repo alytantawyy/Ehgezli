@@ -1,12 +1,15 @@
-import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { router } from 'expo-router';
+import { useBookingStore } from '@/store/booking-store';
+import { BookingStatus } from '@/types/booking';
 
 interface BookingCardProps {
   booking: any; // Replace with proper booking type
   onPress?: () => void; // Optional onPress handler
+  onStatusChange?: () => void; // Optional callback for when status changes
 }
 
 /**
@@ -15,10 +18,21 @@ interface BookingCardProps {
  * Displays booking information in a card format
  * Used in the restaurant dashboard to show bookings
  */
-export const BookingCard: React.FC<BookingCardProps> = ({ booking, onPress }) => {
+export const BookingCard: React.FC<BookingCardProps> = ({ booking, onPress, onStatusChange }) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const { changeBookingStatus, cancelBooking } = useBookingStore();
+  
+  // Force re-render when booking status changes
+  const [localStatus, setLocalStatus] = useState<BookingStatus>(booking.status);
+  
+  // Update local status when booking prop changes
+  useEffect(() => {
+    setLocalStatus(booking.status);
+  }, [booking.status]);
+
   // Get status color based on booking status
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusColor = () => {
+    switch (localStatus.toLowerCase()) {
       case 'confirmed':
         return '#007AFF';
       case 'arrived':
@@ -54,23 +68,230 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking, onPress }) =>
       date.setMinutes(parseInt(minutes, 10));
       return format(date, 'h:mm a');
     } catch (error) {
-      console.error('Error formatting time:', error);
+      console.error('Error formatting time:', error, 'timeString:', timeString);
       return 'N/A';
     }
   };
 
-  // Navigate to booking details
-  const handlePress = () => {
-    // Use the provided onPress handler if available, otherwise use default navigation
-    if (onPress) {
-      onPress();
-    } else {
-      router.push(`/restaurant/booking/${booking.id}` as any);
+  // Get the best available time from the booking object
+  const getBestAvailableTime = () => {
+    // Log available time fields for debugging
+    console.log('Time fields:', {
+      startTime: booking.startTime,
+      timeSlotStartTime: booking.timeSlot?.startTime,
+      time: booking.time
+    });
+    
+    // Try different possible time fields
+    if (booking.startTime) {
+      return formatTime(booking.startTime);
+    } else if (booking.timeSlot?.startTime) {
+      return formatTime(booking.timeSlot.startTime);
+    } else if (booking.time) {
+      return formatTime(booking.time);
     }
+    return 'N/A';
   };
 
+  // Get the best available phone number
+  const getBestAvailablePhone = () => {
+    
+    // Try different possible phone fields
+    if (booking.guestPhone) {
+      return booking.guestPhone;
+    } else if (booking.user?.phone) {
+      return booking.user.phone;
+    }
+    return 'No phone';
+  };
+
+  // Handle marking a booking as arrived
+  const handleMarkArrived = async () => {
+    if (localStatus === 'arrived') {
+      Alert.alert('Already Arrived', 'This booking is already marked as arrived.');
+      return;
+    }
+    
+    console.log('Attempting to mark booking as arrived:', {
+      bookingId: booking.id,
+      currentStatus: localStatus
+    });
+    
+    Alert.alert(
+      'Mark as Arrived',
+      'Are you sure you want to mark this booking as arrived?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Yes',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              console.log('Calling changeBookingStatus with:', {
+                id: booking.id,
+                newStatus: 'arrived'
+              });
+              
+              // Update the booking status
+              const result = await changeBookingStatus(booking.id, 'arrived' as BookingStatus);
+              console.log('Status change result:', result);
+              
+              // Update the local state to trigger re-render
+              if (result) {
+                setLocalStatus('arrived');
+              }
+              
+              setIsLoading(false);
+              
+              // Call the callback if provided
+              if (onStatusChange) {
+                console.log('Calling onStatusChange callback');
+                onStatusChange();
+              } else {
+                console.warn('No onStatusChange callback provided');
+              }
+            } catch (error) {
+              console.error('Error marking booking as arrived:', error);
+              setIsLoading(false);
+              Alert.alert('Error', 'Failed to update booking status.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Handle marking a booking as completed
+  const handleMarkCompleted = async () => {
+    if (localStatus === 'completed') {
+      Alert.alert('Already Completed', 'This booking is already marked as completed.');
+      return;
+    }
+    
+    console.log('Attempting to mark booking as completed:', {
+      bookingId: booking.id,
+      currentStatus: localStatus
+    });
+    
+    Alert.alert(
+      'Mark as Completed',
+      'Are you sure you want to mark this booking as completed?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Yes',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              console.log('Calling changeBookingStatus with:', {
+                id: booking.id,
+                newStatus: 'completed'
+              });
+              
+              // Update the booking status
+              const result = await changeBookingStatus(booking.id, 'completed' as BookingStatus);
+              console.log('Status change result:', result);
+              
+              // Update the local state to trigger re-render
+              if (result) {
+                setLocalStatus('completed');
+              }
+              
+              setIsLoading(false);
+              
+              // Call the callback if provided
+              if (onStatusChange) {
+                console.log('Calling onStatusChange callback');
+                onStatusChange();
+              } else {
+                console.warn('No onStatusChange callback provided');
+              }
+            } catch (error) {
+              console.error('Error marking booking as completed:', error);
+              setIsLoading(false);
+              Alert.alert('Error', 'Failed to update booking status.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Handle cancelling a booking
+  const handleCancel = () => {
+    if (localStatus === 'cancelled') {
+      Alert.alert('Already Cancelled', 'This booking is already cancelled.');
+      return;
+    }
+    
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel this booking?',
+      [
+        {
+          text: 'No',
+          style: 'cancel'
+        },
+        {
+          text: 'Yes',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              console.log('Calling changeBookingStatus with:', {
+                id: booking.id,
+                newStatus: 'cancelled'
+              });
+              
+              // Update the booking status
+              const result = await changeBookingStatus(booking.id, 'cancelled' as BookingStatus);
+              console.log('Status change result:', result);
+              
+              // Update the local state to trigger re-render
+              if (result) {
+                setLocalStatus('cancelled');
+              }
+              
+              setIsLoading(false);
+              
+              // Call the callback if provided
+              if (onStatusChange) {
+                console.log('Calling onStatusChange callback');
+                onStatusChange();
+              } else {
+                console.warn('No onStatusChange callback provided');
+              }
+            } catch (error) {
+              console.error('Error cancelling booking:', error);
+              setIsLoading(false);
+              Alert.alert('Error', 'Failed to cancel booking.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Button disabled states
+  const isArriveButtonDisabled = localStatus === 'arrived' || 
+                               localStatus === 'cancelled' || 
+                               localStatus === 'completed';
+  
+  const isCompletedButtonDisabled = localStatus === 'cancelled' || 
+                                 localStatus === 'completed' ||
+                                 localStatus === 'pending';
+  
+  const isCancelButtonDisabled = localStatus === 'cancelled' || 
+                               localStatus === 'completed';
+
   return (
-    <TouchableOpacity style={styles.container} onPress={handlePress}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.customerInfo}>
           <Text style={styles.name}>
@@ -79,9 +300,9 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking, onPress }) =>
           <Text style={styles.partySize}>{booking.partySize} {booking.partySize === 1 ? 'person' : 'people'}</Text>
         </View>
         
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) }]}>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
           <Text style={styles.statusText}>
-            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1).toLowerCase()}
+            {localStatus.charAt(0).toUpperCase() + localStatus.slice(1).toLowerCase()}
           </Text>
         </View>
       </View>
@@ -90,28 +311,63 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking, onPress }) =>
         <View style={styles.detailItem}>
           <Ionicons name="time-outline" size={16} color="#666" style={styles.icon} />
           <Text style={styles.detailText}>
-            {formatTime(booking.timeSlot?.startTime || booking.time)}
+            {getBestAvailableTime()}
           </Text>
         </View>
         
         <View style={styles.detailItem}>
           <Ionicons name="call-outline" size={16} color="#666" style={styles.icon} />
           <Text style={styles.detailText}>
-            {booking.guestPhone || booking.user?.phone || 'No phone'}
+            {getBestAvailablePhone()}
           </Text>
         </View>
       </View>
       
-      <View style={styles.actions}>
-        <TouchableOpacity style={[styles.actionButton, styles.arrivedButton]}>
-          <Text style={styles.actionButtonText}>Mark Arrived</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={[styles.actionButton, styles.cancelButton]}>
-          <Text style={[styles.actionButtonText, styles.cancelButtonText]}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#B22222" />
+          <Text style={styles.loadingText}>Updating...</Text>
+        </View>
+      ) : (
+        <View style={styles.actions}>
+          <TouchableOpacity 
+            style={[
+              styles.actionButton, 
+              styles.arrivedButton,
+              (isArriveButtonDisabled) && styles.disabledButton
+            ]}
+            onPress={handleMarkArrived}
+            disabled={isArriveButtonDisabled}
+          >
+            <Text style={styles.actionButtonText}>Mark Arrived</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.actionButton, 
+              styles.completedButton,
+              isCompletedButtonDisabled && styles.disabledButton
+            ]}
+            onPress={handleMarkCompleted}
+            disabled={isCompletedButtonDisabled}
+          >
+            <Text style={styles.actionButtonText}>Mark Completed</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.actionButton, 
+              styles.cancelButton,
+              isCancelButtonDisabled && styles.disabledButton
+            ]}
+            onPress={handleCancel}
+            disabled={isCancelButtonDisabled}
+          >
+            <Text style={[styles.actionButtonText, styles.cancelButtonText]}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
   );
 };
 
@@ -190,6 +446,10 @@ const styles = StyleSheet.create({
   arrivedButton: {
     backgroundColor: '#B22222',
   },
+  completedButton: {
+    backgroundColor: '#B22222', // Purple for completed
+    marginHorizontal: 4,
+  },
   cancelButton: {
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -202,5 +462,19 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#FF3B30',
+  },
+  disabledButton: {
+    opacity: 0.5
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 8,
   },
 });

@@ -1,16 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TextInput, 
+  TouchableOpacity, 
+  ScrollView,
+  SafeAreaView,
+  StatusBar,
+  ActivityIndicator,
+  Alert,
+  Platform
+} from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
-
-// Components
 import { useBranchStore } from '../../store/branch-store';
 import { useBookingStore } from '../../store/booking-store';
 import { useAuth } from '../../hooks/useAuth';
-import { BranchListItem } from '@/types/branch';
-import DatePickerModal from '@/components/common/DatePickerModal';
-import TimePickerModal from '@/components/common/TimePickerModal';
+import { BranchListItem } from '../../types/branch';
+import DatePickerModal from '../../components/common/DatePickerModal';
+import TimePickerModal from '../../components/common/TimePickerModal';
+import PartySizePickerModal from '../../components/common/PartySizePickerModal';
 
 /**
  * Create Reservation Screen
@@ -18,23 +29,28 @@ import TimePickerModal from '@/components/common/TimePickerModal';
  * Allows restaurant staff to create a new reservation for a customer
  */
 export default function CreateReservationScreen() {
-  // State for form fields
+  const router = useRouter();
+  
+  // State variables
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [partySize, setPartySize] = useState('');
+  const [partySize, setPartySize] = useState('1');
   const [date, setDate] = useState(new Date());
   const [time, setTime] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState<number | null>(null);
   const [branches, setBranches] = useState<BranchListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showPartySizePicker, setShowPartySizePicker] = useState(false);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<any[]>([]);
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<number | null>(null);
+  const [timeSlotsLoading, setTimeSlotsLoading] = useState(false);
   
   // Get store hooks
-  const { getRestaurantBranches, getBranchAvailability } = useBranchStore();
+  const { getRestaurantBranches, getBranchAvailability, selectedBranchId: selectedBranchIdFromStore, setSelectedBranchId: setSelectedBranchIdFromStore, getSelectedBranch } = useBranchStore();
   const { createGuestReservation } = useBookingStore();
   const { user } = useAuth();
   
@@ -49,18 +65,26 @@ export default function CreateReservationScreen() {
       const branchesData = await getRestaurantBranches(user?.id);
       setBranches(branchesData);
       
-      // Set default selected branch to the first one or branch 109
-      if (branchesData.length > 0) {
-        // Try to find branch 109 first
-        const branch109 = branchesData.find(b => b.branchId.toString() === '109');
-        if (branch109) {
-          setSelectedBranchId('109');
-        } else {
-          setSelectedBranchId(branchesData[0].branchId.toString());
-        }
+      // Branch selection is already handled in the main index.tsx
+      // Just fetch time slots for the currently selected branch
+      if (selectedBranchIdFromStore) {
+        fetchTimeSlots(date);
       }
     } catch (error) {
       console.error('Error loading branches:', error);
+    }
+  };
+  
+  // Handle date selection
+  const handleDateSelect = async (selectedDate: Date) => {
+    setDate(selectedDate);
+    
+    // Reset time slot selection when date changes
+    setSelectedTimeSlotId(null);
+    
+    // Fetch available time slots for the selected date and branch
+    if (selectedBranchIdFromStore) {
+      await fetchTimeSlots(selectedDate);
     }
   };
   
@@ -73,10 +97,62 @@ export default function CreateReservationScreen() {
     }
   };
 
-  // Handle date selection from modal
-  const handleDateSelect = (selectedDate: Date) => {
-    setDate(selectedDate);
-    fetchTimeSlots(selectedDate);
+  // Fetch time slots for the selected date and branch
+  const fetchTimeSlots = async (selectedDate: Date) => {
+    try {
+      if (!selectedBranchIdFromStore) {
+        console.error('No branch selected');
+        return;
+      }
+      
+      // Format date to YYYY-MM-DD as required by the API
+      const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+      
+      // Convert selectedBranchId from string to number
+      const branchId = parseInt(selectedBranchIdFromStore);
+      
+      setTimeSlotsLoading(true);
+      const timeSlotsData = await getBranchAvailability(branchId, formattedDate);
+      
+      if (timeSlotsData && timeSlotsData.availableSlots) {
+        // Get current date and time
+        const now = new Date();
+        
+        // Filter out past time slots if the selected date is today
+        let availableSlots = timeSlotsData.availableSlots;
+        
+        if (
+          selectedDate.getFullYear() === now.getFullYear() &&
+          selectedDate.getMonth() === now.getMonth() &&
+          selectedDate.getDate() === now.getDate()
+        ) {
+          // Filter out past time slots for today
+          availableSlots = availableSlots.filter(slot => {
+            const [hours, minutes] = slot.time.split(':').map(Number);
+            const slotTime = new Date(selectedDate);
+            slotTime.setHours(hours, minutes, 0, 0);
+            
+            // Log for debugging
+            console.log(`Time slot ${slot.time}: ${slotTime.toISOString()} vs Now: ${now.toISOString()} - ${slotTime > now ? 'AVAILABLE' : 'PAST'}`);
+            
+            return slotTime > now;
+          });
+          
+          console.log(`Filtered ${timeSlotsData.availableSlots.length - availableSlots.length} past time slots for today`);
+        }
+        
+        setAvailableTimeSlots(availableSlots);
+        console.log(`Fetched ${availableSlots.length} available time slots for ${formattedDate}`);
+      } else {
+        setAvailableTimeSlots([]);
+        console.log(`No time slots available for ${formattedDate}`);
+      }
+      setTimeSlotsLoading(false);
+    } catch (error) {
+      console.error('Error fetching time slots:', error);
+      setAvailableTimeSlots([]); // Add error handling to set empty time slots
+      setTimeSlotsLoading(false);
+    }
   };
   
   // Handle time change
@@ -87,40 +163,28 @@ export default function CreateReservationScreen() {
     }
   };
   
-  // Handle branch selection
-  const handleBranchSelect = (branchId: string) => {
-    setSelectedBranchId(branchId);
+  // Handle time slot selection
+  const handleTimeSlotSelect = (slotId: number, slotTime: string) => {
+    setSelectedTimeSlotId(slotId);
+    
+    // Update the time state with the selected time slot
+    const [hours, minutes] = slotTime.split(':').map(Number);
+    const newTime = new Date(date);
+    newTime.setHours(hours, minutes, 0, 0);
+    setTime(newTime);
+    
+    // Close the time picker if it was open
+    setShowTimePicker(false);
   };
   
-  // Fetch time slots for the selected date and branch
-  const fetchTimeSlots = async (date: Date) => {
-    try {
-      if (!selectedBranchId) {
-        console.error('No branch selected');
-        return;
-      }
-      
-      // Format date to YYYY-MM-DD as required by the API
-      const formattedDate = format(date, 'yyyy-MM-dd');
-      
-      // Convert selectedBranchId from string to number
-      const branchId = parseInt(selectedBranchId);
-      
-      const timeSlotsData = await getBranchAvailability(branchId, formattedDate);
-      if (timeSlotsData) {
-        setAvailableTimeSlots(timeSlotsData.availableSlots || []);
-      } else {
-        setAvailableTimeSlots([]);
-      }
-    } catch (error) {
-      console.error('Error fetching time slots:', error);
-      setAvailableTimeSlots([]); // Add error handling to set empty time slots
-    }
+  // Handle party size selection
+  const handlePartySizeSelect = (size: number) => {
+    setPartySize(size.toString());
   };
   
   // Handle form submission
   const handleSubmit = async () => {
-    if (!customerName || !customerPhone || !partySize || !selectedBranchId || !selectedTimeSlotId) {
+    if (!customerName || !customerPhone || !partySize || !selectedBranchIdFromStore || !selectedTimeSlotId) {
       alert('Please fill in all required fields');
       return;
     }
@@ -128,12 +192,21 @@ export default function CreateReservationScreen() {
     try {
       setLoading(true);
       
+      // Get the selected branch to access its restaurantId
+      const selectedBranch = getSelectedBranch();
+      if (!selectedBranch) {
+        alert('No branch selected');
+        return;
+      }
+      
       // Create booking object with the format expected by our store function
       const bookingData = {
         customerName,
         phoneNumber: customerPhone,
         partySize: parseInt(partySize),
         timeSlotId: selectedTimeSlotId,
+        branchId: parseInt(selectedBranchIdFromStore),
+        restaurantId: selectedBranch.restaurantId, // Use restaurantId from the selected branch
         notes
       };
       
@@ -182,35 +255,43 @@ export default function CreateReservationScreen() {
                 <Text style={styles.label}>Name*</Text>
                 <TextInput
                   style={styles.input}
+                  placeholder="Customer Name"
                   value={customerName}
                   onChangeText={setCustomerName}
-                  placeholder="Customer Name"
                 />
               </View>
               
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Phone Number*</Text>
+                <Text style={styles.label}>Phone*</Text>
                 <TextInput
                   style={styles.input}
+                  placeholder="Phone Number"
                   value={customerPhone}
                   onChangeText={setCustomerPhone}
-                  placeholder="Phone Number"
                   keyboardType="phone-pad"
                 />
               </View>
               
+              <Text style={styles.sectionTitle}>Reservation Details</Text>
+              
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Party Size*</Text>
-                <TextInput
-                  style={styles.input}
-                  value={partySize}
-                  onChangeText={setPartySize}
-                  placeholder="Number of Guests"
-                  keyboardType="number-pad"
+                <TouchableOpacity 
+                  style={styles.dateTimeButton}
+                  onPress={() => setShowPartySizePicker(true)}
+                >
+                  <Text>{partySize === '1' ? '1 person' : `${partySize} people`}</Text>
+                  <Ionicons name="people" size={20} color="#666" />
+                </TouchableOpacity>
+                <PartySizePickerModal
+                  visible={showPartySizePicker}
+                  onClose={() => setShowPartySizePicker(false)}
+                  onSelect={handlePartySizeSelect}
+                  selectedSize={parseInt(partySize)}
+                  minSize={1}
+                  maxSize={20}
                 />
               </View>
-              
-              <Text style={styles.sectionTitle}>Reservation Details</Text>
               
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Date*</Text>
@@ -233,49 +314,50 @@ export default function CreateReservationScreen() {
               
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Time*</Text>
-                <TouchableOpacity 
-                  style={styles.dateTimeButton}
-                  onPress={() => setShowTimePicker(true)}
-                >
-                  <Text>{format(time, 'h:mm a')}</Text>
-                  <Ionicons name="time" size={20} color="#666" />
-                </TouchableOpacity>
-                {showTimePicker && (
-                  <TimePickerModal
-                    visible={showTimePicker}
-                    onClose={() => setShowTimePicker(false)}
-                    onSelect={onTimeChange}
-                    selectedDate={time}
-                    selectedTime={time}
-                  />
+                
+                {timeSlotsLoading ? (
+                  <View style={styles.timeSlotsLoading}>
+                    <ActivityIndicator size="small" color="#B22222" />
+                    <Text style={styles.timeSlotsLoadingText}>Loading available times...</Text>
+                  </View>
+                ) : availableTimeSlots.length === 0 ? (
+                  <View style={styles.noTimeSlotsContainer}>
+                    <Text style={styles.noTimeSlotsText}>No time slots available for this date</Text>
+                  </View>
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeSlotContainer}>
+                    {availableTimeSlots.map((slot) => {
+                      // Format time to AM/PM
+                      const formattedTime = formatTimeWithAMPM(slot.time);
+                      return (
+                        <TouchableOpacity 
+                          key={slot.id} 
+                          style={[
+                            styles.timeSlot, 
+                            selectedTimeSlotId === slot.id && styles.selectedTimeSlot,
+                            slot.isFull && styles.fullTimeSlot
+                          ]}
+                          onPress={() => !slot.isFull && handleTimeSlotSelect(slot.id, slot.time)}
+                          disabled={slot.isFull}
+                        >
+                          <Text 
+                            style={[
+                              styles.timeSlotText, 
+                              selectedTimeSlotId === slot.id && styles.selectedTimeSlotText,
+                              slot.isFull && styles.fullTimeSlotText
+                            ]}
+                          >
+                            {formattedTime}
+                          </Text>
+                          {slot.isFull && (
+                            <Text style={styles.fullText}>Full</Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 )}
               </View>
-              
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Branch*</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.branchScroll}>
-                  {branches.map((branch) => (
-                    <TouchableOpacity
-                      key={branch.branchId}
-                      style={[
-                        styles.branchButton,
-                        selectedBranchId === branch.branchId.toString() && styles.selectedBranch
-                      ]}
-                      onPress={() => handleBranchSelect(branch.branchId.toString())}
-                    >
-                      <Text 
-                        style={[
-                          styles.branchText,
-                          selectedBranchId === branch.branchId.toString() && styles.selectedBranchText
-                        ]}
-                      >
-                        {branch.address}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-          
               
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Notes (Optional)</Text>
@@ -386,28 +468,61 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  branchScroll: {
+  // Time slot styles
+  timeSlotContainer: {
     flexDirection: 'row',
-    marginBottom: 10,
+    marginTop: 10,
   },
-  branchButton: {
+  timeSlot: {
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
+    paddingHorizontal: 16,
     backgroundColor: '#fff',
+    borderRadius: 8,
     marginRight: 10,
     borderWidth: 1,
     borderColor: '#ddd',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
   },
-  selectedBranch: {
+  selectedTimeSlot: {
     backgroundColor: '#B22222',
     borderColor: '#B22222',
   },
-  branchText: {
+  fullTimeSlot: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#ddd',
+  },
+  timeSlotText: {
+    fontSize: 16,
     color: '#333',
   },
-  selectedBranchText: {
+  selectedTimeSlotText: {
     color: '#fff',
+  },
+  fullTimeSlotText: {
+    color: '#999',
+  },
+  fullText: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
+  timeSlotsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+  },
+  timeSlotsLoadingText: {
+    marginLeft: 10,
+    color: '#666',
+  },
+  noTimeSlotsContainer: {
+    padding: 10,
+  },
+  noTimeSlotsText: {
+    color: '#666',
+    marginBottom: 10,
   },
   submitButton: {
     backgroundColor: '#B22222',
@@ -426,3 +541,11 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 });
+
+// Helper function to format time with AM/PM
+const formatTimeWithAMPM = (time: string) => {
+  const [hours, minutes] = time.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const formattedHours = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+  return `${formattedHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+};

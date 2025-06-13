@@ -31,6 +31,8 @@ export type BookingWithUser = Booking & {
   user?: { 
     firstName: string; 
     lastName: string;
+    phone?: string;
+    email?: string;
   } | null;
   restaurantId?: number;
 };
@@ -56,6 +58,10 @@ export const getBookingsForBranch = async (branchId: number): Promise<BookingWit
   return branchBookings.map(row => ({
     id: row.booking.id,
     userId: row.booking.userId,
+    restaurantId: row.booking.restaurantId,
+    branchId: row.booking.branchId,
+    startTime: row.booking.startTime,
+    endTime: row.booking.endTime,
     timeSlotId: row.booking.timeSlotId,
     partySize: row.booking.partySize,
     status: row.booking.status,
@@ -67,7 +73,9 @@ export const getBookingsForBranch = async (branchId: number): Promise<BookingWit
     // Include user information if available
     user: row.user ? {
       firstName: row.user.firstName,
-      lastName: row.user.lastName
+      lastName: row.user.lastName,
+      phone: row.user.phone,
+      email: row.user.email
     } : null
   }));
 };
@@ -98,6 +106,10 @@ export const getBookingsForBranchOnDate = async (branchId: number, date: Date): 
   return branchBookings.map(row => ({
     id: row.booking.id,
     userId: row.booking.userId,
+    restaurantId: row.booking.restaurantId,
+    branchId: row.booking.branchId,
+    startTime: row.booking.startTime,
+    endTime: row.booking.endTime,
     timeSlotId: row.booking.timeSlotId,
     partySize: row.booking.partySize,
     status: row.booking.status,
@@ -108,7 +120,9 @@ export const getBookingsForBranchOnDate = async (branchId: number, date: Date): 
     guestEmail: row.booking.guestEmail,
     user: row.user ? {
       firstName: row.user.firstName,
-      lastName: row.user.lastName
+      lastName: row.user.lastName,
+      phone: row.user.phone,
+      email: row.user.email
     } : null
   }));
 };
@@ -139,7 +153,9 @@ export const getBookingById = async (bookingId: number): Promise<BookingWithUser
     restaurantId: result[0].restaurantId,
     user: result[0].user ? {
       firstName: result[0].user.firstName,
-      lastName: result[0].user.lastName
+      lastName: result[0].user.lastName,
+      phone: result[0].user.phone,
+      email: result[0].user.email
     } : null
   };
 };
@@ -169,7 +185,9 @@ export const getBookingByIdAndUserId = async (bookingId: number, userId: number)
     ...result[0].booking,
     user: result[0].user ? {
       firstName: result[0].user.firstName,
-      lastName: result[0].user.lastName
+      lastName: result[0].user.lastName,
+      phone: result[0].user.phone,
+      email: result[0].user.email
     } : null
   };
 };
@@ -200,6 +218,7 @@ export const getUserBookings = async (userId: number): Promise<BookingWithUser[]
     return userBookings.map(row => ({
         id: row.booking.id,
         userId: row.booking.userId,
+        branchId: row.booking.branchId,
         timeSlotId: row.booking.timeSlotId,
         startTime: row.timeSlot.startTime,
         endTime: row.timeSlot.endTime,  
@@ -214,7 +233,9 @@ export const getUserBookings = async (userId: number): Promise<BookingWithUser[]
         // Include user information
         user: row.user ? {
             firstName: row.user.firstName,
-            lastName: row.user.lastName
+            lastName: row.user.lastName,
+            phone: row.user.phone,
+            email: row.user.email
         } : null,
         // Include restaurant information for the extended booking details
         restaurantId: row.branch.restaurantId,
@@ -284,15 +305,54 @@ export const deleteBookingSettings = async (branchId: number): Promise<void> => 
 
 //--- Create Booking ---
 
+// Extended type to include startTime and endTime
+type ExtendedInsertBooking = InsertBooking & {
+  startTime?: Date;
+  endTime?: Date;
+};
+
 export const createBooking = async (booking: InsertBooking): Promise<Booking> => {
-  const [newBooking] = await db
-    .insert(bookings)
-    .values(booking)
-    .returning();
-  if (!newBooking) {
-    throw new Error('Failed to create booking');
+  try {
+    // Get the time slot to determine start and end times
+    const [timeSlot] = await db
+      .select()
+      .from(timeSlots)
+      .where(eq(timeSlots.id, booking.timeSlotId));
+    
+    if (!timeSlot) {
+      throw new Error(`Time slot with ID ${booking.timeSlotId} not found`);
+    }
+    
+    // Get the booking settings for this branch to determine reservation duration
+    const settings = await getBookingSettings(timeSlot.branchId);
+    
+    // Calculate end time based on reservation duration
+    const startTime = new Date(timeSlot.startTime);
+    const endTime = new Date(startTime);
+    endTime.setMinutes(endTime.getMinutes() + (settings?.interval || 90));
+    
+    // Add start and end times to the booking using the extended type
+    const bookingWithTimes: ExtendedInsertBooking = {
+      ...booking,
+      startTime: startTime,
+      endTime: endTime
+    };
+    
+    // Insert the booking
+    const [newBooking] = await db
+      .insert(bookings)
+      .values(bookingWithTimes as any) // Type assertion to bypass type checking
+      .returning();
+    
+    if (!newBooking) {
+      throw new Error('Failed to create booking');
+    }
+    
+    return newBooking;
+  } catch (error) {
+    console.error('Error creating booking:', error);
+    throw error;
   }
-  return newBooking;
 };
 
 //--- Update Booking ---
@@ -322,7 +382,8 @@ export const deleteBooking = async (bookingId: number): Promise<void> => {
   //--Generate Time Slots--
 
   export const generateTimeSlots = (openTime: string, closeTime: string, intervalMinutes: number): string[] => {
-
+    // Use a fixed 30-minute interval for time slot generation
+    const slotIntervalMinutes = 30; // Fixed 30-minute interval for all restaurants
     const slots: string[] = [];
   
     const [openHour, openMinute] = openTime.split(":").map(Number);
@@ -338,7 +399,8 @@ export const deleteBooking = async (bookingId: number): Promise<void> => {
       const time = current.toTimeString().slice(0, 5); // "HH:mm"
       slots.push(time);
   
-      current = new Date(current.getTime() + intervalMinutes * 60000); // advance by interval
+      // Use the fixed interval for slot generation
+      current = new Date(current.getTime() + slotIntervalMinutes * 60000);
     }
   
     return slots;

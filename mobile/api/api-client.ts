@@ -1,14 +1,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Use your computer's actual IP address instead of localhost
-// This allows mobile devices on the same network to connect
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.2.64.32:4000/api';
-// Example: const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.100:4000/api';
-
+// Use environment variables with fallback mechanism
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 // Add a flag to track failed auth attempts
 let authFailureCount = 0;
-const MAX_AUTH_FAILURES = 3;
 
 // Add a memory cache for the token to avoid AsyncStorage delays
 let tokenCache: string | null = null;
@@ -31,7 +27,7 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
   // Add timeout to prevent hanging requests
-  timeout: 30000, // Increased from 10000 to 30000 (30 seconds)
+  timeout: 100000, // Increased from 10000 to 30000 (30 seconds)
 });
 
 // Add request interceptor for auth token

@@ -9,8 +9,7 @@ import ModalPicker from '@/components/common/ModalPicker';
 // Components
 import { BookingCard } from '@/components/restaurantScreen/BookingCard';
 import { StatCard } from '@/components/restaurantScreen/StatCard';
-import { ActivityItem } from '@/components/restaurantScreen/ActivityItem';
-import { Avatar } from '@/components/common/Avatar';
+
 
 // Stores and hooks
 import { useBranchStore } from '@/store/branch-store';
@@ -33,8 +32,8 @@ export default function RestaurantDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [todayBookings, setTodayBookings] = useState<BookingWithDetails[]>([]);
   const [branches, setBranches] = useState<BranchListItem[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [branchPickerVisible, setBranchPickerVisible] = useState(false);
+  const [branchLoading, setBranchLoading] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     upcoming: 0,
@@ -42,57 +41,89 @@ export default function RestaurantDashboardScreen() {
     cancelled: 0
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // Get auth context
   const { user } = useAuth();
   const { restaurant } = useRestaurant();
   
   // Get store hooks
-  const { getRestaurantBranches, loading: branchesLoading } = useBranchStore();
-  const { getBookingsForBranchOnDate, loading: bookingsLoading } = useBookingStore();
+  const { getBookingsForBranchOnDate, loading: bookingsLoading, refreshTrigger: bookingRefreshTrigger } = useBookingStore();
+  const { getRestaurantBranches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   
   // Load initial data
   useEffect(() => {
     loadData();
   }, []);
   
-  // Load all necessary data
+  // Refresh data when selected branch changes
+  useEffect(() => {
+    if (selectedBranchId) {
+      // We don't need to call loadBookings here anymore
+      // as it will be called explicitly in handleBranchSelect
+    }
+  }, [selectedBranchId]);
+  
+  // Listen for booking store refresh trigger
+  useEffect(() => {
+    if (selectedBranchId && bookingRefreshTrigger > 0) {
+      console.log('Refresh trigger detected in dashboard, reloading bookings');
+      loadBookings();
+    }
+  }, [bookingRefreshTrigger]);
+  
+  // Load data
   const loadData = async () => {
     try {
       setLoading(true);
       
-      // Get restaurant branches
-      const branchesData: BranchListItem[] = await getRestaurantBranches(user?.id);
-      setBranches(branchesData);
+      // Load restaurant branches
+      await loadBranches();
       
-      // Set default selected branch to the first one
-      if (branchesData.length > 0) {
-        const defaultBranchId = branchesData[0].branchId.toString();
-        setSelectedBranchId(defaultBranchId);
-        
-        // Load bookings for the selected branch
-        console.log(`Loading bookings for branch ${defaultBranchId}...`);
-        await loadBookings(defaultBranchId);
-      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
+    }
+  };
+  
+  // Load restaurant branches
+  const loadBranches = async () => {
+    try {
+      const branchesData = await getRestaurantBranches(user?.id);
+      setBranches(branchesData);
+      
+      // Set default selected branch if not already set
+      if (!selectedBranchId && branchesData.length > 0) {
+        setSelectedBranchId(branchesData[0].branchId.toString());
+      }
+    } catch (error) {
+      console.error('Error loading branches:', error);
     }
   };
   
   // Load bookings for a specific branch
-  const loadBookings = async (branchId: string) => {
+  const loadBookings = async () => {
     try {
       // Get today's date in YYYY-MM-DD format
       const today = format(new Date(), 'yyyy-MM-dd');
       
       // Load bookings for the selected branch
-      const bookingsData = await getBookingsForBranchOnDate(parseInt(branchId), today);
+      if (!selectedBranchId) {
+        console.log('No branch selected, cannot load bookings');
+        return;
+      }
+      
+      const bookingsData = await getBookingsForBranchOnDate(parseInt(selectedBranchId), today);
+      
+      // Debug: Log the first booking to see its structure
+      if (bookingsData.length > 0) {
+        console.log('First booking:', JSON.stringify(bookingsData[0], null, 2));
+      }
+      
       setTodayBookings(bookingsData);
       
-      // Calculate stats
+      // Calculate stats from today's bookings only
       setStats({
         total: bookingsData.length,
         upcoming: bookingsData.filter(b => b.status === 'pending' || b.status === 'confirmed').length,
@@ -107,17 +138,60 @@ export default function RestaurantDashboardScreen() {
   // Handle pull-to-refresh
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    try {
+      // First, reload branches
+      await loadBranches();
+      
+      // Then explicitly load bookings for the current branch
+      if (selectedBranchId) {
+        await loadBookings();
+      }
+    } catch (error) {
+      console.error('Error during refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
   
   // Handle branch selection
-  const handleBranchSelect = (branchId: string) => {
+  const handleBranchSelect = async (branchId: string) => {
+    // First, clear the current data
+    setTodayBookings([]);
+    setStats({
+      total: 0,
+      upcoming: 0,
+      completed: 0,
+      cancelled: 0
+    });
+    
+    // Then update the selected branch
     setSelectedBranchId(branchId);
-    loadBookings(branchId);
+    
+    // Wait a moment for the state to update
+    setTimeout(async () => {
+      try {
+        // Get today's date in YYYY-MM-DD format
+        const today = format(new Date(), 'yyyy-MM-dd');
+        
+        // Load bookings for the selected branch
+        const bookingsData = await getBookingsForBranchOnDate(parseInt(branchId), today);
+        
+        // Update bookings and stats
+        setTodayBookings(bookingsData);
+        setStats({
+          total: bookingsData.length,
+          upcoming: bookingsData.filter(b => b.status === 'pending' || b.status === 'confirmed').length,
+          completed: bookingsData.filter(b => b.status === 'completed').length,
+          cancelled: bookingsData.filter(b => b.status === 'cancelled').length
+        });
+      } catch (error) {
+        console.error('Error loading bookings after branch selection:', error);
+      }
+    }, 100); // Small delay to ensure state updates have propagated
   };
   
   // Render loading state
-  if (loading || branchesLoading) {
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#B22222" />
@@ -196,30 +270,30 @@ export default function RestaurantDashboardScreen() {
         
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
-          <StatCard 
-            title="Total Bookings" 
-            value={stats.total} 
-            icon="calendar"
-            color="#B22222"
-          />
-          <StatCard 
-            title="Upcoming" 
-            value={stats.upcoming} 
-            icon="time"
-            color="#007AFF"
-          />
-          <StatCard 
-            title="Completed" 
-            value={stats.completed} 
-            icon="checkmark-circle"
-            color="#34C759"
-          />
-          <StatCard 
-            title="Cancelled" 
-            value={stats.cancelled} 
-            icon="close-circle"
-            color="#FF3B30"
-          />
+              <StatCard 
+                title="Total Bookings" 
+                value={stats.total} 
+                icon="calendar"
+                color="#B22222"
+              />
+              <StatCard 
+                title="Upcoming" 
+                value={stats.upcoming} 
+                icon="time"
+                color="#007AFF"
+              />
+              <StatCard 
+                title="Completed" 
+                value={stats.completed} 
+                icon="checkmark-circle"
+                color="#34C759"
+              />
+              <StatCard 
+                title="Cancelled" 
+                value={stats.cancelled} 
+                icon="close-circle"
+                color="#FF3B30"
+              />
         </View>
         
         {/* Today's Bookings */}
@@ -244,9 +318,7 @@ export default function RestaurantDashboardScreen() {
             <Text style={styles.createReservationText}>Create New Reservation</Text>
           </TouchableOpacity>
           
-          {bookingsLoading ? (
-            <ActivityIndicator size="small" color="#B22222" style={{marginVertical: 20}} />
-          ) : todayBookings.length === 0 ? (
+          {todayBookings.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="calendar-outline" size={48} color="#999" />
               <Text style={styles.emptyStateText}>No bookings for today</Text>
@@ -254,7 +326,15 @@ export default function RestaurantDashboardScreen() {
           ) : (
             <View style={styles.bookingsList}>
               {todayBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
+                <BookingCard 
+                  key={booking.id} 
+                  booking={booking} 
+                  onStatusChange={() => {
+                    console.log('⚡️ Status change detected, refreshing bookings...');
+                    // Force a refresh by incrementing the refresh trigger
+                    setRefreshTrigger(prev => prev + 1);
+                  }}
+                />
               ))}
             </View>
           )}
@@ -265,9 +345,7 @@ export default function RestaurantDashboardScreen() {
             <Text style={styles.sectionTitle}>Manage Branches</Text>
           </View>
           
-          {branchesLoading ? (
-            <ActivityIndicator size="large" color="#B22222" style={styles.loader} />
-          ) : branches.length > 0 ? (
+          {branches.length > 0 ? (
             <View style={styles.branchList}>
               {branches.map((branch) => (
                 <TouchableOpacity 

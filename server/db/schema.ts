@@ -135,11 +135,15 @@ export const restaurantUserRelations = relations(restaurantUsers, ({ one, many }
 // Table for storing reservations
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),              // Who made the booking
+  userId: integer("user_id").references(() => users.id),   // Null for guest bookings
+  branchId: integer("branch_id").notNull().references(() => restaurantBranches.id, { onDelete: 'cascade' }),
+  restaurantId: integer("restaurant_id").notNull().references(() => restaurantUsers.id, { onDelete: 'cascade' }),
   guestName: text("guest_name"),
   guestPhone: text("guest_phone"),
   guestEmail: text("guest_email"),
   timeSlotId: integer("time_slot_id").notNull().references(() => timeSlots.id, { onDelete: 'cascade' }),    // Which time slot
+  startTime: timestamp("start_time"),  // Explicit start time for the reservation
+  endTime: timestamp("end_time"),      // Explicit end time for the reservation
   partySize: integer("party_size").notNull(),        // How many people
   status: text("status", {enum: ["pending", "confirmed", "arrived", "cancelled", "completed"]}).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),

@@ -148,6 +148,8 @@ export interface BranchListItem {
 export interface TimeSlot {
   time: string;
   isFull: boolean;
+  displayTime?: string;
+  overlappingBookingsCount?: number;
 }
 
 // Branch filter options

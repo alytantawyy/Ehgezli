@@ -94,6 +94,7 @@ export const getBranchById = async (branchId: number): Promise<any | undefined> 
         longitude: restaurantBranches.longitude,
       
         // Restaurant user fields
+        restaurantId: restaurantUsers.id,
         restaurantName: restaurantUsers.name,
         
         // Restaurant profile fields
@@ -242,18 +243,41 @@ export const getRestaurantBranchAvailability = async (branchId: number, date: Da
     console.log(`🔍 DEBUG: Date=${normalizedDate.toISOString().split('T')[0]}, Time=${requestedTime}, Selected Time=${requestedTime}`);
     console.log(`📊 DEBUG: Found ${branchBookings.length} active bookings for ${slots.length} time slots`);
 
+    // Define the standard reservation duration (in minutes)
+    const reservationDuration = settings.interval || 90; // Use the restaurant's interval setting or default to 90 minutes
+
     // Format the response as an array of available time slots with details
     const availableSlots = slots.map(slot => {
-      const bookingsForSlot = branchBookings.filter(b => b.timeSlotId === slot.id);
-      const bookedSeats = bookingsForSlot.reduce((sum, b) => sum + b.partySize, 0);
-      const bookedTables = bookingsForSlot.length; // Each booking takes one table
-
+      // Find all bookings that overlap with this time slot's duration
+      const overlappingBookings = branchBookings.filter(booking => {
+        // Get the booked time slot
+        const bookedSlot = slots.find(s => s.id === booking.timeSlotId);
+        if (!bookedSlot) return false;
+        
+        // Calculate the end time of the current slot (slot start time + reservation duration)
+        const slotStartTime = new Date(slot.startTime);
+        const slotEndTime = new Date(slotStartTime);
+        slotEndTime.setMinutes(slotEndTime.getMinutes() + reservationDuration);
+        
+        // Calculate the end time of the booked slot
+        const bookedStartTime = new Date(bookedSlot.startTime);
+        const bookedEndTime = new Date(bookedStartTime);
+        bookedEndTime.setMinutes(bookedEndTime.getMinutes() + reservationDuration);
+        
+        // Check if the bookings overlap
+        return (bookedStartTime < slotEndTime && bookedEndTime > slotStartTime);
+      });
+      
+      // Calculate availability based on overlapping bookings
+      const bookedSeats = overlappingBookings.reduce((sum, b) => sum + b.partySize, 0);
+      const bookedTables = new Set(overlappingBookings.map(b => b.timeSlotId)).size; // Count unique tables
+      
       const maxSeats = slot.maxSeats ?? settings.maxSeatsPerSlot;
       const maxTables = slot.maxTables ?? settings.maxTablesPerSlot;
       
       const availableSeats = Math.max(0, maxSeats - bookedSeats);
       const availableTables = Math.max(0, maxTables - bookedTables);
-      const isAvailable = !slot.isClosed && (availableSeats > 0 || availableTables > 0);
+      const isAvailable = !slot.isClosed && (availableSeats > 0 && availableTables > 0);
 
       return {
         id: slot.id,
@@ -262,7 +286,8 @@ export const getRestaurantBranchAvailability = async (branchId: number, date: Da
         endTime: slot.endTime,
         availableSeats,
         availableTables,
-        isAvailable
+        isAvailable,
+        overlappingBookingsCount: overlappingBookings.length // For debugging
       };
     });
 

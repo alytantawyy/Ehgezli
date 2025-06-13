@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, SafeAreaView } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format, isToday, isTomorrow } from 'date-fns';
-
-// Components
-import { BookingCard } from '../../../components/restaurantScreen/BookingCard';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBadge } from '../../../components/common/StatusBadge';
 import ModalPicker from '@/components/common/ModalPicker';
 import DatePickerModal from '@/components/common/DatePickerModal';
+
+// Components
+import { BookingCard } from '../../../components/restaurantScreen/BookingCard';
 
 // Stores and hooks
 import { useBookingStore } from '../../../store/booking-store';
@@ -27,23 +27,20 @@ export default function RestaurantBookingsScreen() {
   const { user } = useAuth();
   
   // Get store hooks
-  const { getBookingsForBranch, getBookingsForBranchOnDate, loading: bookingsLoading } = useBookingStore();
-  const { getRestaurantBranches, loading: branchesLoading } = useBranchStore();
+  const { getBookingsForBranch, getBookingsForBranchOnDate, loading: bookingsLoading, refreshTrigger } = useBookingStore();
+  const { selectedBranchId, getSelectedBranch } = useBranchStore();
   
   // State
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [branches, setBranches] = useState<BranchListItem[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
-  const [branchPickerVisible, setBranchPickerVisible] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'arrived' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
   // Load initial data
   useEffect(() => {
-    loadData();
+    loadBookings();
   }, []);
   
   // Refresh bookings when branch or date changes
@@ -53,29 +50,13 @@ export default function RestaurantBookingsScreen() {
     }
   }, [selectedBranchId, selectedDate]);
   
-  // Load branches and bookings
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      
-      // Get restaurant branches
-      const branchesData = await getRestaurantBranches(user?.id);
-      setBranches(branchesData);
-      
-      // Set default selected branch to the first one
-      if (branchesData.length > 0 && selectedBranchId === null) {
-        setSelectedBranchId(branchesData[0].branchId.toString());
-        await loadBookings();
-      } else if (selectedBranchId) {
-        await loadBookings();
-      }
-    } catch (error) {
-      console.error('Error loading branches data:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  // Listen for booking store refresh trigger
+  useEffect(() => {
+    if (selectedBranchId && refreshTrigger > 0) {
+      console.log('Refresh trigger detected in bookings tab, reloading bookings');
+      loadBookings();
     }
-  };
+  }, [refreshTrigger]);
   
   // Load bookings for selected branch
   const loadBookings = async () => {
@@ -104,11 +85,6 @@ export default function RestaurantBookingsScreen() {
     }
   };
   
-  // Handle branch selection
-  const handleBranchSelect = (branchId: string) => {
-    setSelectedBranchId(branchId);
-  };
-  
   // Handle date selection
   const handleDateSelect = (date: Date | null) => {
     setSelectedDate(date);
@@ -121,13 +97,17 @@ export default function RestaurantBookingsScreen() {
   
   // Handle status filter
   const handleStatusFilter = (status: string) => {
-    setFilterStatus(status as 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled');
+    setFilterStatus(status as 'all' | 'arrived' | 'confirmed' | 'completed' | 'cancelled');
   };
   
   // Filter bookings by status
-  const filteredBookings = filterStatus === 'all' 
-    ? bookings 
-    : bookings.filter(booking => booking.status === filterStatus);
+  const filteredBookings = bookings.filter(booking => {
+    // If filter is 'all', show all bookings
+    if (filterStatus === 'all') return true;
+    
+    // Otherwise, filter by status
+    return booking.status.toLowerCase() === filterStatus.toLowerCase();
+  });
   
   // Format date for display
   const formatDateForDisplay = (date: Date | null) => {
@@ -138,7 +118,7 @@ export default function RestaurantBookingsScreen() {
   };
   
   // Render loading state
-  if (loading || branchesLoading) {
+  if (loading || bookingsLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#B22222" />
@@ -180,6 +160,10 @@ export default function RestaurantBookingsScreen() {
       <BookingCard 
         booking={bookingData}
         onPress={() => router.push(`/restaurant/booking/${item.id}`)}
+        onStatusChange={() => {
+          console.log('Status changed, refreshing bookings list');
+          loadBookings();
+        }}
       />
     );
   };
@@ -196,36 +180,15 @@ export default function RestaurantBookingsScreen() {
         }} 
       />
       
-      {/* Branch Selector */}
-      {branches.length > 0 && (
-        <View style={styles.branchSelector}>
-          <Text style={styles.sectionTitle}>Branch:</Text>
-          <TouchableOpacity 
-            style={styles.branchDropdown}
-            onPress={() => setBranchPickerVisible(true)}
-          >
-            <Text style={styles.branchDropdownText}>
-              {selectedBranchId ? branches.find(b => b.branchId.toString() === selectedBranchId)?.address || 'Select Branch' : 'Select Branch'}
-            </Text>
-            <Ionicons name="chevron-down" size={16} color="#fff" />
-          </TouchableOpacity>
-          
-          <ModalPicker 
-            visible={branchPickerVisible}
-            onClose={() => setBranchPickerVisible(false)}
-            title="Select a Branch"
-            options={branches.map(branch => ({ 
-              label: branch.address || branch.city || 'Branch', 
-              value: branch.branchId.toString() 
-            }))}
-            onSelect={(branchId) => {
-              handleBranchSelect(branchId);
-              setBranchPickerVisible(false);
-            }}
-            selectedValue={selectedBranchId || undefined}
-          />
-        </View>
-      )}
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Bookings</Text>
+        <Text style={styles.subtitle}>
+          {selectedBranchId ? 
+            `${getSelectedBranch()?.address || 'Selected Branch'}` : 
+            'No Branch Selected'}
+        </Text>
+      </View>
       
       {/* Date Selector */}
       <View style={styles.dateSelector}>
@@ -268,10 +231,10 @@ export default function RestaurantBookingsScreen() {
           <Text style={[styles.statusButtonText, filterStatus === 'all' && styles.statusButtonTextActive]}>All</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[styles.statusButton, filterStatus === 'pending' && styles.statusButtonActive]}
-          onPress={() => handleStatusFilter('pending')}
+          style={[styles.statusButton, filterStatus === 'arrived' && styles.statusButtonActive]}
+          onPress={() => handleStatusFilter('arrived')}
         >
-          <Text style={[styles.statusButtonText, filterStatus === 'pending' && styles.statusButtonTextActive]}>Pending</Text>
+          <Text style={[styles.statusButtonText, filterStatus === 'arrived' && styles.statusButtonTextActive]}>Arrived</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.statusButton, filterStatus === 'confirmed' && styles.statusButtonActive]}
@@ -304,7 +267,7 @@ export default function RestaurantBookingsScreen() {
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);
-              await loadData();
+              await loadBookings();
             }}
             colors={['#B22222']}
           />
@@ -332,33 +295,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  branchSelector: {
+  header: {
     padding: 15,
     backgroundColor: '#fff',
-    marginBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  sectionTitle: {
-    fontSize: 16,
+  title: {
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 10,
     color: '#333',
   },
-  branchDropdown: {
-    marginTop: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderRadius: 25,
-    backgroundColor: '#B22222',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  branchDropdownText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '500',
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
   },
   dateSelector: {
     flexDirection: 'row',

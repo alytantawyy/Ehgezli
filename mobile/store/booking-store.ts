@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { format } from 'date-fns';
-import { BookingWithDetails, Booking, CreateBookingData, UpdateBookingData } from '../types/booking';
+import { BookingWithDetails, Booking, CreateBookingData, UpdateBookingData, BookingStatus } from '../types/booking';
 import {
   getUserBookings,
   getBookingById,
@@ -16,7 +16,8 @@ import {
   createBookingOverride,
   updateBookingOverride,
   deleteBookingOverride,
-  createGuestReservation
+  createGuestReservation,
+  changeBookingStatus
 } from '../api/booking';
 import { BookingSettings, BookingOverride } from '../types/branch';
 import { CreateBookingOverrideData } from '../types/booking';
@@ -33,12 +34,17 @@ interface BookingState {
   bookingOverrides: BookingOverride[];
   selectedOverride: BookingOverride | null;
   
+  // Refresh mechanism
+  refreshTrigger: number;
+  triggerRefresh: () => void;
+  
   // Actions
   fetchUserBookings: () => Promise<BookingWithDetails[]>;
   fetchBookingById: (id: number) => Promise<BookingWithDetails | null>;
   createNewBooking: (bookingData: CreateBookingData) => Promise<Booking | null>;
   updateExistingBooking: (id: number, bookingData: UpdateBookingData) => Promise<Booking | null>;
   cancelBooking: (id: number) => Promise<boolean>;
+  changeBookingStatus: (id: number, status: BookingStatus) => Promise<Booking | null>;
   getBookingsForBranch: (branchId: number) => Promise<BookingWithDetails[]>;
   getBookingsForBranchOnDate: (branchId: number, date: string | Date) => Promise<BookingWithDetails[]>;
   createReservationForCustomer: (reservationData: {
@@ -47,6 +53,7 @@ interface BookingState {
     partySize: number;
     reservationTime: string;
     branchId: number;
+    restaurantId: number;
     notes?: string;
     status: string;
     timeSlotId: number;
@@ -56,6 +63,8 @@ interface BookingState {
     phoneNumber: string;
     partySize: number;
     timeSlotId: number;
+    branchId: number;
+    restaurantId: number;
     notes?: string;
   }) => Promise<Booking | null>;
   
@@ -85,15 +94,25 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   bookingOverrides: [],
   selectedOverride: null,
   
+  // Refresh mechanism
+  refreshTrigger: 0,
+  triggerRefresh: () => set(state => ({ refreshTrigger: state.refreshTrigger + 1 })),
+  
   // Fetch user bookings
   fetchUserBookings: async () => {
     try {
       set({ loading: true, error: null });
       const rawBookings = await getUserBookings();
       
-      console.log('Raw API response count:', rawBookings.length);
+      console.log('🔍 API RESPONSE - Raw bookings count:', rawBookings.length);
       if (rawBookings.length > 0) {
-        console.log('Raw API response sample:', JSON.stringify(rawBookings.slice(0, 1), null, 2));
+        console.log('🔍 API RESPONSE - First booking:', JSON.stringify(rawBookings[0], null, 2));
+        console.log('🔍 API RESPONSE - Date fields:', {
+          date: rawBookings[0].date,
+          startTime: rawBookings[0].startTime,
+          endTime: rawBookings[0].endTime,
+          timeSlot: rawBookings[0].timeSlot
+        });
       }
       
       // Transform the API response to match the expected BookingWithDetails structure
@@ -101,14 +120,61 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         // Use type assertion to access properties not in the BookingWithDetails type
         const rawBooking = booking as any;
         
+        // Create a proper date object from the API date string
+        // Assuming the API returns dates in UTC format
+        let bookingDate = rawBooking.date;
+        let startTime = rawBooking.startTime;
+        let endTime = rawBooking.endTime;
+        
+        // Log the raw date values for debugging
+        console.log('🔍 PROCESSING - Raw date values:', {
+          bookingId: rawBooking.id,
+          bookingDate,
+          startTime,
+          endTime,
+          timeSlotDate: rawBooking.timeSlot?.date
+        });
+        
+        // Handle timezone conversion for display
+        try {
+          // For ISO date strings, use them directly without reconstruction
+          // This avoids the invalid date string construction error
+          const startDateTime = startTime; // Already in proper ISO format
+          const endDateTime = endTime;   // Already in proper ISO format
+          
+          // Log the date strings
+          console.log('🔍 PROCESSING - Using ISO date strings directly:', {
+            bookingId: rawBooking.id,
+            startDateTime,
+            endDateTime
+          });
+          
+          // Parse as UTC and format to local date string
+          const localStartDate = new Date(startDateTime);
+          
+          // Log the local date for debugging
+          console.log('🔍 PROCESSING - Local date:', {
+            bookingId: rawBooking.id,
+            localDate: format(localStartDate, 'yyyy-MM-dd')
+          });
+          
+          // Use the local date for display
+          if (!isNaN(localStartDate.getTime())) {
+            bookingDate = format(localStartDate, 'yyyy-MM-dd');
+            console.log(`🔍 PROCESSING - Converted date from ${rawBooking.date} to ${bookingDate}`);
+          }
+        } catch (e) {
+          console.error('Error converting date/time to local timezone:', e);
+        }
+        
         // Create the expected structure with values from the API
         return {
           ...booking,
-          // Use real timeSlot data from the API
+          // Use real timeSlot data from the API with timezone-adjusted date
           timeSlot: {
-            date: rawBooking.date,
-            startTime: rawBooking.startTime,
-            endTime: rawBooking.endTime
+            date: bookingDate,
+            startTime: startTime,
+            endTime: endTime
           },
           // Add branch object with restaurant info from the API
           branch: {
@@ -120,9 +186,9 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         };
       });
       
-      console.log('Transformed bookings count:', transformedBookings.length);
+      console.log('🔍 TRANSFORMED BOOKINGS - Count:', transformedBookings.length);
       if (transformedBookings.length > 0) {
-        console.log('First transformed booking:', JSON.stringify(transformedBookings[0], null, 2));
+        console.log('🔍 TRANSFORMED BOOKINGS - First booking:', JSON.stringify(transformedBookings[0], null, 2));
       }
       
       set({ userBookings: transformedBookings, loading: false });
@@ -211,6 +277,44 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     }
   },
   
+  // Change booking status
+  changeBookingStatus: async (id: number, status: BookingStatus) => {
+    try {
+      set({ loading: true, error: null });
+      const updatedBooking = await changeBookingStatus(id, status);
+      
+      if (updatedBooking) {
+        // Update the selected booking if it's the one being changed
+        if (get().selectedBooking?.id === id) {
+          // Create a properly typed updated booking object
+          const typeSafeUpdatedBooking: BookingWithDetails = {
+            ...get().selectedBooking!,
+            ...updatedBooking,
+            // Ensure timeSlot is never null by using the existing one if the new one is null
+            timeSlot: updatedBooking.timeSlot || get().selectedBooking!.timeSlot,
+            // Ensure branch is never null by using the existing one if the new one is null
+            branch: updatedBooking.branch || get().selectedBooking!.branch
+          };
+          
+          set({ selectedBooking: typeSafeUpdatedBooking });
+        }
+        
+        // Trigger a refresh so all components can update
+        get().triggerRefresh();
+      }
+      
+      set({ loading: false });
+      return updatedBooking;
+    } catch (error) {
+      console.error('Error changing booking status:', error);
+      set({ 
+        error: 'Failed to change booking status', 
+        loading: false 
+      });
+      return null;
+    }
+  },
+  
   // Get bookings for a branch
   getBookingsForBranch: async (branchId: number) => {
     try {
@@ -266,6 +370,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     partySize: number;
     reservationTime: string;
     branchId: number;
+    restaurantId: number;
     notes?: string;
     status: string;
     timeSlotId: number;
@@ -279,6 +384,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         guestPhone: reservationData.phoneNumber,
         partySize: reservationData.partySize,
         timeSlotId: reservationData.timeSlotId,
+        branchId: reservationData.branchId,
         specialRequests: reservationData.notes || ''
       };
       
@@ -287,6 +393,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         guestPhone: bookingData.guestPhone,
         partySize: bookingData.partySize,
         timeSlotId: bookingData.timeSlotId,
+        branchId: bookingData.branchId,
+        restaurantId: reservationData.restaurantId,
         specialRequests: bookingData.specialRequests
       });
       set({ loading: false });
@@ -307,6 +415,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     phoneNumber: string;
     partySize: number;
     timeSlotId: number;
+    branchId: number;
+    restaurantId: number;
     notes?: string;
   }) => {
     try {
@@ -318,6 +428,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         guestPhone: reservationData.phoneNumber,
         partySize: reservationData.partySize,
         timeSlotId: reservationData.timeSlotId,
+        branchId: reservationData.branchId,
+        restaurantId: reservationData.restaurantId,
         specialRequests: reservationData.notes || ''
       };
       

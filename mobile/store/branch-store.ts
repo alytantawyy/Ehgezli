@@ -67,6 +67,7 @@ interface BranchState {
   branches: BranchListItem[];
   filteredBranches: BranchListItem[];
   selectedBranch: BranchWithDetails | null;
+  selectedBranchId: string | null;
   userLocation: { latitude: number; longitude: number } | null | undefined;
   hasRequestedLocationPermission: boolean;
   // Status
@@ -95,6 +96,8 @@ interface BranchState {
   getRestaurantBranches: (restaurantId?: number) => Promise<BranchListItem[]>;
   getBranchAvailability: (branchId: number, date: string) => Promise<BranchAvailabilityResponse | null>;
   createBranch: (branchData: CreateBranchData) => Promise<RestaurantBranch>;
+  setSelectedBranchId: (branchId: string | null) => void;
+  getSelectedBranch: () => BranchListItem | null;
 }
 
 export const useBranchStore = create<BranchState>((set, get) => ({
@@ -102,6 +105,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   branches: [],
   filteredBranches: [],
   selectedBranch: null,
+  selectedBranchId: null,
   userLocation: undefined,
   hasRequestedLocationPermission: false,
   // Status
@@ -649,9 +653,9 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   },
   
   // Get branch availability
-  getBranchAvailability: async (branchId: number) => {
+  getBranchAvailability: async (branchId: number, date: string) => {
     try {
-      const data = await getBranchAvailability(branchId, format(new Date(), 'yyyy-MM-dd'));
+      const data = await getBranchAvailability(branchId, date);
       return data;
     } catch (error) {
       console.error('Error fetching branch availability:', error);
@@ -703,5 +707,23 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       });
       throw error;
     }
+  },
+  
+  // Set the selected branch ID
+  setSelectedBranchId: (branchId: string | null) => {
+    set({ selectedBranchId: branchId });
+    
+    // If branchId is provided, also fetch the branch details
+    if (branchId) {
+      get().fetchBranchById(parseInt(branchId));
+    }
+  },
+  
+  // Get the currently selected branch
+  getSelectedBranch: () => {
+    const { branches, selectedBranchId } = get();
+    if (!selectedBranchId) return null;
+    
+    return branches.find(branch => branch.branchId.toString() === selectedBranchId) || null;
   },
 }));

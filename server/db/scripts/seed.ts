@@ -99,118 +99,6 @@ async function seed() {
       locationUpdatedAt: new Date(),
       locationPermissionGranted: true
     },
-    {
-      firstName: 'Ahmed',
-      lastName: 'Hassan',
-      email: 'ahmed@example.com',
-      phone: '+201234567892',
-      password: 'password123',
-      gender: 'male',
-      birthday: new Date('1988-10-20'),
-      city: 'Alexandria',
-      nationality: 'Egyptian',
-      favoriteCuisines: ['Egyptian', 'Middle Eastern', 'Mediterranean'],
-      locationUpdatedAt: new Date(),
-      locationPermissionGranted: true
-    },
-    {
-      firstName: 'Fatima',
-      lastName: 'Ali',
-      email: 'fatima@example.com',
-      phone: '+201234567893',
-      password: 'password123',
-      gender: 'female',
-      birthday: new Date('1995-03-08'),
-      city: 'Cairo',
-      nationality: 'Egyptian',
-      favoriteCuisines: ['Indian', 'Chinese'],
-      locationUpdatedAt: new Date(),
-      locationPermissionGranted: true
-    },
-    {
-      firstName: 'Mohamed',
-      lastName: 'Ibrahim',
-      email: 'mohamed@example.com',
-      phone: '+201234567894',
-      password: 'password123',
-      gender: 'male',
-      birthday: new Date('1985-12-15'),
-      city: 'Alexandria',
-      nationality: 'Egyptian',
-      favoriteCuisines: ['French', 'Italian'],
-      locationUpdatedAt: new Date(),
-      locationPermissionGranted: true
-    },
-    {
-      firstName: 'Layla',
-      lastName: 'Mahmoud',
-      email: 'layla@example.com',
-      phone: '+201234567895',
-      password: 'password123',
-      gender: 'female',
-      birthday: new Date('1993-07-22'),
-      city: 'Cairo',
-      nationality: 'Egyptian',
-      favoriteCuisines: ['Japanese', 'Thai'],
-      locationUpdatedAt: new Date(),
-      locationPermissionGranted: true
-    },
-    {
-      firstName: 'Omar',
-      lastName: 'Farouk',
-      email: 'omar@example.com',
-      phone: '+201234567896',
-      password: 'password123',
-      gender: 'male',
-      birthday: new Date('1991-09-05'),
-      city: 'Alexandria',
-      nationality: 'Egyptian',
-      favoriteCuisines: ['Mexican', 'American'],
-      locationUpdatedAt: new Date(),
-      locationPermissionGranted: true
-    },
-    {
-      firstName: 'Nour',
-      lastName: 'Ahmed',
-      email: 'nour@example.com',
-      phone: '+201234567897',
-      password: 'password123',
-      gender: 'female',
-      birthday: new Date('1994-02-18'),
-      city: 'Cairo',
-      nationality: 'Egyptian',
-      favoriteCuisines: ['Lebanese', 'Greek'],
-      locationUpdatedAt: new Date(),
-      locationPermissionGranted: true
-    },
-    {
-      firstName: 'Youssef',
-      lastName: 'Samir',
-      email: 'youssef@example.com',
-      phone: '+201234567898',
-      password: 'password123',
-      gender: 'male',
-      birthday: new Date('1989-11-30'),
-      city: 'Alexandria',
-      nationality: 'Egyptian',
-      favoriteCuisines: ['Chinese', 'Indian'],
-      locationUpdatedAt: new Date(),
-      locationPermissionGranted: true
-    },
-    {
-      firstName: 'Amira',
-      lastName: 'Khalil',
-      email: 'amira@example.com',
-      phone: '+201234567899',
-      password: 'password123',
-      gender: 'female',
-      birthday: new Date('1996-04-12'),
-      city: 'Cairo',
-      nationality: 'Egyptian',
-      favoriteCuisines: ['Italian', 'French'],
-      locationUpdatedAt: new Date(),
-      locationPermissionGranted: true
-    }
   ];
 
   for (const user of testUsers) {
@@ -360,187 +248,6 @@ async function seed() {
           longitude: tampaLocations[4].longitude
         }
       ]
-    },
-    // Additional restaurants
-    {
-      user: {
-        email: 'spice@example.com',
-        password: 'password123',
-        name: 'Spice of India',
-        verified: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      profile: {
-        about: 'userentic Indian flavors and spices.',
-        description: 'Experience the rich and diverse flavors of India with our carefully crafted dishes using traditional spices and cooking methods.',
-        cuisine: 'Indian',
-        priceRange: '$$',
-        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
-        isProfileComplete: true
-      },
-      branches: [
-        {
-          address: '45 Tahrir Square',
-          city: 'Cairo',
-          tablesCount: 22,
-          seatsCount: 88,
-          openingTime: '12:00',
-          closingTime: '23:30',
-          latitude: tampaLocations[5].latitude,
-          longitude: tampaLocations[5].longitude
-        }
-      ]
-    },
-    {
-      user: {
-        email: 'dragon@example.com',
-        password: 'password123',
-        name: 'Golden Dragon',
-        verified: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      profile: {
-        about: 'userentic Chinese cuisine in an elegant setting.',
-        description: 'Golden Dragon offers a wide range of traditional Chinese dishes from different regions of China, prepared by expert chefs.',
-        cuisine: 'Chinese',
-        priceRange: '$$$',
-        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
-        isProfileComplete: true
-      },
-      branches: [
-        {
-          address: '78 Brickell Avenue',
-          city: 'Alexandria',
-          tablesCount: 20,
-          seatsCount: 80,
-          openingTime: '11:30',
-          closingTime: '23:00',
-          latitude: tampaLocations[6].latitude,
-          longitude: tampaLocations[6].longitude
-        },
-        {
-          address: '123 Downtown Tampa',
-          city: 'Cairo',
-          tablesCount: 25,
-          seatsCount: 100,
-          openingTime: '12:00',
-          closingTime: '00:00',
-          latitude: tampaLocations[7].latitude,
-          longitude: tampaLocations[7].longitude
-        }
-      ]
-    },
-    {
-      user: {
-        email: 'nile@example.com',
-        password: 'password123',
-        name: 'Nile View',
-        verified: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      profile: {
-        about: 'Traditional Egyptian cuisine with a spectacular view of the Nile.',
-        description: 'Enjoy userentic Egyptian dishes while taking in breathtaking views of the Nile River. Our menu features classic recipes passed down through generations.',
-        cuisine: 'Egyptian',
-        priceRange: '$$$',
-        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
-        isProfileComplete: true
-      },
-      branches: [
-        {
-          address: '56 Nile Corniche',
-          city: 'Cairo',
-          tablesCount: 30,
-          seatsCount: 120,
-          openingTime: '10:00',
-          closingTime: '01:00',
-          latitude: tampaLocations[8].latitude,
-          longitude: tampaLocations[8].longitude
-        },
-        {
-          address: '89 Alexandria Corniche',
-          city: 'Alexandria',
-          tablesCount: 25,
-          seatsCount: 100,
-          openingTime: '10:00',
-          closingTime: '00:00',
-          latitude: tampaLocations[9].latitude,
-          longitude: tampaLocations[9].longitude
-        }
-      ]
-    },
-    {
-      user: {
-        email: 'seafood@example.com',
-        password: 'password123',
-        name: 'Red Sea Treasures',
-        verified: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      profile: {
-        about: 'Fresh seafood caught daily from the Red Sea.',
-        description: 'We serve the freshest seafood from the Red Sea, prepared using traditional recipes that highlight the natural flavors of our catch.',
-        cuisine: 'Mediterranean',
-        priceRange: '$$$$',
-        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
-        isProfileComplete: true
-      },
-      branches: [
-        {
-          address: '34 Beach Road',
-          city: 'Alexandria',
-          tablesCount: 18,
-          seatsCount: 72,
-          openingTime: '12:00',
-          closingTime: '23:00',
-          latitude: tampaLocations[10].latitude,
-          longitude: tampaLocations[10].longitude
-        },
-        {
-          address: '67 Nile Bay',
-          city: 'Cairo',
-          tablesCount: 22,
-          seatsCount: 88,
-          openingTime: '12:00',
-          closingTime: '00:00',
-          latitude: tampaLocations[11].latitude,
-          longitude: tampaLocations[11].longitude
-        }
-      ]
-    },
-    {
-      user: {
-        email: 'bistro@example.com',
-        password: 'password123',
-        name: 'Parisian Bistro',
-        verified: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      profile: {
-        about: 'A taste of Paris in the heart of Cairo.',
-        description: 'Our bistro brings userentic French cuisine to Cairo, with a menu featuring classic dishes prepared with a modern twist by our French-trained chefs.',
-        cuisine: 'French',
-        priceRange: '$$$',
-        logo: 'https://t4.ftcdn.net/jpg/02/75/70/03/360_F_275700347_09reCCwb7JBxTKiYQXsyri4riMKaHbj8.jpg',
-        isProfileComplete: true
-      },
-      branches: [
-        {
-          address: '12 Zamalek Street',
-          city: 'Cairo',
-          tablesCount: 15,
-          seatsCount: 60,
-          openingTime: '11:00',
-          closingTime: '23:00',
-          latitude: tampaLocations[12].latitude,
-          longitude: tampaLocations[12].longitude
-        }
-      ]
     }
   ];
 
@@ -650,11 +357,9 @@ async function seed() {
   console.log('Creating time slots for branches...');
   const timeSlotsByBranch: Record<number, any[]> = {};
   
-  // Create time slots for the past month, today, and next month
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - 1); // Start yesterday
-  const endDate = new Date();
-  endDate.setDate(endDate.getDate() + 14); // End 14 days from now
+  // Create time slots for June 5-20, 2025
+  const startDate = new Date('2025-06-05'); // Start from June 5, 2025
+  const endDate = new Date('2025-06-20'); // End on June 20, 2025
   
   // Flatten the settings array
   const allSettings = branchSettingsData.flat();
@@ -675,7 +380,6 @@ async function seed() {
       // Parse opening and closing times
       const [openHour] = setting.openTime.split(':').map(Number);
       const [closeHour] = setting.closeTime.split(':').map(Number);
-      const intervalMinutes = setting.interval;
       
       // Limit the number of days to create slots for (to reduce database load)
       // For testing, we'll create fewer slots - just enough for the bookings
@@ -695,13 +399,10 @@ async function seed() {
         }
         
         // Create slots from opening to closing time
-        // Limit the number of slots per day to reduce database load
-        const slotsPerDay = 4; // Create 4 slots per day instead of every hour
-        const hourStep = Math.max(1, Math.floor((closeHour - openHour) / slotsPerDay));
+        // Create one slot per hour to reduce database load
         
-        for (let hour = openHour; hour < closeHour; hour += hourStep) {
-          // For each hour, create slots based on the interval
-          // Only create one slot per hour to reduce database load
+        for (let hour = openHour; hour < closeHour; hour++) {
+          // For each hour, create one slot
           const slotDate = new Date(date);
           const dateOnly = getDateOnly(slotDate); // Get just the date portion
           const startTime = new Date(slotDate);
@@ -710,10 +411,10 @@ async function seed() {
           const endTime = new Date(slotDate);
           endTime.setHours(hour + 1, 0, 0, 0);
           
-          // Skip creating slots that are in the past and already passed today
-          if (startTime < new Date() && date.getDate() === new Date().getDate()) {
-            continue;
-          }
+          // Since we're creating slots for 2025, we don't need this check
+          // if (startTime < new Date() && date.getDate() === new Date().getDate()) {
+          //   continue;
+          // }
           
           batchPromises.push(
             db.insert(timeSlots).values({
@@ -767,8 +468,12 @@ async function seed() {
               db.insert(bookings).values({
                 userId: user.id,
                 timeSlotId: randomTimeSlot.id,
+                branchId: branch.id,
+                restaurantId: branch.restaurantId,
                 partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                status: 'completed'
+                status: 'completed',
+                startTime: randomTimeSlot.startTime,
+                endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
               })
             );
           }
@@ -790,7 +495,8 @@ async function seed() {
             const randomTimeSlot = todayTimeSlots[Math.floor(Math.random() * todayTimeSlots.length)];
             bookingPromises.push(
               db.insert(bookings).values({
-                userId: user.id,
+                restaurantId: branch.restaurantId,
+                branchId: branch.id,
                 timeSlotId: randomTimeSlot.id,
                 partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
                 status: 'arrived'
@@ -826,8 +532,12 @@ async function seed() {
                   guestPhone: `+20${Math.floor(Math.random() * 1000000000)}`,
                   guestEmail: `guest${Math.floor(Math.random() * 1000)}@example.com`,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'confirmed'
+                  status: 'confirmed',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             } else {
@@ -836,8 +546,12 @@ async function seed() {
                 db.insert(bookings).values({
                   userId: user.id,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'confirmed'
+                  status: 'confirmed',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             }
@@ -870,8 +584,12 @@ async function seed() {
                   guestPhone: `+20${Math.floor(Math.random() * 1000000000)}`,
                   guestEmail: `futureguest${Math.floor(Math.random() * 1000)}@example.com`,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'confirmed'
+                  status: 'confirmed',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             } else {
@@ -880,8 +598,12 @@ async function seed() {
                 db.insert(bookings).values({
                   userId: user.id,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'confirmed'
+                  status: 'confirmed',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             }
@@ -910,8 +632,12 @@ async function seed() {
                   guestPhone: `+20${Math.floor(Math.random() * 1000000000)}`,
                   guestEmail: `cancelledguest${Math.floor(Math.random() * 1000)}@example.com`,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'cancelled'
+                  status: 'cancelled',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             } else {
@@ -920,8 +646,12 @@ async function seed() {
                 db.insert(bookings).values({
                   userId: user.id,
                   timeSlotId: randomTimeSlot.id,
+                  branchId: branch.id,
+                  restaurantId: branch.restaurantId,
                   partySize: Math.floor(Math.random() * 6) + 2, // 2-8 people
-                  status: 'cancelled'
+                  status: 'cancelled',
+                  startTime: randomTimeSlot.startTime,
+                  endTime: new Date(new Date(randomTimeSlot.startTime).getTime() + 90 * 60000) // Fixed 90-minute duration
                 })
               );
             }
