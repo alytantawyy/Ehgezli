@@ -70,3 +70,28 @@ export const isToday = (dateString: string) => {
     date.getMonth() === today.getMonth() &&
     date.getFullYear() === today.getFullYear();
 };
+
+/**
+ * Converts local date and time to UTC format for API requests
+ * @param dateString - Date string in YYYY-MM-DD format
+ * @param timeString - Time string in HH:MM format (24-hour)
+ * @returns ISO string in UTC format (with Z suffix)
+ */
+export const convertLocalToUTC = (dateString: string, timeString: string): string => {
+  // Create a date object from the local date and time
+  const [hours, minutes] = timeString.split(':').map(Number);
+  
+  // Parse the date string (YYYY-MM-DD)
+  const [year, month, day] = dateString.split('-').map(Number);
+  
+  // Create a date object in local timezone
+  // Note: month is 0-indexed in JavaScript Date
+  const localDate = new Date(year, month - 1, day, hours, minutes);
+  
+  // Convert to ISO string which will be in UTC
+  const utcString = localDate.toISOString();
+  
+  console.log(`Converting local date ${dateString} ${timeString} to UTC: ${utcString}`);
+  
+  return utcString;
+};

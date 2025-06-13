@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { StyleSheet, View, FlatList, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { Text } from '../../../components/common/Themed';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { BookingWithDetails } from '../../../types/booking';
 import { StatusBadge } from '../../../components/common/StatusBadge';
 import { DetailRow } from '../../../components/common/DetailRow';
 import { UserRoute } from '../../../types/navigation';
+import { format } from 'date-fns';
 
 /**
  * Bookings Tab Screen
@@ -84,7 +85,63 @@ export default function BookingsScreen() {
   };
 
   // Get filtered and sorted bookings
-  const filteredBookings = userBookings ? getFilteredAndSortedBookings(activeFilter, sortOrder) : [];
+  const filteredBookings = useMemo(() => {
+    if (!userBookings) return [];
+    
+    console.log(`Filtering ${userBookings.length} bookings with filter: ${activeFilter}`);
+    
+    // First, ensure all bookings have the expected structure
+    const validBookings = userBookings.filter(booking => {
+      return booking && booking.id;
+    });
+    
+    let filtered;
+    const now = new Date();
+    
+    // Apply filter
+    switch (activeFilter) {
+      case 'upcoming':
+        filtered = validBookings.filter(booking => {
+          if (booking.startTime) {
+            const bookingTime = new Date(booking.startTime);
+            // For upcoming, we need bookings where the time is in the future
+            return bookingTime >= now;
+          }
+          return false;
+        });
+        break;
+      case 'past':
+        filtered = validBookings.filter(booking => {
+          if (booking.startTime) {
+            const bookingTime = new Date(booking.startTime);
+            // For past, we need bookings where the time is in the past
+            return bookingTime < now;
+          }
+          return false;
+        });
+        break;
+      case 'all':
+      default:
+        filtered = validBookings;
+        break;
+    }
+    
+    console.log(`After filtering: ${filtered.length} bookings remain`);
+    
+    // Apply sorting
+    return filtered.sort((a, b) => {
+      if (!a.startTime && !b.startTime) return 0;
+      if (!a.startTime) return 1;
+      if (!b.startTime) return -1;
+      
+      const dateA = new Date(a.startTime);
+      const dateB = new Date(b.startTime);
+      
+      return sortOrder === 'newest' 
+        ? dateB.getTime() - dateA.getTime() 
+        : dateA.getTime() - dateB.getTime();
+    });
+  }, [userBookings, activeFilter, sortOrder]);
   
   // Debug logs
   console.log('User Bookings:', userBookings?.length || 0);
@@ -106,6 +163,17 @@ export default function BookingsScreen() {
   const renderBookingItem = ({ item }: { item: BookingWithDetails }) => {
     const isPast = isBookingPast(item);
     
+    // Debug logging for date fields
+    console.log('📅 DISPLAY - Booking date fields:', {
+      id: item.id,
+      date: item.date,
+      startTime: item.startTime,
+      timeSlotDate: item.timeSlot?.date,
+      timeSlotStartTime: item.timeSlot?.startTime,
+      formattedDate: item.startTime ? safeFormatDate(item.startTime, 'EEE, MMM d, yyyy') : 
+                    (item.timeSlot?.date ? safeFormatDate(item.timeSlot.date, 'EEE, MMM d, yyyy') : 'Date not available')
+    });
+    
     return (
       <TouchableOpacity 
         style={styles.bookingCard}
@@ -119,14 +187,12 @@ export default function BookingsScreen() {
         <View style={styles.bookingDetails}>
           <DetailRow 
             icon="calendar" 
-            text={item.timeSlot?.date ? safeFormatDate(item.timeSlot.date, 'EEE, MMM d, yyyy') : 'Date not available'} 
+            text={item.startTime ? safeFormatDate(item.startTime, 'EEE, MMM d, yyyy') : 'Date not available'} 
           />
           
           <DetailRow 
             icon="time" 
-            text={item.timeSlot?.date && item.timeSlot?.startTime ? 
-              safeFormatTime(item.timeSlot.date, item.timeSlot.startTime, 'h:mm a') : 
-              'Time not available'} 
+            text={item.startTime ? safeFormatTime(item.startTime, item.startTime, 'h:mm a') : 'Time not available'} 
           />
           
           <DetailRow 

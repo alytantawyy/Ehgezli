@@ -177,43 +177,9 @@ export const useTimeSlots = (branchId: number) => {
     }
     
     // Use the stored selected time if no target time is provided
-    const effectiveTargetTime = targetTime || selectedTimeForSlots || null;
+    // Default to "17:30" (5:30 PM) if no time is selected
+    const effectiveTargetTime = targetTime || selectedTimeForSlots || "17:30";
     
-    // If no target time is provided or stored, use default distribution (morning, noon, afternoon)
-    if (!effectiveTargetTime) {
-      // Try to get a morning, noon, and afternoon slot for better distribution
-      const morning = allSlots.find(slot => {
-        const [hours] = slot.time.split(':').map(Number);
-        return hours >= 8 && hours < 12;
-      });
-      
-      const noon = allSlots.find(slot => {
-        const [hours] = slot.time.split(':').map(Number);
-        return hours >= 12 && hours < 15;
-      });
-      
-      const afternoon = allSlots.find(slot => {
-        const [hours] = slot.time.split(':').map(Number);
-        return hours >= 15 && hours < 20;
-      });
-      
-      // Collect all found slots (filtering out undefined)
-      const distributedSlots = [morning, noon, afternoon].filter(Boolean) as TimeSlot[];
-      
-      // If we found distributed slots, return them (up to 3)
-      if (distributedSlots.length > 0) {
-        // Sort by time before returning
-        return distributedSlots.slice(0, 3).sort((a, b) => {
-          const [aHours, aMinutes] = a.time.split(':').map(Number);
-          const [bHours, bMinutes] = b.time.split(':').map(Number);
-          return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
-        });
-      }
-      
-      // Fallback to first 3 slots if we couldn't find distributed slots
-      return allSlots.slice(0, 3);
-    }
-
     // Convert target time to minutes since midnight for easier comparison
     const [targetHours, targetMinutes] = effectiveTargetTime.split(':').map(Number);
     const targetTotalMinutes = targetHours * 60 + targetMinutes;
@@ -222,8 +188,12 @@ export const useTimeSlots = (branchId: number) => {
     const slotsWithDistance = allSlots.map(slot => {
       const [slotHours, slotMinutes] = slot.time.split(':').map(Number);
       const slotTotalMinutes = slotHours * 60 + slotMinutes;
-      const distance = Math.abs(slotTotalMinutes - targetTotalMinutes);
-      return { ...slot, distance };
+      
+      // Prioritize slots at or after the target time by applying a penalty to earlier slots
+      const timeOffset = slotTotalMinutes - targetTotalMinutes;
+      const distance = timeOffset < 0 ? Math.abs(timeOffset) * 2 : Math.abs(timeOffset);
+      
+      return { ...slot, distance, timeOffset };
     });
 
     // Sort by distance from target time
