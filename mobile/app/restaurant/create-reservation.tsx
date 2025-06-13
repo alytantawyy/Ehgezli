@@ -50,7 +50,7 @@ export default function CreateReservationScreen() {
   const [timeSlotsLoading, setTimeSlotsLoading] = useState(false);
   
   // Get store hooks
-  const { getRestaurantBranches, getBranchAvailability } = useBranchStore();
+  const { getRestaurantBranches, getBranchAvailability, selectedBranchId: selectedBranchIdFromStore, setSelectedBranchId: setSelectedBranchIdFromStore, getSelectedBranch } = useBranchStore();
   const { createGuestReservation } = useBookingStore();
   const { user } = useAuth();
   
@@ -65,17 +65,10 @@ export default function CreateReservationScreen() {
       const branchesData = await getRestaurantBranches(user?.id);
       setBranches(branchesData);
       
-      // Set default selected branch to the first one or branch 109
-      if (branchesData.length > 0) {
-        // Try to find branch 109 first
-        const branch109 = branchesData.find(b => b.branchId.toString() === '109');
-        if (branch109) {
-          setSelectedBranchId('109');
-          setSelectedRestaurantId(branch109.restaurantId);
-        } else {
-          setSelectedBranchId(branchesData[0].branchId.toString());
-          setSelectedRestaurantId(branchesData[0].restaurantId);
-        }
+      // Branch selection is already handled in the main index.tsx
+      // Just fetch time slots for the currently selected branch
+      if (selectedBranchIdFromStore) {
+        fetchTimeSlots(date);
       }
     } catch (error) {
       console.error('Error loading branches:', error);
@@ -90,7 +83,7 @@ export default function CreateReservationScreen() {
     setSelectedTimeSlotId(null);
     
     // Fetch available time slots for the selected date and branch
-    if (selectedBranchId) {
+    if (selectedBranchIdFromStore) {
       await fetchTimeSlots(selectedDate);
     }
   };
@@ -107,7 +100,7 @@ export default function CreateReservationScreen() {
   // Fetch time slots for the selected date and branch
   const fetchTimeSlots = async (selectedDate: Date) => {
     try {
-      if (!selectedBranchId) {
+      if (!selectedBranchIdFromStore) {
         console.error('No branch selected');
         return;
       }
@@ -116,7 +109,7 @@ export default function CreateReservationScreen() {
       const formattedDate = format(selectedDate, 'yyyy-MM-dd');
       
       // Convert selectedBranchId from string to number
-      const branchId = parseInt(selectedBranchId);
+      const branchId = parseInt(selectedBranchIdFromStore);
       
       setTimeSlotsLoading(true);
       const timeSlotsData = await getBranchAvailability(branchId, formattedDate);
@@ -189,31 +182,9 @@ export default function CreateReservationScreen() {
     setPartySize(size.toString());
   };
   
-  // Handle branch selection
-  const handleBranchSelect = (branchId: string) => {
-    setSelectedBranchId(branchId);
-    
-    // Find the selected branch and store its restaurant ID
-    const selectedBranch = branches.find(branch => branch.branchId.toString() === branchId);
-    if (selectedBranch) {
-      setSelectedRestaurantId(selectedBranch.restaurantId);
-    }
-    
-    // Fetch time slots for the selected branch and date
-    fetchTimeSlots(date);
-  };
-  
-  // Helper function to format time with AM/PM
-  const formatTimeWithAMPM = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const formattedHours = hours % 12 || 12; // Convert 0 to 12 for 12 AM
-    return `${formattedHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-  };
-  
   // Handle form submission
   const handleSubmit = async () => {
-    if (!customerName || !customerPhone || !partySize || !selectedBranchId || !selectedTimeSlotId || !selectedRestaurantId) {
+    if (!customerName || !customerPhone || !partySize || !selectedBranchIdFromStore || !selectedTimeSlotId) {
       alert('Please fill in all required fields');
       return;
     }
@@ -221,14 +192,21 @@ export default function CreateReservationScreen() {
     try {
       setLoading(true);
       
+      // Get the selected branch to access its restaurantId
+      const selectedBranch = getSelectedBranch();
+      if (!selectedBranch) {
+        alert('No branch selected');
+        return;
+      }
+      
       // Create booking object with the format expected by our store function
       const bookingData = {
         customerName,
         phoneNumber: customerPhone,
         partySize: parseInt(partySize),
         timeSlotId: selectedTimeSlotId,
-        branchId: parseInt(selectedBranchId),
-        restaurantId: selectedRestaurantId,
+        branchId: parseInt(selectedBranchIdFromStore),
+        restaurantId: selectedBranch.restaurantId, // Use restaurantId from the selected branch
         notes
       };
       
@@ -277,22 +255,24 @@ export default function CreateReservationScreen() {
                 <Text style={styles.label}>Name*</Text>
                 <TextInput
                   style={styles.input}
+                  placeholder="Customer Name"
                   value={customerName}
                   onChangeText={setCustomerName}
-                  placeholder="Customer Name"
                 />
               </View>
               
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Phone Number*</Text>
+                <Text style={styles.label}>Phone*</Text>
                 <TextInput
                   style={styles.input}
+                  placeholder="Phone Number"
                   value={customerPhone}
                   onChangeText={setCustomerPhone}
-                  placeholder="Phone Number"
                   keyboardType="phone-pad"
                 />
               </View>
+              
+              <Text style={styles.sectionTitle}>Reservation Details</Text>
               
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Party Size*</Text>
@@ -312,8 +292,6 @@ export default function CreateReservationScreen() {
                   maxSize={20}
                 />
               </View>
-              
-              <Text style={styles.sectionTitle}>Reservation Details</Text>
               
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Date*</Text>
@@ -379,31 +357,6 @@ export default function CreateReservationScreen() {
                     })}
                   </ScrollView>
                 )}
-              </View>
-              
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Branch*</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.branchScroll}>
-                  {branches.map((branch) => (
-                    <TouchableOpacity
-                      key={branch.branchId}
-                      style={[
-                        styles.branchButton,
-                        selectedBranchId === branch.branchId.toString() && styles.selectedBranch
-                      ]}
-                      onPress={() => handleBranchSelect(branch.branchId.toString())}
-                    >
-                      <Text 
-                        style={[
-                          styles.branchText,
-                          selectedBranchId === branch.branchId.toString() && styles.selectedBranchText
-                        ]}
-                      >
-                        {branch.address}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
               </View>
               
               <View style={styles.inputContainer}>
@@ -515,29 +468,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  branchScroll: {
-    flexDirection: 'row',
-    marginBottom: 10,
-  },
-  branchButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  selectedBranch: {
-    backgroundColor: '#B22222',
-    borderColor: '#B22222',
-  },
-  branchText: {
-    color: '#333',
-  },
-  selectedBranchText: {
-    color: '#fff',
-  },
   // Time slot styles
   timeSlotContainer: {
     flexDirection: 'row',
@@ -611,3 +541,11 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 });
+
+// Helper function to format time with AM/PM
+const formatTimeWithAMPM = (time: string) => {
+  const [hours, minutes] = time.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const formattedHours = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+  return `${formattedHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+};

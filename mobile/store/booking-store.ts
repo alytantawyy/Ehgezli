@@ -34,6 +34,10 @@ interface BookingState {
   bookingOverrides: BookingOverride[];
   selectedOverride: BookingOverride | null;
   
+  // Refresh mechanism
+  refreshTrigger: number;
+  triggerRefresh: () => void;
+  
   // Actions
   fetchUserBookings: () => Promise<BookingWithDetails[]>;
   fetchBookingById: (id: number) => Promise<BookingWithDetails | null>;
@@ -89,6 +93,10 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   bookingSettings: null,
   bookingOverrides: [],
   selectedOverride: null,
+  
+  // Refresh mechanism
+  refreshTrigger: 0,
+  triggerRefresh: () => set(state => ({ refreshTrigger: state.refreshTrigger + 1 })),
   
   // Fetch user bookings
   fetchUserBookings: async () => {
@@ -275,24 +283,32 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       set({ loading: true, error: null });
       const updatedBooking = await changeBookingStatus(id, status);
       
-      // Refresh bookings to reflect the status change
       if (updatedBooking) {
-        // If we're viewing a specific branch's bookings, refresh those
-        const { selectedBooking } = get();
-        if (selectedBooking && selectedBooking.branchId) {
-          await get().getBookingsForBranchOnDate(selectedBooking.branchId, new Date());
-        } else {
-          // Otherwise refresh user bookings
-          await get().fetchUserBookings();
+        // Update the selected booking if it's the one being changed
+        if (get().selectedBooking?.id === id) {
+          // Create a properly typed updated booking object
+          const typeSafeUpdatedBooking: BookingWithDetails = {
+            ...get().selectedBooking!,
+            ...updatedBooking,
+            // Ensure timeSlot is never null by using the existing one if the new one is null
+            timeSlot: updatedBooking.timeSlot || get().selectedBooking!.timeSlot,
+            // Ensure branch is never null by using the existing one if the new one is null
+            branch: updatedBooking.branch || get().selectedBooking!.branch
+          };
+          
+          set({ selectedBooking: typeSafeUpdatedBooking });
         }
+        
+        // Trigger a refresh so all components can update
+        get().triggerRefresh();
       }
       
       set({ loading: false });
       return updatedBooking;
-    } catch (error: any) {
-      console.error(`Error changing booking status ${id}:`, error);
+    } catch (error) {
+      console.error('Error changing booking status:', error);
       set({ 
-        error: error.message || 'Failed to change booking status', 
+        error: 'Failed to change booking status', 
         loading: false 
       });
       return null;
