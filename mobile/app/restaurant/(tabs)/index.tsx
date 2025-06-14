@@ -48,7 +48,7 @@ export default function RestaurantDashboardScreen() {
   const { restaurant } = useRestaurant();
   
   // Get store hooks
-  const { getBookingsForBranchOnDate, loading: bookingsLoading, refreshTrigger: bookingRefreshTrigger } = useBookingStore();
+  const { getBookingsForBranchOnDate } = useBookingStore();
   const { getRestaurantBranches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   
   // Load initial data
@@ -59,18 +59,12 @@ export default function RestaurantDashboardScreen() {
   // Refresh data when selected branch changes
   useEffect(() => {
     if (selectedBranchId) {
-      // We don't need to call loadBookings here anymore
-      // as it will be called explicitly in handleBranchSelect
+      setBranchLoading(true);
+      loadBookings().finally(() => {
+        setBranchLoading(false);
+      });
     }
-  }, [selectedBranchId]);
-  
-  // Listen for booking store refresh trigger
-  useEffect(() => {
-    if (selectedBranchId && bookingRefreshTrigger > 0) {
-      console.log('Refresh trigger detected in dashboard, reloading bookings');
-      loadBookings();
-    }
-  }, [bookingRefreshTrigger]);
+  }, [selectedBranchId, refreshTrigger]);
   
   // Load data
   const loadData = async () => {
@@ -154,8 +148,8 @@ export default function RestaurantDashboardScreen() {
   };
   
   // Handle branch selection
-  const handleBranchSelect = async (branchId: string) => {
-    // First, clear the current data
+  const handleBranchSelect = (branchId: string) => {
+    // Clear previous data first to prevent showing stale data
     setTodayBookings([]);
     setStats({
       total: 0,
@@ -164,30 +158,16 @@ export default function RestaurantDashboardScreen() {
       cancelled: 0
     });
     
+    // Set loading state
+    setBranchLoading(true);
+    
     // Then update the selected branch
     setSelectedBranchId(branchId);
     
-    // Wait a moment for the state to update
-    setTimeout(async () => {
-      try {
-        // Get today's date in YYYY-MM-DD format
-        const today = format(new Date(), 'yyyy-MM-dd');
-        
-        // Load bookings for the selected branch
-        const bookingsData = await getBookingsForBranchOnDate(parseInt(branchId), today);
-        
-        // Update bookings and stats
-        setTodayBookings(bookingsData);
-        setStats({
-          total: bookingsData.length,
-          upcoming: bookingsData.filter(b => b.status === 'pending' || b.status === 'confirmed').length,
-          completed: bookingsData.filter(b => b.status === 'completed').length,
-          cancelled: bookingsData.filter(b => b.status === 'cancelled').length
-        });
-      } catch (error) {
-        console.error('Error loading bookings after branch selection:', error);
-      }
-    }, 100); // Small delay to ensure state updates have propagated
+    // Load new data
+    loadBookings().finally(() => {
+      setBranchLoading(false);
+    });
   };
   
   // Render loading state

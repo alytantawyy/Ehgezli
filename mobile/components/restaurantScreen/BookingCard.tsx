@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { format } from 'date-fns';
+import { format, addDays, parseISO } from 'date-fns';
 import { router } from 'expo-router';
 import { useBookingStore } from '@/store/booking-store';
 import { BookingStatus } from '@/types/booking';
+import { formatDateForDisplay } from '@/app/utils/dateUtils';
 
 interface BookingCardProps {
   booking: any; // Replace with proper booking type
@@ -46,6 +47,61 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking, onPress, onSt
       default:
         return '#8E8E93';
     }
+  };
+
+  // Safe date formatting function to prevent invalid time errors
+  const safeFormatDate = (dateString: string | undefined, formatString: string = 'MMM d, yyyy') => {
+    try {
+      if (!dateString) return 'Date not available';
+      
+      // Always create a new Date object from the ISO string
+      // JavaScript's Date constructor automatically handles UTC to local conversion
+      const date = new Date(dateString);
+      
+      if (isNaN(date.getTime())) {
+        console.log(`Invalid date from: "${dateString}"`);
+        return 'Invalid date';
+      }
+      
+      // Format the date using date-fns - no adjustment needed
+      return format(date, formatString);
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid date';
+    }
+  };
+
+  // Get the date to display
+  const getFormattedDate = () => {
+    try {
+      // First try to use startTime if available (this is the actual booking date)
+      if (booking.startTime) {
+        // Extract just the date part from the ISO string to avoid timezone issues
+        const datePart = booking.startTime.split('T')[0];
+        // Create a date object using just the date part (will be at local midnight)
+        const dateObj = parseISO(datePart);
+        // Format using date-fns with MMM d format (e.g., "Jun 13")
+        return format(dateObj, 'MMM d');
+      }
+      
+      // Then try to use the timeSlot data
+      if (booking.timeSlot?.date) {
+        const datePart = booking.timeSlot.date.split('T')[0];
+        const dateObj = parseISO(datePart);
+        return format(dateObj, 'MMM d');
+      }
+      
+      // Fall back to createdAt if nothing else is available
+      if (booking.createdAt) {
+        const datePart = booking.createdAt.split('T')[0];
+        const dateObj = parseISO(datePart);
+        return format(dateObj, 'MMM d');
+      }
+    } catch (error) {
+      console.error('Error formatting date:', error);
+    }
+    
+    return 'Date not available';
   };
 
   // Format time from booking
@@ -308,6 +364,13 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking, onPress, onSt
       </View>
       
       <View style={styles.details}>
+        <View style={styles.detailItem}>
+          <Ionicons name="calendar-outline" size={16} color="#666" style={styles.icon} />
+          <Text style={styles.detailText}>
+            {getFormattedDate()}
+          </Text>
+        </View>
+        
         <View style={styles.detailItem}>
           <Ionicons name="time-outline" size={16} color="#666" style={styles.icon} />
           <Text style={styles.detailText}>
