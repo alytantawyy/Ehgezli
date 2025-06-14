@@ -20,7 +20,6 @@ import {
 } from '../api/branch';
 import { updateLocationPermission, getLocationPermissionStatus } from '../api/user';
 import { useSavedBranchStore } from './saved-branch-store';
-import { format } from 'date-fns';
 
 // Helper function to calculate distance between coordinates
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number | null => {

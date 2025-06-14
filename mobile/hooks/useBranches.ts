@@ -142,6 +142,7 @@ export const useBranches = () => {
     fetchBranches,
     fetchBranchById,
     searchBranches,
+    searchBranchesByFilter,
     filterByCity,
     filterByCuisine,
     filterByPriceRange,

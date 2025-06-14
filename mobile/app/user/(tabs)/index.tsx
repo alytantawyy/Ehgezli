@@ -57,6 +57,7 @@ export default function HomeScreen() {
     filteredBranches,
     loading: branchesLoading,
     searchBranches,
+    searchBranchesByFilter,
     filterByCity,
     filterByCuisine,
     filterByPriceRange,
@@ -213,7 +214,7 @@ export default function HomeScreen() {
   // Handle search
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    searchBranches(query);
+    searchBranchesByFilter({ searchQuery: query });
   };
   
   // Handle star button press
