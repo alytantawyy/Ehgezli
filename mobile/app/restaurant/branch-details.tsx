@@ -10,9 +10,6 @@ import { format, parse } from 'date-fns';
 import { useBranchStore } from '@/store/branch-store';
 import { useBookingStore } from '@/store/booking-store';
 import { RestaurantBranch, BookingSettings, BookingOverride } from '@/types/branch';
-import DatePickerModal from '@/components/common/DatePickerModal';
-import TimePickerModal from '@/components/common/TimePickerModal';
-import { RestaurantRoute } from '@/types/navigation';
 
 // Custom components
 import BookingSettingsSection from '@/components/restaurantScreen/BookingSettingsSection';
