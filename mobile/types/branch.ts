@@ -84,6 +84,9 @@ export interface BranchWithDetails {
   priceRange: string;
   logo: string;
   distance?: number;
+  openingHours?: string;  // Add these properties
+  closingHours?: string;
+  bookingSettings?: BookingSettings;
 }
 
 // Branch search response format

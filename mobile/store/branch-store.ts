@@ -518,7 +518,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
     console.log(`Updated time slots for branch ${branchId}, recalculated availability and sorted branches`);
   },
   
-  // Sort branches by multiple criteria: availability, distance, saved status, and cuisine
+  // Sort branches by multiple criteria: distance, availability, saved status, and cuisine
   sortBranches: () => {
     const { branches, filteredBranches } = get();
     const savedBranchIds = useSavedBranchStore.getState().savedBranchIds || [];
@@ -537,16 +537,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
     
     // Sort function that considers all criteria
     const sortFunction = (a: BranchListItem, b: BranchListItem): number => {
-      // 1. First sort by availability (if available)
-      if (a.availability !== undefined && b.availability !== undefined) {
-        if (a.availability !== b.availability) return b.availability - a.availability; // Higher availability first
-      } else if (a.availability !== undefined) {
-        return -1; // Branch with availability comes first
-      } else if (b.availability !== undefined) {
-        return 1;
-      }
-      
-      // 2. Then sort by distance (if available)
+      // 1. First sort by distance (if available)
       if (a.distance !== undefined && b.distance !== undefined && 
           a.distance !== null && b.distance !== null) {
         if (a.distance !== b.distance) return a.distance - b.distance;
@@ -555,6 +546,15 @@ export const useBranchStore = create<BranchState>((set, get) => ({
         return -1;
       } else if (b.distance !== undefined && b.distance !== null) {
         // Branch with distance comes before branch without distance
+        return 1;
+      }
+      
+      // 2. Then sort by availability (if available)
+      if (a.availability !== undefined && b.availability !== undefined) {
+        if (a.availability !== b.availability) return b.availability - a.availability; // Higher availability first
+      } else if (a.availability !== undefined) {
+        return -1; // Branch with availability comes first
+      } else if (b.availability !== undefined) {
         return 1;
       }
       

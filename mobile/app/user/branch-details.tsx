@@ -203,6 +203,46 @@ export default function BranchDetailsScreen() {
     );
   };
   
+  // Function to check if the branch is currently open
+  const isCurrentlyOpen = () => {
+    // Check if we have booking settings with open/close times
+    if (!branchDetails?.bookingSettings) {
+      return null; // Return null to indicate unknown status
+    }
+    
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    
+    // Use booking settings for open/close times
+    const openTime = branchDetails.bookingSettings.openTime || '';
+    const closeTime = branchDetails.bookingSettings.closeTime || '';
+    
+    if (!openTime || !closeTime) {
+      return null; // Return null if we don't have valid times
+    }
+    
+    // Simple time comparison (assumes closing time is not past midnight)
+    return currentTime >= openTime && currentTime <= closeTime;
+  };
+  
+  // Format time for display (24h to 12h format)
+  const formatTimeForDisplay = (time: string | undefined) => {
+    if (!time) return 'Not available';
+    
+    try {
+      const [hours, minutes] = time.split(':').map(Number);
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return time; // Return original time if formatting fails
+    }
+  };
+  
+  // Get opening and closing hours from branch data
+  const openStatus = isCurrentlyOpen();
+  
   // Render loading state
   if (branchLoading) {
     return (
@@ -398,6 +438,25 @@ export default function BranchDetailsScreen() {
                 <Text style={styles.locationText}>
                   {branchDetails.city || 'City not available'}
                 </Text>
+              </View>
+              
+              {/* Opening Hours */}
+              <View style={styles.locationItem}>
+                <Ionicons name="time" size={20} color="#B22222" />
+                <View style={styles.hoursContainer}>
+                  <Text style={styles.locationText}>
+                    {branchDetails.bookingSettings?.openTime && branchDetails.bookingSettings?.closeTime 
+                      ? `${formatTimeForDisplay(branchDetails.bookingSettings.openTime)} - ${formatTimeForDisplay(branchDetails.bookingSettings.closeTime)}`
+                      : 'Hours not available'}
+                  </Text>
+                  {openStatus !== null && (
+                    <View style={[styles.statusBadge, openStatus ? styles.openBadge : styles.closedBadge]}>
+                      <Text style={styles.statusText}>
+                        {openStatus ? 'Open Now' : 'Closed'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
           </View>
@@ -699,10 +758,34 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   locationText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 12,
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 10,
     flex: 1,
+  },
+  hoursContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginLeft: 10,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 10,
+  },
+  openBadge: {
+    backgroundColor: '#4CAF50',
+  },
+  closedBadge: {
+    backgroundColor: '#F44336',
+  },
+  statusText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   reservationRow: {
     marginBottom: 20,
