@@ -20,13 +20,6 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, saltRounds);
 }
 
-// Helper function to create a date with no time component
-const createDateWithNoTime = (date: Date): Date => {
-  const newDate = new Date(date);
-  newDate.setHours(0, 0, 0, 0);
-  return newDate;
-};
-
 // Helper function to get just the date portion as a Date object
 const getDateOnly = (date: Date): Date => {
   return new Date(date.toISOString().split('T')[0]);
@@ -357,9 +350,8 @@ async function seed() {
   console.log('Creating time slots for branches...');
   const timeSlotsByBranch: Record<number, any[]> = {};
   
-  // Create time slots for June 5-20, 2025
-  const startDate = new Date('2025-06-05'); // Start from June 5, 2025
-  const endDate = new Date('2025-06-20'); // End on June 20, 2025
+  const startDate = new Date('2025-07-25'); 
+  const endDate = new Date('2025-08-26'); 
   
   // Flatten the settings array
   const allSettings = branchSettingsData.flat();
